@@ -46,6 +46,9 @@ Installed and confirmed working 2026-06-26:
   candidate canvas renderers (see §4.1).
 - **Build / dev:** Vite 8. Lint: **oxlint** (from the template). Tests: **Vitest 4** +
   `@testing-library/react` + `jsdom`. Scripts: `npm run dev | build | lint | preview`; `npx vitest run`.
+- **Image optimization:** `vite-imagetools` 10 (build-time; pulls in `sharp`). Added 2026-06-26 with the
+  owner's OK. Gallery images live in `src/assets/gallery/` and are auto-resized + re-encoded to WebP on build
+  (originals untouched) — a 20 MB source PNG ships as ~0.1–0.9 MB. See `src/data/gallery.ts`.
 - **Styling (current):** plain CSS — mobile-first, `clamp()` fluid type, CSS custom properties, light/dark via
   `prefers-color-scheme`. Low-stakes; revisit at scale (§4.4).
 - **Hosting (planned, not yet wired):** Vercel — SPA auto-detected; native `@vercel/og` (Satori + resvg) for
@@ -151,6 +154,7 @@ item, check it off here, add the §7 row, then commit. While working I mirror th
 in-session task tracker.
 
 - [x] **Phase 0** — repo, living doc, responsive hello-world *(verified 2026-06-26, `f8a979d`)*
+- [ ] **Website shell** — landing (pitch + nav), Canvas + Gallery scaffolds, hash routing *(built; awaiting owner verification)*
 - [ ] **Generic tiling render + data model** *(§4.3)*
 - [ ] **Port the static coloring DSL** *(§5)*
 - [ ] **Port the traverse engine** *(§5)*

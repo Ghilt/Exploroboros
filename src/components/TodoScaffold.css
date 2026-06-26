@@ -1,0 +1,55 @@
+.scaffold {
+  border: 1.5px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  padding: clamp(1.25rem, 4vw, 2rem);
+}
+.scaffold-tag {
+  display: inline-block;
+  margin-bottom: 0.6rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.scaffold-title {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.1rem, 3.5vw, 1.4rem);
+  font-weight: 700;
+}
+.scaffold-body {
+  margin: 0 0 1rem;
+  max-width: 50rem;
+  color: var(--muted);
+}
+.scaffold-body p {
+  margin: 0;
+}
+.scaffold-body code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  padding: 0.1em 0.35em;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--fg);
+}
+.scaffold-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+.scaffold-item {
+  position: relative;
+  padding-left: 1.6rem;
+  font-size: 0.95rem;
+}
+.scaffold-item::before {
+  content: "☐";
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}

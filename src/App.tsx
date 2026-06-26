@@ -1,25 +1,29 @@
 import './App.css'
+import { useRoute } from './router/useHashRoute'
+import { Nav } from './components/Nav'
+import { Footer } from './components/Footer'
+import { Landing } from './pages/Landing'
+import { Canvas } from './pages/Canvas'
+import { Gallery } from './pages/Gallery'
+
+const PAGES = {
+  landing: Landing,
+  canvas: Canvas,
+  gallery: Gallery,
+} as const
 
 function App() {
-  return (
-    <main className="shell">
-      <section className="hero">
-        <p className="eyebrow">Tiled-plane · fractal exploration</p>
-        <h1 className="title">Exploroboros</h1>
-        <p className="tagline">
-          Author rules on any tiling. Watch fractals grow. Export the image.
-        </p>
-        <p className="status">
-          Phase&nbsp;0 — hello world. Built to work on phone and desktop.
-        </p>
-      </section>
+  const route = useRoute()
+  const Page = PAGES[route]
 
-      <footer className="foot">
-        <span>Exploroboros</span>
-        <span aria-hidden="true">◇</span>
-        <span>v0.0.0</span>
-      </footer>
-    </main>
+  return (
+    <div className="app">
+      <Nav route={route} />
+      <main className="app-main">
+        <Page />
+      </main>
+      <Footer />
+    </div>
   )
 }
 
