@@ -138,4 +138,4 @@ still needed into this doc **before** then; do not rely on the path persisting.
 
 | Date | Feature | Verified by owner? | How | Commit |
 |------|---------|--------------------|-----|--------|
-| 2026-06-26 | Responsive hello-world (Phase 0) | ⏳ pending | owner opens `npm run dev` on phone + desktop | _(after verify)_ |
+| 2026-06-26 | Responsive hello-world (Phase 0) | ✅ yes | owner viewed `npm run dev` on desktop + phone; renders well, dark mode followed phone setting | `f8a979d` |
