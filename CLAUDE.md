@@ -41,7 +41,10 @@ Installed and confirmed working 2026-06-26:
   `npm.cmd run dev`) — `.cmd`/`.bat` files are NOT governed by execution policy — or run from `cmd.exe`. To
   make plain `npm` work in PowerShell, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` **in your own
   interactive PowerShell** (no admin; revert with `… Restricted`); setting it from an automation/other-scope
-  context did not stick here.
+  context did not stick here. **In the non-interactive tool shells (Bash/PowerShell), `node`/`npm.cmd`/`npx.cmd`
+  were not on PATH at all** — prepend the dir first, e.g. `$env:Path = 'C:\Program Files\nodejs;' + $env:Path`,
+  then call `npm.cmd run build` / `npx.cmd vitest run`. (The preview server sidesteps this by launching Vite via
+  `node.exe` directly — see `.claude/launch.json`.)
 - **Framework:** React 19.2 + TypeScript 6 (strict). Largest ecosystem; first-class bindings for **both**
   candidate canvas renderers (see §4.1).
 - **Build / dev:** Vite 8. Lint: **oxlint** (from the template). Tests: **Vitest 4** +
@@ -51,6 +54,12 @@ Installed and confirmed working 2026-06-26:
   (originals untouched) — a 20 MB source PNG ships as ~0.1–0.9 MB. See `src/data/gallery.ts`.
 - **Styling (current):** plain CSS — mobile-first, `clamp()` fluid type, CSS custom properties, light/dark via
   `prefers-color-scheme`. Low-stakes; revisit at scale (§4.4).
+- **Tiling engine (added 2026-06-26):** pure, isomorphic TypeScript in `src/tiling/` — no React/DOM/canvas, no
+  pixels (abstract **world coords, y-up, vertices CCW**), so the same code can run server-side later (SSR for
+  slow devices). A tiling is a **node graph**: tiles (nodes) + **first-class edges**, built by per-tiling
+  **generator** routines that emit polygons into a shared `stitch()` step (data shape in §4.3). Drawn for now
+  by a **plain-SVG** debug view (`src/components/TilingDebugView.tsx`) — **no new dependency**; the heavy
+  interactive renderer (§4.1) stays deferred until the real pan/zoom plane.
 - **Hosting (planned, not yet wired):** Vercel — SPA auto-detected; native `@vercel/og` (Satori + resvg) for
   future serverless PNG export.
 - **Repo:** local git repo at `E:\Code\exploroboros` (the owner's machine).
@@ -63,14 +72,26 @@ Resolve each at the noted trigger — **ask the owner the question; don't assume
    pinch/pan via `pixi-viewport`; heavier, steeper curve) vs **Konva** (Canvas2D; touch-first; first-class
    `react-konva`; simplest to ~3k tiles). *Recommendation:* start with Konva for the MVP, wrap it behind a
    small renderer interface, migrate to PixiJS if tile counts grow. Hit-testing big tilings: `rbush` spatial
-   index + point-in-polygon, or GPU color-picking at extreme counts.
+   index + point-in-polygon, or GPU color-picking at extreme counts. *(Status 2026-06-26: still open — the
+   static square debug view renders with plain SVG behind a thin component boundary, so this stays untriggered.
+   Revisit when building the real interactive pan/zoom plane; swap `<TilingDebugView>` for the new renderer.)*
 2. **Serverless image export** *(trigger: building export).* `@vercel/og` (Satori + resvg; runs on Vercel
    edge; simplest) vs `@napi-rs/canvas` (full Canvas API; Node function). *Recommendation:* `@vercel/og`
    unless we need pixel-level canvas drawing. Cache by hashing the (tiling + rules) params.
-3. **"Any-tiling" data schema** *(trigger: building the tiling model).* A tiling = a list of **tiles** (each:
-   polygon vertex list + stable id) plus a **reciprocal edge-adjacency graph** (leave via edge `k` → arrive
-   via the matching edge — see §5). Open: exact JSON shape; how edges are numbered for arbitrary polygons; how
-   rules reference edges generically. *Ask the owner* how tilings will be authored/imported.
+3. **"Any-tiling" data schema** *(trigger: building the tiling model).* **Resolved 2026-06-26.** Tilings are
+   **code-defined generators** (not an imported file format — owner's call); each emits raw polygons into a
+   shared `stitch()` that detects coincident edges and builds the graph. Schema (`src/tiling/types.ts`): a
+   `Tiling` = `nodes` (each tile: stable string id like `sq:r,c`, shape class, CCW `vertices`, `centroid`,
+   intrinsic `lattice` coords, ordered `sides`) + **first-class** `edges` (each: two `{tile, side}` ends, or
+   `b: null` for a boundary edge, plus segment geometry) + a JSON-native `shapes` registry + `bounds`. The
+   tiling is an immutable, serialisable substrate; per-run state (visit counts, colours) lives in separate
+   id-keyed overlays, not on nodes/edges.
+   Edges are numbered **per tile** as a **local CCW side index** (`0..N-1`), each carrying an **outward-normal
+   angle** (relative *and* absolute direction for the rules). Adjacency is the **stored side↔side pairing**
+   (reciprocal by construction — no `(k+4)%N` formula). Opposite edges live on the shape as an array: 1 for
+   even-sided polygons, 2 for odd (see §5). Stitching matches sides by quantized endpoint keys; the
+   non-edge-to-edge octagon+wedge will add a collinear-overlap matcher later. User-imported tilings remain a
+   possible *future* feature, not built.
 4. **Styling at scale** *(trigger: UI grows past a few screens).* Stay plain CSS, or adopt CSS Modules /
    Tailwind? *Recommendation:* CSS Modules when component count climbs.
 5. **State management** *(trigger: rule-authoring UI).* React state + context, Zustand, or Redux?
@@ -92,6 +113,15 @@ origin repo (bottom of this section) **will be deleted**.
 - **Stable coordinates:** the prototype keys a radial number `num` and `row`/`col` on the shape-unit center
   (lattice coords), NOT pixels, so they stay stable across canvas/zoom changes. Lesson: derive tile
   identity/coords from the tiling's intrinsic structure, not screen pixels.
+
+**Now implemented in `src/tiling/` (2026-06-26) — generalized from the above (so the origin repo can go):**
+the compass 0–7 became a **local CCW side index `0..N-1`** plus a per-side **outward-normal angle** (gives the
+rules both relative/turn and absolute/compass directions, for any polygon). Reciprocity is no longer the
+`(k+4)%N` formula — the **side↔side pairing is stored on each edge**, so it works for mixed-polygon tilings.
+The two-edged-adjacency distinction is preserved as `neighborEdges` (per shared edge) vs `uniqueNeighbors`
+(distinct tiles). Stable identity uses intrinsic lattice coords (`sq:r,c`), never pixels. The **opposite-edge**
+concept is generalized to an **array**: even-sided polygons have 1 opposite; odd-sided (triangle/pentagon) have
+**2** — the sides flanking the opposite vertex. The two rule languages below are **not** ported yet (next).
 
 **Two rule languages to port (the heart of the app):**
 - **Static coloring rules:** `selector : predicate => color [@ weight]`. Selector = shape class; predicates
@@ -125,10 +155,14 @@ still needed into this doc **before** then; do not rely on the path persisting.
 
 ## 6. Roadmap
 
-- **Phase 0 (this):** repo + this doc + responsive hello-world.
-- **Next:** migrate any still-needed prototype detail into §5 **before** the origin repo is deleted.
-- Then: generic tiling **render + data model** (§4.3) → port **static coloring DSL** → port **traverse
-  engine** → **rule-authoring UI** (click/touch) → **serverless PNG export** (§4.2) → **deploy** to Vercel.
+- **Phase 0 (done):** repo + this doc + responsive hello-world.
+- **Prototype migration (done 2026-06-26):** still-needed prototype detail captured + generalized in §5 — the
+  origin repo can now be deleted safely.
+- **In progress — generic tiling render + data model (§4.3):** backbone built — data model, generic `stitch()`,
+  square generator, SVG debug view (20×20 on the Canvas page). *Awaiting owner real-device verification (§7).*
+  Next: more tilings (the 11 uniform Euclidean tilings + octagon+wedge).
+- Then: port **static coloring DSL** → port **traverse engine** → **rule-authoring UI** (click/touch) →
+  **serverless PNG export** (§4.2) → **deploy** to Vercel.
 
 ## 7. Verifying on a phone + verification log
 
@@ -157,6 +191,9 @@ in-session task tracker.
 - [x] **Phase 0** — repo, living doc, responsive hello-world *(verified 2026-06-26, `f8a979d`)*
 - [x] **Website shell** — landing (pitch + nav), Canvas + Gallery scaffolds, hash routing *(verified 2026-06-26, `de0dbd4`)*
 - [ ] **Generic tiling render + data model** *(§4.3)*
+  - [ ] Tiling engine backbone — data model, generic `stitch()`, square generator, SVG debug view
+    *(built 2026-06-26 in `src/tiling/` + `src/components/TilingDebugView.tsx`; awaiting owner verification)*
+  - [ ] More tilings — the 11 uniform Euclidean tilings + the octagon+wedge (needs a collinear-overlap matcher)
 - [ ] **Port the static coloring DSL** *(§5)*
 - [ ] **Port the traverse engine** *(§5)*
 - [ ] **Rule-authoring UI** — click/touch

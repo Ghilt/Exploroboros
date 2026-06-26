@@ -4,19 +4,13 @@
 }
 
 .canvas-stage {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: clamp(16rem, 45vh, 26rem);
+  /* Definite height so the SVG can fill it; the grid centres + letterboxes via the viewBox.
+     Capped to the viewport so the whole plane stays visible without scrolling. */
+  display: block;
+  overflow: hidden;
+  height: clamp(16rem, 60vh, 34rem);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background-color: var(--surface);
   background-image: repeating-linear-gradient(45deg, var(--motif) 0 2px, transparent 2px 24px);
-}
-.canvas-stage-note {
-  font-family: var(--mono);
-  font-size: 0.8rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
 }

@@ -1,0 +1,30 @@
+.tiling-debug {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Strokes use non-scaling-stroke, so widths are in screen px regardless of the viewBox fit.
+   Solid white tiles with black edges — a plain, opaque debug grid (no page bg showing through). */
+.tiling-tile {
+  fill: #fff;
+  stroke: #000;
+  stroke-width: 1;
+}
+
+.tiling-boundary line {
+  stroke: var(--accent-2);
+  stroke-width: 2;
+}
+
+.tiling-adjacency line {
+  stroke: var(--accent-3);
+  stroke-width: 1;
+  opacity: 0.35;
+}
+
+.tiling-labels text {
+  fill: var(--muted);
+  font-family: var(--mono);
+  font-size: 8px;
+}
