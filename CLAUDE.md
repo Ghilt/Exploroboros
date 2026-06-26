@@ -180,6 +180,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 |------|---------|--------------------|-----|--------|
 | 2026-06-26 | Responsive hello-world (Phase 0) | ✅ yes | owner viewed `npm run dev` on desktop + phone; renders well, dark mode followed phone setting | `f8a979d` |
 | 2026-06-26 | Website shell — landing, Canvas + Gallery scaffolds, hash routing | ✅ yes | owner reviewed the running app (landing, canvas, gallery; light + dark) and approved | `de0dbd4` |
+| 2026-06-26 | Tiling engine backbone + square-tiling debug view | ✅ yes | owner viewed the 20×20 square grid (white tiles, black edges) on desktop + phone and approved | `31c28d0` |
 
 ## 8. Todo list (working backlog)
 
@@ -191,8 +192,8 @@ in-session task tracker.
 - [x] **Phase 0** — repo, living doc, responsive hello-world *(verified 2026-06-26, `f8a979d`)*
 - [x] **Website shell** — landing (pitch + nav), Canvas + Gallery scaffolds, hash routing *(verified 2026-06-26, `de0dbd4`)*
 - [ ] **Generic tiling render + data model** *(§4.3)*
-  - [ ] Tiling engine backbone — data model, generic `stitch()`, square generator, SVG debug view
-    *(built 2026-06-26 in `src/tiling/` + `src/components/TilingDebugView.tsx`; awaiting owner verification)*
+  - [x] Tiling engine backbone — data model, generic `stitch()`, square generator, SVG debug view
+    *(verified 2026-06-26, `31c28d0`)*
   - [ ] More tilings — the 11 uniform Euclidean tilings + the octagon+wedge (needs a collinear-overlap matcher)
 - [ ] **Port the static coloring DSL** *(§5)*
 - [ ] **Port the traverse engine** *(§5)*
