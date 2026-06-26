@@ -21,6 +21,9 @@ It grows out of a Python prototype (the "nandeck octagon visualizer"); its hard-
   at. See §7 for how to expose the dev server to a phone.
 - **Record what's verified.** When the owner confirms a feature, add a row to the §7 verification log, *then*
   commit — noting the feature and how it was verified.
+- **Maintain the todo list.** §8 is the living backlog of what's left to build. Keep it current — add items as
+  they surface; when the owner verifies a finished item, check it off there (and add the §7 row). While
+  working I mirror the open items into the in-session task tracker to tick them off as I go.
 - **Don't guess libraries.** §3 is the approved-tech registry (with versions). Use those. If something new is
   needed, propose it, get the owner's OK, and add it to §3 — never introduce dependencies silently.
 - **When unsure, consult §4 (Open Questions) and ASK.** §4 is the embedded quiz: the genuine forks we haven't
@@ -139,3 +142,18 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | Date | Feature | Verified by owner? | How | Commit |
 |------|---------|--------------------|-----|--------|
 | 2026-06-26 | Responsive hello-world (Phase 0) | ✅ yes | owner viewed `npm run dev` on desktop + phone; renders well, dark mode followed phone setting | `f8a979d` |
+
+## 8. Todo list (working backlog)
+
+The living, granular checklist of what's left to build — the operational companion to the §6 roadmap
+(narrative) and the §7 log (what's verified). Add items as they surface; when the owner verifies a finished
+item, check it off here, add the §7 row, then commit. While working I mirror the open items into the
+in-session task tracker.
+
+- [x] **Phase 0** — repo, living doc, responsive hello-world *(verified 2026-06-26, `f8a979d`)*
+- [ ] **Generic tiling render + data model** *(§4.3)*
+- [ ] **Port the static coloring DSL** *(§5)*
+- [ ] **Port the traverse engine** *(§5)*
+- [ ] **Rule-authoring UI** — click/touch
+- [ ] **Serverless PNG export** *(§4.2)*
+- [ ] **Deploy to Vercel**
