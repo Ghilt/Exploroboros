@@ -145,6 +145,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | Date | Feature | Verified by owner? | How | Commit |
 |------|---------|--------------------|-----|--------|
 | 2026-06-26 | Responsive hello-world (Phase 0) | ✅ yes | owner viewed `npm run dev` on desktop + phone; renders well, dark mode followed phone setting | `f8a979d` |
+| 2026-06-26 | Website shell — landing, Canvas + Gallery scaffolds, hash routing | ✅ yes | owner reviewed the running app (landing, canvas, gallery; light + dark) and approved | `de0dbd4` |
 
 ## 8. Todo list (working backlog)
 
@@ -154,7 +155,7 @@ item, check it off here, add the §7 row, then commit. While working I mirror th
 in-session task tracker.
 
 - [x] **Phase 0** — repo, living doc, responsive hello-world *(verified 2026-06-26, `f8a979d`)*
-- [ ] **Website shell** — landing (pitch + nav), Canvas + Gallery scaffolds, hash routing *(built; awaiting owner verification)*
+- [x] **Website shell** — landing (pitch + nav), Canvas + Gallery scaffolds, hash routing *(verified 2026-06-26, `de0dbd4`)*
 - [ ] **Generic tiling render + data model** *(§4.3)*
 - [ ] **Port the static coloring DSL** *(§5)*
 - [ ] **Port the traverse engine** *(§5)*
