@@ -1,0 +1,119 @@
+.workspace {
+  display: flex;
+  gap: 0.6rem;
+  align-items: stretch;
+  /* A generous work area; the canvas grows to fill whatever the docks don't use. */
+  height: clamp(24rem, 68vh, 52rem);
+}
+
+.canvas-pane {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+.canvas-stage {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  background-image: repeating-linear-gradient(45deg, var(--motif) 0 2px, transparent 2px 24px);
+}
+.canvas-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.pane-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.pane-scaffold {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.pane-scaffold p {
+  margin: 0 0 0.6rem;
+}
+.pane-scaffold-tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.pane-scaffold-soon {
+  font-style: italic;
+  opacity: 0.8;
+}
+
+/* Inspect pane stats */
+.tile-stats .stat-head {
+  margin: 0 0 0.7rem;
+  font-size: 1.05rem;
+}
+.tile-stats dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 0.9rem;
+  margin: 0;
+  font-size: 0.85rem;
+}
+.tile-stats dt {
+  color: var(--muted);
+  font-family: var(--mono);
+}
+.tile-stats dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.visited-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.visited-control button {
+  width: 1.6rem;
+  height: 1.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+.visited-value {
+  min-width: 1.5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* Stack vertically on narrow screens, canvas first and tall. */
+@media (max-width: 64rem) {
+  .workspace {
+    flex-direction: column;
+    height: auto;
+  }
+  .canvas-pane {
+    order: -1;
+    min-height: 60vh;
+  }
+}

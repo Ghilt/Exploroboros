@@ -195,8 +195,53 @@ in-session task tracker.
   - [x] Tiling engine backbone — data model, generic `stitch()`, square generator, SVG debug view
     *(verified 2026-06-26, `31c28d0`)*
   - [ ] More tilings — the 11 uniform Euclidean tilings + the octagon+wedge (needs a collinear-overlap matcher)
+  - [ ] Tile numbering as a canvas control — user-selectable scheme/origin (debug view currently numbers by generation order)
+  - [ ] Visualise edge numbering + opposite edges for the user — show each tile's clockwise-from-top edge numbers and which edges are opposite (engine support exists: `clockwiseEdgeOrder`, `opposite`)
 - [ ] **Port the static coloring DSL** *(§5)*
 - [ ] **Port the traverse engine** *(§5)*
 - [ ] **Rule-authoring UI** — click/touch
 - [ ] **Serverless PNG export** *(§4.2)*
 - [ ] **Deploy to Vercel**
+
+## 9. Dev loop & operational notes (gotchas)
+
+Hard-won; read before fighting the tooling again.
+
+**Where things live (current):**
+- `src/tiling/` — the pure, isomorphic engine (no React/DOM/canvas, no pixels). `types.ts`,
+  `geometry.ts`, `shapes.ts`, `stitch.ts` (the shared edge-detection step), `graph.ts` (queries),
+  `generators/` (one per tiling). Public API via `src/tiling/index.ts` — import from there.
+- `src/components/TilingDebugView.tsx` — SVG renderer of a `Tiling` (no deps; §4.1 still deferred).
+- `src/components/Workspace.tsx` — the Canvas-page multi-pane workspace (canvas + Inspect /
+  Traversers / Coloring docks); owns the selection + the per-tile **visited** overlay (kept off
+  the immutable `Tiling`, keyed by tile id).
+- `src/components/Panel.tsx` — reusable collapsible dock panel (collapses to a thin rail).
+- Edge numbering has **two layers**: internal **local CCW side index** (geometry/winding) vs the
+  user-facing **clockwise-from-top** number (`clockwiseEdgeOrder`). Don't conflate them.
+
+**Running commands (tool shells):** `node`/`npm.cmd`/`npx.cmd` are NOT on PATH here — prepend it
+every command: `$env:Path = 'C:\Program Files\nodejs;' + $env:Path; npx.cmd vitest run`
+(`npm.cmd run build` / `npm.cmd run lint`). See §3.
+
+**Preview server:** start via the preview tool using `.claude/launch.json` (name `dev`) — it runs
+Vite through `node.exe` directly on **port 5174**, dodging the npm-shim policy. Don't launch the dev
+server through Bash.
+
+**After deleting/renaming a component:** Vite keeps the old module in its HMR graph and spams
+`[vite] Failed to reload <file>` errors (the page may error too). Hard-reload the page; if it
+persists, **stop + start the dev server** to clear the module graph and console buffer. The
+production `build` is the source of truth for "does it actually compile" — it's unaffected by stale HMR.
+
+**Don't trust preview screenshots for layout/width.** A wide-viewport screenshot renders content at
+actual pixels into a fixed-width image, so a correct full-width layout *looks* left-weighted with
+empty space on the right. Measure instead: `preview_eval` + `getBoundingClientRect()` (and compare
+`document.documentElement.scrollWidth` vs `clientWidth` for real overflow).
+
+**Phantom mobile horizontal scroll.** The emulated mobile viewport uses a desktop-style ~20px
+scrollbar, so `clientWidth` < `innerWidth` and full-bleed elements (e.g. the nav) report ~20px of
+overflow that does NOT happen on real phones (overlay scrollbars). Verify by listing elements whose
+`right > clientWidth` before treating it as a real bug.
+
+**Tests:** no global test setup file, so `@testing-library/react` renders accumulate within a file;
+`screen.getBy*` then throws "multiple elements". Add `afterEach(cleanup)` in component tests that use
+`screen` (or scope queries to each render's `container`).

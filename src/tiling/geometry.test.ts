@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { regularPolygonVertices, centroid, edgeMidpoint, normalAngle, quantizeKey } from './geometry'
+import {
+  regularPolygonVertices,
+  centroid,
+  edgeMidpoint,
+  normalAngle,
+  quantizeKey,
+  scaleAround,
+  clockwiseFromTopKey,
+} from './geometry'
 
 describe('regularPolygonVertices', () => {
   it('produces n vertices centered on the requested point', () => {
@@ -38,5 +46,23 @@ describe('quantizeKey', () => {
     const a = { x: 0, y: 0 }
     const b = { x: 1, y: 0 }
     expect(quantizeKey(a, b, 1e-6)).toBe(quantizeKey(b, a, 1e-6))
+  })
+})
+
+describe('scaleAround', () => {
+  it('scales a point relative to a center', () => {
+    expect(scaleAround({ x: 2, y: 2 }, { x: 0, y: 0 }, 2)).toEqual({ x: 4, y: 4 })
+    expect(scaleAround({ x: 2, y: 2 }, { x: 1, y: 1 }, 1)).toEqual({ x: 2, y: 2 })
+    expect(scaleAround({ x: 5, y: 5 }, { x: 1, y: 1 }, 0)).toEqual({ x: 1, y: 1 })
+  })
+})
+
+describe('clockwiseFromTopKey', () => {
+  const rad = (deg: number) => (deg * Math.PI) / 180
+  it('orders N, E, S, W clockwise from the top', () => {
+    expect(clockwiseFromTopKey(rad(90))).toBeCloseTo(0) // north / top
+    expect(clockwiseFromTopKey(rad(0))).toBeCloseTo(90) // east
+    expect(clockwiseFromTopKey(rad(-90))).toBeCloseTo(180) // south
+    expect(clockwiseFromTopKey(rad(180))).toBeCloseTo(270) // west
   })
 })

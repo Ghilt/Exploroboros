@@ -48,6 +48,23 @@ export function signedArea(vertices: ReadonlyArray<Vec2>): number {
   return sum / 2
 }
 
+// Scale a point away from (factor > 1) or toward (factor < 1) a center. Reusable for the
+// debug highlight's slight enlargement, and later for edit-mode tile emphasis.
+export function scaleAround(p: Vec2, center: Vec2, factor: number): Vec2 {
+  return {
+    x: center.x + (p.x - center.x) * factor,
+    y: center.y + (p.y - center.y) * factor,
+  }
+}
+
+// Sort key for "clockwise from straight up" (north = +y up): 0 at the top, increasing
+// clockwise to 360. Lets edges be numbered the way the UI presents them — 0th edge at the
+// top — independent of the internal CCW winding.
+export function clockwiseFromTopKey(normalAngle: number): number {
+  const deg = (normalAngle * 180) / Math.PI
+  return (((90 - deg) % 360) + 360) % 360
+}
+
 // Outward normal angle of a CCW side a->b. For CCW winding the interior is on the left,
 // so the outward normal is the edge direction rotated -90deg: (dx,dy) -> (dy,-dx).
 export function normalAngle(a: Vec2, b: Vec2): number {

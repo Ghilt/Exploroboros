@@ -15,9 +15,26 @@ export type {
   RawTile,
 } from './types'
 
-export { regularPolygonVertices, centroid, edgeMidpoint, normalAngle, signedArea } from './geometry'
+export {
+  regularPolygonVertices,
+  centroid,
+  edgeMidpoint,
+  normalAngle,
+  signedArea,
+  scaleAround,
+  clockwiseFromTopKey,
+} from './geometry'
 export { oppositeSides, interiorAngleDeg, makeShapeDef, SQUARE } from './shapes'
 export { stitch } from './stitch'
 export type { StitchOptions } from './stitch'
-export { nodeById, sideToEdge, isBoundary, across, neighborEdges, uniqueNeighbors, opposite } from './graph'
+export {
+  nodeById,
+  sideToEdge,
+  isBoundary,
+  across,
+  neighborEdges,
+  uniqueNeighbors,
+  opposite,
+  clockwiseEdgeOrder,
+} from './graph'
 export { squareTiling } from './generators/square'

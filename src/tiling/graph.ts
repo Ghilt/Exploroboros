@@ -3,6 +3,7 @@
 
 import type { EdgeEnd, ShapeDef, Tiling, TileNode, TilingEdge } from './types'
 import { oppositeSides } from './shapes'
+import { clockwiseFromTopKey } from './geometry'
 
 // id -> node lookups are common; cache one map per Tiling without mutating the Tiling.
 const indexCache = new WeakMap<Tiling, Map<string, TileNode>>()
@@ -68,6 +69,16 @@ export function opposite(tiling: Tiling, tile: string, side: number): number[] {
   const shape = tiling.shapes[node.shape] as ShapeDef | undefined
   const opp = shape?.oppositeSides[side]
   return opp ? [...opp] : oppositeSides(side, node.sides.length)
+}
+
+// Local side indices ordered clockwise from the top — the side whose outward normal points
+// most northward is index 0, then clockwise. This is the canonical, tiling-agnostic edge
+// numbering shown to the user; it does not depend on the internal CCW winding.
+export function clockwiseEdgeOrder(node: TileNode): number[] {
+  return node.sides
+    .map((s) => ({ side: s.geometry.localIndex, key: clockwiseFromTopKey(s.geometry.normalAngle) }))
+    .sort((a, b) => a.key - b.key)
+    .map((e) => e.side)
 }
 
 function otherEnd(edge: TilingEdge, tile: string, side: number): EdgeEnd | null {

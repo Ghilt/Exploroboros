@@ -11,20 +11,26 @@
   stroke: #000;
   stroke-width: 1;
 }
-
-.tiling-boundary line {
-  stroke: var(--accent-2);
-  stroke-width: 2;
+.tiling-tile.clickable {
+  cursor: pointer;
+}
+.tiling-tile.is-selected {
+  fill: color-mix(in srgb, var(--accent) 14%, #fff);
 }
 
-.tiling-adjacency line {
-  stroke: var(--accent-3);
-  stroke-width: 1;
-  opacity: 0.35;
-}
-
-.tiling-labels text {
-  fill: var(--muted);
+/* Text sizes are set per-element via the fontSize attribute (world units under the viewBox). */
+.tiling-labels .tile-num {
+  fill: #333;
   font-family: var(--mono);
-  font-size: 8px;
+}
+.tiling-labels .tile-visited {
+  fill: var(--accent-strong);
+  font-family: var(--mono);
+  font-weight: 700;
+}
+
+.tiling-selected {
+  fill: color-mix(in srgb, var(--accent) 22%, transparent);
+  stroke: var(--accent-strong);
+  stroke-width: 2.5;
 }

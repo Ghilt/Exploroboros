@@ -1,5 +1,5 @@
-import { render } from '@testing-library/react'
-import { describe, it, expect } from 'vitest'
+import { render, fireEvent } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
 import { TilingDebugView } from './TilingDebugView'
 import { squareTiling } from '../tiling'
 
@@ -18,19 +18,33 @@ describe('TilingDebugView', () => {
     expect(container.querySelectorAll('polygon').length).toBe(400)
   })
 
-  it('hides tile id labels by default and shows them when asked', () => {
-    const tiling = squareTiling(20, 20)
-    const off = render(<TilingDebugView tiling={tiling} />)
-    expect(off.container.querySelectorAll('.tiling-labels text').length).toBe(0)
-    const on = render(<TilingDebugView tiling={tiling} showIds />)
-    expect(on.container.querySelectorAll('.tiling-labels text').length).toBe(400)
+  it('shows per-tile number labels only when showNumbers is set', () => {
+    const t = squareTiling(20, 20)
+    const off = render(<TilingDebugView tiling={t} tileNumber={() => 0} />)
+    expect(off.container.querySelectorAll('.tile-num').length).toBe(0)
+    const on = render(<TilingDebugView tiling={t} showNumbers tileNumber={() => 7} />)
+    expect(on.container.querySelectorAll('.tile-num').length).toBe(400)
   })
 
-  it('draws boundary edges only when showBoundary is set (80 for 20x20)', () => {
-    const tiling = squareTiling(20, 20)
-    const off = render(<TilingDebugView tiling={tiling} />)
-    expect(off.container.querySelectorAll('.tiling-boundary line').length).toBe(0)
-    const on = render(<TilingDebugView tiling={tiling} showBoundary />)
-    expect(on.container.querySelectorAll('.tiling-boundary line').length).toBe(80)
+  it('shows a visited vN badge whenever a tile has visits, even without numbers', () => {
+    const visited = new Map([['sq:1,1', 2]])
+    const { container } = render(<TilingDebugView tiling={squareTiling(3, 3)} visited={visited} />)
+    expect(container.querySelectorAll('.tile-num').length).toBe(0)
+    expect([...container.querySelectorAll('.tile-visited')].map((n) => n.textContent)).toEqual(['v2'])
+  })
+
+  it('calls onSelect with the tile id when a tile is clicked', () => {
+    const onSelect = vi.fn()
+    const { container } = render(<TilingDebugView tiling={squareTiling(3, 3)} onSelect={onSelect} />)
+    const poly = container.querySelector('polygon')
+    expect(poly).toBeTruthy()
+    if (poly) fireEvent.click(poly)
+    expect(onSelect).toHaveBeenCalledWith('sq:0,0')
+  })
+
+  it('highlights the selected tile with an enlarged overlay (no edge chips)', () => {
+    const { container } = render(<TilingDebugView tiling={squareTiling(3, 3)} selectedId="sq:1,1" />)
+    expect(container.querySelectorAll('.tiling-selected').length).toBe(1)
+    expect(container.querySelectorAll('.edge-chip').length).toBe(0)
   })
 })

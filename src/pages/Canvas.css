@@ -3,14 +3,15 @@
   gap: clamp(1.5rem, 4vw, 2.5rem);
 }
 
-.canvas-stage {
-  /* Definite height so the SVG can fill it; the grid centres + letterboxes via the viewBox.
-     Capped to the viewport so the whole plane stays visible without scrolling. */
-  display: block;
-  overflow: hidden;
-  height: clamp(16rem, 60vh, 34rem);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background-color: var(--surface);
-  background-image: repeating-linear-gradient(45deg, var(--motif) 0 2px, transparent 2px 24px);
+/* On desktop, break the canvas page out of the app's reading-width column so the workspace
+   can use most of the viewport. The intro stays at a readable width via .page-head below. */
+@media (min-width: 64rem) {
+  .canvas-page {
+    width: min(94rem, calc(100vw - 4rem));
+    margin-left: 50%;
+    transform: translateX(-50%);
+  }
+  .canvas-page .page-head {
+    max-width: 56rem;
+  }
 }

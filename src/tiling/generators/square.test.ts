@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { squareTiling } from './square'
-import { across, neighborEdges, uniqueNeighbors, opposite, isBoundary } from '../graph'
+import { across, neighborEdges, uniqueNeighbors, opposite, isBoundary, clockwiseEdgeOrder } from '../graph'
 
 describe('squareTiling 20x20', () => {
   const t = squareTiling(20, 20)
@@ -65,6 +65,12 @@ describe('squareTiling 20x20', () => {
 
   it('bounds match the grid extent', () => {
     expect(t.bounds).toEqual({ minX: 0, minY: 0, maxX: 20, maxY: 20 })
+  })
+
+  it('numbers edges clockwise from the top (local sides top, right, bottom, left = 2,1,0,3)', () => {
+    const node = t.nodes.find((n) => n.id === 'sq:5,5')
+    if (!node) throw new Error('no tile sq:5,5')
+    expect(clockwiseEdgeOrder(node)).toEqual([2, 1, 0, 3])
   })
 
   it('is deterministic', () => {
