@@ -22,6 +22,11 @@
   overflow: hidden;
   background-image: repeating-linear-gradient(45deg, var(--motif) 0 2px, transparent 2px 24px);
 }
+.canvas-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
 .canvas-toggle {
   display: inline-flex;
   align-items: center;

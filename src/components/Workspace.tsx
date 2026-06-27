@@ -3,6 +3,7 @@ import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import type { Tiling, TileNode } from '../tiling'
 import { nodeById, neighborEdges, uniqueNeighbors } from '../tiling'
 import { TilingDebugView } from './TilingDebugView'
+import { TilingPicker } from './TilingPicker'
 import { Panel } from './Panel'
 
 // The Canvas-page workspace: a central canvas flanked by collapsible docks — authoring
@@ -12,6 +13,10 @@ export function Workspace({ tiling }: { tiling: Tiling }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [visited, setVisited] = useState<ReadonlyMap<string, number>>(() => new Map())
   const [showNumbers, setShowNumbers] = useState(false)
+  // Which tiling is selected in the picker. Only the square has a generator today, so the
+  // rendered `tiling` prop never actually changes yet; this plumbs the choice for when the
+  // other generators land (then Canvas will build the tiling from this id).
+  const [tilingId, setTilingId] = useState(tiling.meta.id)
 
   // Tile "number" — simplest scheme for now is generation order; making it a user-facing
   // control is tracked in CLAUDE.md §8.
@@ -49,14 +54,17 @@ export function Workspace({ tiling }: { tiling: Tiling }) {
       <div className="canvas-pane">
         <header className="panel-head">
           <span className="panel-title">Canvas</span>
-          <label className="canvas-toggle">
-            <input
-              type="checkbox"
-              checked={showNumbers}
-              onChange={(e) => setShowNumbers(e.target.checked)}
-            />
-            numbers
-          </label>
+          <div className="canvas-tools">
+            <TilingPicker value={tilingId} onChange={setTilingId} />
+            <label className="canvas-toggle">
+              <input
+                type="checkbox"
+                checked={showNumbers}
+                onChange={(e) => setShowNumbers(e.target.checked)}
+              />
+              numbers
+            </label>
+          </div>
         </header>
         <div className="canvas-stage">
           <TilingDebugView

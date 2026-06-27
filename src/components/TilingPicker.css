@@ -1,0 +1,223 @@
+/* Trigger button — sits in the canvas header next to the numbers toggle. */
+.tiling-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--fg);
+  cursor: pointer;
+}
+.tiling-picker-trigger:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tiling-picker-caret {
+  font-size: 0.6rem;
+  color: var(--muted);
+}
+
+/* Overlay — fades the page beneath; the dialog floats centered above it. */
+.tiling-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1rem, 4vw, 3rem);
+  background: color-mix(in srgb, #000 55%, transparent);
+  backdrop-filter: blur(2px);
+  animation: tiling-modal-fade 0.15s ease;
+}
+@keyframes tiling-modal-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.tiling-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(60rem, 100%);
+  max-height: min(85vh, 46rem);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  animation: tiling-dialog-pop 0.16s ease;
+}
+.tiling-dialog:focus {
+  outline: none;
+}
+@keyframes tiling-dialog-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+}
+
+.tiling-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid var(--line);
+}
+.tiling-dialog-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.tiling-dialog-close {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.4rem;
+  border-radius: var(--radius-sm);
+}
+.tiling-dialog-close:hover {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+
+/* The scrolling gallery grid — shows ~10 cards at once on desktop, scrolls for the rest. */
+.tiling-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: clamp(0.6rem, 2vw, 1rem);
+  padding: clamp(0.8rem, 2.5vw, 1.3rem);
+  overflow: auto;
+}
+
+.tiling-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tiling-card:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+.tiling-card:disabled {
+  cursor: not-allowed;
+}
+.tiling-card.status-planned .tiling-card-cap {
+  opacity: 0.65;
+}
+
+.tiling-card-media {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.tiling-card.is-current .tiling-card-media {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.tiling-card-thumb {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.tiling-card-thumb > * {
+  width: 100%;
+  height: 100%;
+}
+
+.tiling-card-badge {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fg) 72%, transparent);
+  color: var(--bg);
+}
+.tiling-card-flag {
+  position: absolute;
+  bottom: 0.4rem;
+  left: 0.4rem;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.tiling-card-cap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0 0.15rem;
+}
+.tiling-card-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.tiling-card-config {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* Placeholder thumb for tilings without a drawing yet. */
+.tiling-card-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.tiling-card-placeholder-mark {
+  font-size: 1.8rem;
+  opacity: 0.5;
+}
+
+/* Octagon + wedge preview drawing. */
+.ow-thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.ow-bg {
+  fill: #fff;
+}
+.ow-oct {
+  fill: #fff;
+  stroke: #000;
+  stroke-width: 1;
+}
+.ow-wedge {
+  fill: color-mix(in srgb, var(--accent) 38%, #fff);
+  stroke: #000;
+  stroke-width: 1;
+}

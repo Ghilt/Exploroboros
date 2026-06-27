@@ -16,6 +16,11 @@ describe('Workspace', () => {
     expect(screen.getByRole('button', { name: /expand coloring/i })).toBeTruthy()
   })
 
+  it('offers the tiling picker, labelled with the current tiling', () => {
+    render(<Workspace tiling={squareTiling(4, 4)} />)
+    expect(screen.getByRole('button', { name: /square/i })).toBeTruthy()
+  })
+
   it('tile numbers are off by default and toggle on', () => {
     const { container } = render(<Workspace tiling={squareTiling(4, 4)} />)
     expect(container.querySelectorAll('.tile-num').length).toBe(0)
