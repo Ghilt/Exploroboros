@@ -16,6 +16,8 @@ describe('tiling catalog', () => {
     expect(ready).toContain('hexagonal')
     expect(ready).toContain('truncated-square')
     expect(ready).toContain('trihexagonal')
+    expect(ready).toContain('elongated-triangular')
+    expect(ready).toContain('truncated-hexagonal')
     expect(TILINGS.some((t) => t.status === 'planned')).toBe(true)
   })
 

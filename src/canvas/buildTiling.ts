@@ -10,6 +10,8 @@ import {
   hexagonalTiling,
   truncatedSquareTiling,
   trihexagonalTiling,
+  elongatedTriangularTiling,
+  truncatedHexagonalTiling,
 } from '../tiling'
 
 export function buildTiling(tilingId: string, n: number): Tiling {
@@ -25,6 +27,10 @@ export function buildTiling(tilingId: string, n: number): Tiling {
       return truncatedSquareTiling(count)
     case 'trihexagonal':
       return trihexagonalTiling(count)
+    case 'elongated-triangular':
+      return elongatedTriangularTiling(count)
+    case 'truncated-hexagonal':
+      return truncatedHexagonalTiling(count)
     case 'square':
     default:
       return squareTiling(count, count)
