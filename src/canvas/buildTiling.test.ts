@@ -15,6 +15,15 @@ describe('buildTiling', () => {
     expect(t.nodes.some((n) => n.shape === 'wedge')).toBe(true)
   })
 
+  it('builds the triangular and hexagonal tilings', () => {
+    const tri = buildTiling('triangular', 16)
+    expect(tri.meta.id).toBe('triangular')
+    expect(tri.nodes.every((n) => n.shape === 'triangle')).toBe(true)
+    const hex = buildTiling('hexagonal', 16)
+    expect(hex.meta.id).toBe('hexagonal')
+    expect(hex.nodes.every((n) => n.shape === 'hexagon')).toBe(true)
+  })
+
   it('falls back to the square for an unknown id', () => {
     const t = buildTiling('not-a-tiling', 5)
     expect(t.meta.id).toBe('square')

@@ -17,8 +17,8 @@ export type TilingEntry = {
 export const TILINGS: ReadonlyArray<TilingEntry> = [
   { id: 'square', name: 'Square', vertexConfig: '4.4.4.4', status: 'ready' },
   { id: 'kalleboda', name: 'Kalleboda', vertexConfig: 'octagon + wedge', status: 'ready' },
-  { id: 'triangular', name: 'Triangular', vertexConfig: '3.3.3.3.3.3', status: 'planned' },
-  { id: 'hexagonal', name: 'Hexagonal', vertexConfig: '6.6.6', status: 'planned' },
+  { id: 'triangular', name: 'Triangular', vertexConfig: '3.3.3.3.3.3', status: 'ready' },
+  { id: 'hexagonal', name: 'Hexagonal', vertexConfig: '6.6.6', status: 'ready' },
   { id: 'trihexagonal', name: 'Trihexagonal', vertexConfig: '3.6.3.6', status: 'planned' },
   { id: 'snub-square', name: 'Snub Square', vertexConfig: '3.3.4.3.4', status: 'planned' },
   { id: 'snub-hexagonal', name: 'Snub Hexagonal', vertexConfig: '3.3.3.3.6', status: 'planned' },

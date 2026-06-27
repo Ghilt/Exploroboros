@@ -39,3 +39,5 @@ export {
 } from './graph'
 export { squareTiling } from './generators/square'
 export { kallebodaTiling } from './generators/kalleboda'
+export { triangularTiling } from './generators/triangular'
+export { hexagonalTiling } from './generators/hexagonal'

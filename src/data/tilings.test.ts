@@ -12,6 +12,8 @@ describe('tiling catalog', () => {
     const ready = TILINGS.filter((t) => t.status === 'ready').map((t) => t.id)
     expect(ready).toContain('square')
     expect(ready).toContain('kalleboda')
+    expect(ready).toContain('triangular')
+    expect(ready).toContain('hexagonal')
     expect(TILINGS.some((t) => t.status === 'planned')).toBe(true)
   })
 

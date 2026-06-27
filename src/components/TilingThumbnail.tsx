@@ -1,20 +1,21 @@
 import { useMemo } from 'react'
 import type { TilingEntry } from '../data/tilings'
-import { squareTiling } from '../tiling'
+import { buildTiling } from '../canvas'
 import { TilingDebugView } from './TilingDebugView'
 
-// Small preview drawings for the tiling-picker gallery. `square` reuses the engine's own debug
-// view (so the thumbnail matches the real render); `kalleboda` is a faithful static drawing of
-// the octagon+wedge geometry (the real tiling renders on the canvas); everything else is a
-// placeholder.
+// Small previews for the tiling-picker gallery. Kalleboda keeps a bespoke coloured drawing; every
+// other ready tiling renders its real generator (so the thumbnail always matches the canvas);
+// planned tilings get a placeholder.
+const THUMB_N = 6
+
 export function TilingThumbnail({ entry }: { entry: TilingEntry }) {
-  if (entry.id === 'square') return <SquareThumb />
   if (entry.id === 'kalleboda') return <KallebodaThumb />
+  if (entry.status === 'ready') return <GeneratedThumb id={entry.id} />
   return <PlaceholderThumb />
 }
 
-function SquareThumb() {
-  const tiling = useMemo(() => squareTiling(6, 6), [])
+function GeneratedThumb({ id }: { id: string }) {
+  const tiling = useMemo(() => buildTiling(id, THUMB_N), [id])
   return <TilingDebugView tiling={tiling} />
 }
 
