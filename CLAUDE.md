@@ -200,6 +200,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-27 | Full-height desktop canvas page — intro header removed, canvas fills the viewport, no page scroll | ✅ yes | owner viewed the canvas filling the desktop viewport with no page-scroll and approved | `3b18e69` |
 | 2026-06-27 | Kalleboda (octagon + wedge) tiling — second selectable tiling | ✅ yes | owner approved the running tiling (select Kalleboda → gapless octagons + wedges; tap-select + drag-paint work on the concave tiles; light + dark desktop preview) | `6fd812e` |
 | 2026-06-27 | Reset button (clears the visited overlay; disabled when blank) | ✅ yes | owner painted, hit Reset, saw it clear and the button grey out; approved | `b51e1ae` |
+| 2026-06-27 | Triangular + Hexagonal tilings (+ auto gallery thumbnails) | ✅ yes | owner reviewed both running tilings (select Triangular / Hexagonal → gapless, ~400 tiles, select + paint work) and the gallery thumbnails; approved | `f4a6b92` |
 
 ## 8. Todo list (working backlog)
 
@@ -226,7 +227,11 @@ in-session task tracker.
     those land. Turn the chip into a picker then.
   - [x] Octagon+wedge tiling (`kalleboda`) — second selectable tiling; wedge-snap + vertex-weld so the
     generic `stitch()` pairs shared edges (incl. the two-edged-adjacency quirk) *(verified 2026-06-27, `6fd812e`)*
-  - [ ] More tilings — the 11 uniform Euclidean tilings
+  - [x] Regular uniform tilings — triangular (3.3.3.3.3.3) + hexagonal (6.6.6); gallery thumbnails now
+    auto-render each ready tiling's real generator *(verified 2026-06-27, `f4a6b92`)*
+  - [ ] More tilings — the 8 remaining (semiregular) uniform Euclidean tilings: trihexagonal, snub square,
+    snub hexagonal, elongated triangular, truncated square, truncated hexagonal, rhombitrihexagonal,
+    truncated trihexagonal (added in small batches, verified between)
   - [ ] Tile numbering as a canvas control — user-selectable scheme/origin (debug view currently numbers by generation order)
   - [ ] Visualise edge numbering + opposite edges for the user — show each tile's clockwise-from-top edge numbers and which edges are opposite (engine support exists: `clockwiseEdgeOrder`, `opposite`)
 - [ ] **Port the static coloring DSL** *(§5)*
