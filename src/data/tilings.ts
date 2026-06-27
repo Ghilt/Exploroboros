@@ -25,8 +25,8 @@ export const TILINGS: ReadonlyArray<TilingEntry> = [
   { id: 'elongated-triangular', name: 'Elongated Triangular', vertexConfig: '3.3.3.4.4', status: 'ready' },
   { id: 'truncated-square', name: 'Truncated Square', vertexConfig: '4.8.8', status: 'ready' },
   { id: 'truncated-hexagonal', name: 'Truncated Hexagonal', vertexConfig: '3.12.12', status: 'ready' },
-  { id: 'rhombitrihexagonal', name: 'Rhombitrihexagonal', vertexConfig: '3.4.6.4', status: 'planned' },
-  { id: 'truncated-trihexagonal', name: 'Truncated Trihexagonal', vertexConfig: '4.6.12', status: 'planned' },
+  { id: 'rhombitrihexagonal', name: 'Rhombitrihexagonal', vertexConfig: '3.4.6.4', status: 'ready' },
+  { id: 'truncated-trihexagonal', name: 'Truncated Trihexagonal', vertexConfig: '4.6.12', status: 'ready' },
 ]
 
 export function getTiling(id: string): TilingEntry | undefined {
