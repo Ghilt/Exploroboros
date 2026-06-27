@@ -182,6 +182,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-26 | Website shell — landing, Canvas + Gallery scaffolds, hash routing | ✅ yes | owner reviewed the running app (landing, canvas, gallery; light + dark) and approved | `de0dbd4` |
 | 2026-06-26 | Tiling engine backbone + square-tiling debug view | ✅ yes | owner viewed the 20×20 square grid (white tiles, black edges) on desktop + phone and approved | `31c28d0` |
 | 2026-06-27 | Multi-pane canvas workspace + tile inspector | ✅ yes | owner reviewed the running workspace (panes + collapse, click-to-inspect, visited controls; desktop + mobile) and approved | `6c73647` |
+| 2026-06-27 | Tiling picker — modal gallery (Square + faithful Octagon+Wedge thumbnails; 10 planned) | ✅ yes | owner reviewed the running picker (open/close, choose Square, disabled Octagon+Wedge; desktop + mobile + dark) and approved | `e4f4e48` |
 
 ## 8. Todo list (working backlog)
 
@@ -195,6 +196,10 @@ in-session task tracker.
 - [ ] **Generic tiling render + data model** *(§4.3)*
   - [x] Tiling engine backbone — data model, generic `stitch()`, square generator, SVG debug view
     *(verified 2026-06-26, `31c28d0`)*
+  - [x] Tiling picker — modal gallery to choose a tiling (Canvas header). Square selectable;
+    Octagon+Wedge a faithful preview thumbnail (from prototype geometry) but disabled; the other 10
+    uniform tilings are placeholder cards. Catalog in `src/data/tilings.ts`; selection wired via
+    Workspace `tilingId` for when real generators land *(verified 2026-06-27, `e4f4e48`)*
   - [ ] More tilings — the 11 uniform Euclidean tilings + the octagon+wedge (needs a collinear-overlap matcher)
   - [ ] Tile numbering as a canvas control — user-selectable scheme/origin (debug view currently numbers by generation order)
   - [ ] Visualise edge numbering + opposite edges for the user — show each tile's clockwise-from-top edge numbers and which edges are opposite (engine support exists: `clockwiseEdgeOrder`, `opposite`)
