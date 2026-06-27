@@ -236,6 +236,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-27 | Step-tracked visits (a visit logs its step; hand-made paint/Inspect = −1) + per-tile registries A/B/C; "paint:" target picker (visited/A/B/C); reusable faded "?" explainer (on Registries + step-visits) | ✅ yes | owner reviewed the running canvas on desktop + phone (Inspect shows the step list + A/B/C steppers with "?" dialogs; paint picker switches target; copy-paste carries all state; Reset clears) and approved | `bd2b72f` |
 | 2026-06-27 | Tile-predicate DSL + Predicate pane + Coloring pane + colorizer; unique tile coordinates (dynamic Inspect); `tile-type` & `rotation` attributes; pane/colour UI polish | ✅ yes | owner reviewed the running app (desktop) across several iterations — authored predicates (presets expand, custom persist, live compile/errors), saw coloring rules recolour the tiling (flat, ramps with breakpoints, opacity blend), drag-reordered rules — and approved; old visit-shading removed, drag-paint kept as data | `b391faa` |
 | 2026-06-27 | Visual chip predicate editor (Text/Visual toggle; click operator → dropdown + key accelerators, click attribute to swap, inline number/shape edits); ramps over any attribute incl. the step ones (+ index field for indexed); shortened adj-v-count / adj-t-v-count labels | ✅ yes | owner reviewed the running app and approved ("very good"); verified live — chips render, the operator dropdown's "-"/"<" accelerators set the op, the ramp dropdown lists first/latest/step + coordinate with an index field | `50f1aa0` |
+| 2026-06-27 | Basic traverser + tick/run — Play/Pause/Stop + slow/fast/max speed chip; walker steps to the least-turn adjacent unvisited tile; authored seeds vs live run (Stop restores the placement, Reset removes); Inspect Place/aim/Remove; lime heading arrow in stats; mobile header wraps | ✅ yes | owner ran it on device — placed + aimed walkers, watched the lime arrows walk at each speed, confirmed Stop restores the placed walkers (not cleared) and the mobile controls stack — and said "commit" | `064cfc7` |
 
 ## 8. Todo list (working backlog)
 
@@ -297,6 +298,13 @@ in-session task tracker.
   text editor via serialize/parse. Structural add/group still done in Text mode — a possible follow-up
   *(verified 2026-06-27, `50f1aa0`)*
 - [ ] **Port the traverse engine** *(§5)* — reuses the predicate DSL
+  - [x] Basic traverser + tick/run structure — pure `src/traverse/` engine (synchronous tick; a walker steps
+    to the least-turn adjacent **unvisited** tile, re-aims, coalesces, auto-stops when trapped), Play/Pause/Stop
+    + slow/fast/max speed chip, **authored seeds vs live run** (Stop restores the placement — the savable
+    starting state; Reset removes), Inspect Place/aim/Remove (locked during a run), lime heading arrow in stats,
+    grid-resize locked while running, mobile header wraps *(verified 2026-06-27, `064cfc7`)*
+  - [ ] DSL-driven traversers — custom rules in the Traversers pane (paint / move along edge refs / visit /
+    split / guards / state terms, §5), reusing the predicate DSL; replaces the one hardcoded behaviour
 - [ ] **Serverless PNG export** *(§4.2)*
 - [ ] **Deploy to Vercel**
 
