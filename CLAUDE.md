@@ -340,7 +340,9 @@ Hard-won; read before fighting the tooling again.
   copy (null while stopped), a `running` flag + a `setInterval`/`requestAnimationFrame` **clock**
   (`slow`/`fast`/`max`), and the **Play / Pause / Stop** controls. **Stop** discards `runLive` and clears the
   run trail → the seeds reappear; **Reset** removes the seeds too. The Inspect Traverser section places/aims/
-  removes seeds **only while stopped** (a run owns the walkers). Grid resize is locked while running.
+  removes seeds **only while stopped** (a run owns the walkers). Grid resize is locked while a run is active
+  (`runLive !== null`). On **mobile**, Fit / Reset / grid-size collapse behind a **⋯ dropdown**
+  (`.canvas-more` trigger + `.canvas-extra` popover, outside-tap/Escape to close); inline on desktop.
 - `src/components/Panel.tsx` — reusable collapsible dock panel (collapses to a thin rail).
 - `src/components/HelpButton.tsx` (+ `.css`) — the reusable faded **"?" explainer**: a small muted
   button that opens a little info dialog (reuses the TilingPicker modal pattern — portal, Escape,

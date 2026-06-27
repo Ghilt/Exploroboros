@@ -70,6 +70,9 @@ export function Workspace() {
   const traverserSeq = useRef(0)
   // Tile display: edged outline / no outline / outline + printed stats (number + visited + counters).
   const [displayMode, setDisplayMode] = useState<DisplayMode>('edges')
+  // Mobile only: Fit / Reset / grid-size live behind a "⋯" button; this toggles that dropdown.
+  const [toolsOpen, setToolsOpen] = useState(false)
+  const moreRef = useRef<HTMLDivElement>(null)
   // Copied tile state, pasteable onto a same-shape tile.
   const [clip, setClip] = useState<TileClip | null>(null)
   // Bumped to ask the canvas to re-frame the whole tiling (Fit button).
@@ -150,6 +153,23 @@ export function Workspace() {
     const handle = setInterval(() => tickRef.current(), SPEED_MS[speed])
     return () => clearInterval(handle)
   }, [running, speed])
+
+  // Close the mobile "⋯" tools dropdown on an outside tap / Escape.
+  useEffect(() => {
+    if (!toolsOpen) return
+    const onDown = (e: PointerEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setToolsOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setToolsOpen(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [toolsOpen])
 
   const selected = selectedId ? nodeById(tiling, selectedId) ?? null : null
   // Walkers to show + inspect: the live run if one's in progress, else the authored seeds. Authoring
@@ -346,32 +366,6 @@ export function Workspace() {
                 <option value="c">C</option>
               </select>
             </label>
-            <label className="canvas-grid" title="Grid size — tiles = N × N">
-              <span className="canvas-grid-label">
-                {gridInput}×{gridInput}
-              </span>
-              <input
-                type="range"
-                min={GRID_MIN}
-                max={GRID_MAX}
-                step={10}
-                value={gridInput}
-                aria-label="grid size"
-                onChange={(e) => setGridInput(Number(e.target.value))}
-              />
-            </label>
-            <button type="button" className="canvas-btn" onClick={() => setFitNonce((n) => n + 1)}>
-              Fit
-            </button>
-            <button
-              type="button"
-              className="canvas-btn"
-              onClick={resetAll}
-              disabled={overlayIsEmpty(overlay) && seeds.length === 0 && runLive === null}
-              title="Reset — clears every visit and counter, and removes the walkers"
-            >
-              Reset
-            </button>
             <button
               type="button"
               className="canvas-chip canvas-chip-btn"
@@ -380,6 +374,51 @@ export function Workspace() {
             >
               display: {displayMode}
             </button>
+            {/* Fit / Reset / grid-size: inline on desktop, behind a ⋯ button on mobile. */}
+            <div className="canvas-more-wrap" ref={moreRef}>
+              <button
+                type="button"
+                className="canvas-btn canvas-more"
+                onClick={() => setToolsOpen((o) => !o)}
+                aria-label="more controls"
+                aria-expanded={toolsOpen}
+                title="More controls"
+              >
+                ⋯
+              </button>
+              <div className={`canvas-extra${toolsOpen ? ' is-open' : ''}`}>
+                <label
+                  className="canvas-grid"
+                  title={runLive !== null ? 'Stop the run to resize the grid' : 'Grid size — tiles = N × N'}
+                >
+                  <span className="canvas-grid-label">
+                    {gridInput}×{gridInput}
+                  </span>
+                  <input
+                    type="range"
+                    min={GRID_MIN}
+                    max={GRID_MAX}
+                    step={10}
+                    value={gridInput}
+                    aria-label="grid size"
+                    disabled={runLive !== null}
+                    onChange={(e) => setGridInput(Number(e.target.value))}
+                  />
+                </label>
+                <button type="button" className="canvas-btn" onClick={() => setFitNonce((n) => n + 1)}>
+                  Fit
+                </button>
+                <button
+                  type="button"
+                  className="canvas-btn"
+                  onClick={resetAll}
+                  disabled={overlayIsEmpty(overlay) && seeds.length === 0 && runLive === null}
+                  title="Reset — clears every visit and counter, and removes the walkers"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
           </div>
         </header>
         <div className="canvas-stage">

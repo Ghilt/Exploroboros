@@ -152,6 +152,62 @@
   margin-left: 0.25rem;
 }
 
+/* Fit / Reset / grid-size: a ⋯ dropdown on mobile, inline on desktop. */
+.canvas-more-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.canvas-more {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+.canvas-extra {
+  display: none;
+}
+.canvas-extra.is-open {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.6rem;
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 20;
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  min-width: 12rem;
+}
+.canvas-extra.is-open .canvas-grid {
+  justify-content: space-between;
+}
+.canvas-grid input[type='range']:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+/* Desktop: show Fit / Reset / grid inline; drop the ⋯ trigger. */
+@media (min-width: 64rem) {
+  .canvas-more {
+    display: none;
+  }
+  .canvas-extra,
+  .canvas-extra.is-open {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+    position: static;
+    padding: 0;
+    border: none;
+    background: none;
+    box-shadow: none;
+    min-width: 0;
+  }
+}
+
 .pane-hint {
   margin: 0;
   color: var(--muted);

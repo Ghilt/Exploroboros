@@ -82,6 +82,28 @@ describe('Workspace', () => {
     expect(chip.textContent).toMatch(/fast/i)
   })
 
+  it('locks grid resize during an active run (Play + Pause), frees it on Stop', () => {
+    render(<Workspace />)
+    const slider = () => screen.getByRole('slider', { name: /grid size/i }) as HTMLInputElement
+    expect(slider().disabled).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
+    fireEvent.click(screen.getByRole('button', { name: /place traverser/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^play/i }))
+    expect(slider().disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: /^pause/i }))
+    expect(slider().disabled).toBe(true) // a paused run is still active — keep it locked
+    fireEvent.click(screen.getByRole('button', { name: /^stop/i }))
+    expect(slider().disabled).toBe(false)
+  })
+
+  it('has a mobile ⋯ overflow toggle for Fit / Reset / grid', () => {
+    render(<Workspace />)
+    const more = screen.getByRole('button', { name: /more controls/i })
+    expect(more.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(more)
+    expect(more.getAttribute('aria-expanded')).toBe('true')
+  })
+
   it('selecting a tile inspects it (number, row, column)', () => {
     render(<Workspace />)
     expect(screen.getByText(/click a tile to inspect/i)).toBeTruthy()
