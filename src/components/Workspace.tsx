@@ -8,14 +8,18 @@ import {
   applyClip,
   clipFromTile,
   addVisit,
+  addVisits,
   removeManualVisit,
   bumpRegistry,
   applyPaint,
   tileState,
   visitCount,
   overlayIsEmpty,
+  clearTraverserVisits,
+  hasTraverserVisits,
 } from '../canvas'
 import type { TileClip, TileState, Registry, PaintTarget } from '../canvas'
+import { stepTraversers, headingOptions, rotateHeading, type Traverser } from '../traverse'
 import { TilingCanvas, type DisplayMode } from './TilingCanvas'
 import { TilingPicker } from './TilingPicker'
 import { Panel } from './Panel'
@@ -29,6 +33,12 @@ import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
 
 const GRID_MIN = 10
 const GRID_MAX = 140
+
+// Traverser clock speeds. slow/fast are an interval (ms between ticks); 'max' runs one tick per
+// animation frame (as fast as the machine paints). A chip next to Stop cycles these, like the
+// display-mode chip.
+type RunSpeed = 'slow' | 'fast' | 'max'
+const SPEED_MS: Record<Exclude<RunSpeed, 'max'>, number> = { slow: 300, fast: 90 }
 
 const REGISTRIES: ReadonlyArray<{ key: Registry; label: string }> = [
   { key: 'a', label: 'A' },
@@ -47,6 +57,17 @@ export function Workspace() {
   const [overlay, setOverlay] = useState<ReadonlyMap<string, TileState>>(() => new Map())
   // What a drag paints: the visit log, or one of the registries.
   const [paintTarget, setPaintTarget] = useState<PaintTarget>('visited')
+  // The traverse run. `seeds` is the AUTHORED initial state — the walkers the user placed and aimed,
+  // i.e. the savable "starting position" of a fractal. A run works on a COPY (`runLive`) so the
+  // originals are never lost: `runLive` is null while stopped (we then show `seeds`) and an array
+  // while a run is playing or paused. `step` is the tick a new visit is stamped with. See
+  // src/traverse/. Kept off the immutable Tiling like the overlay.
+  const [seeds, setSeeds] = useState<Traverser[]>([])
+  const [runLive, setRunLive] = useState<Traverser[] | null>(null)
+  const [running, setRunning] = useState(false)
+  const [step, setStep] = useState(0)
+  const [speed, setSpeed] = useState<RunSpeed>('fast')
+  const traverserSeq = useRef(0)
   // Tile display: edged outline / no outline / outline + printed stats (number + visited + counters).
   const [displayMode, setDisplayMode] = useState<DisplayMode>('edges')
   // Copied tile state, pasteable onto a same-shape tile.
@@ -95,7 +116,95 @@ export function Workspace() {
     [coloringStore.rules, predicateText, tiling, overlay, indexById],
   )
 
+  // Tile id -> heading for the canvas to draw each walker's arrow (stats mode only). Show the live
+  // run if one's in progress, else the authored seeds.
+  const traverserHeads = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const t of runLive ?? seeds) m.set(t.tile, t.heading)
+    return m
+  }, [runLive, seeds])
+
+  // The clock. A reassigned ref keeps the interval calling the LATEST state each tick (the
+  // copyRef/pasteRef pattern below), so listeners attach once yet never read stale state. The tick
+  // itself is the pure stepTraversers; we auto-pause when every walker has died.
+  const tickRef = useRef<() => void>(() => {})
+  tickRef.current = () => {
+    if (runLive === null) return
+    const result = stepTraversers({ tiling, overlay, traversers: runLive, step })
+    setOverlay(result.overlay)
+    setRunLive(result.traversers)
+    setStep(result.step)
+    if (result.traversers.length === 0) setRunning(false) // every walker died -> auto-pause
+  }
+  useEffect(() => {
+    if (!running) return
+    if (speed === 'max') {
+      let raf = 0
+      const loop = () => {
+        tickRef.current()
+        raf = requestAnimationFrame(loop)
+      }
+      raf = requestAnimationFrame(loop)
+      return () => cancelAnimationFrame(raf)
+    }
+    const handle = setInterval(() => tickRef.current(), SPEED_MS[speed])
+    return () => clearInterval(handle)
+  }, [running, speed])
+
   const selected = selectedId ? nodeById(tiling, selectedId) ?? null : null
+  // Walkers to show + inspect: the live run if one's in progress, else the authored seeds. Authoring
+  // (place/remove/aim) is only allowed while stopped (`runLive === null`).
+  const walkers = runLive ?? seeds
+  const stopped = runLive === null
+  const selectedTraverser = selected ? walkers.find((t) => t.tile === selected.id) ?? null : null
+
+  // ---- traverser run controls ----
+  const play = () => {
+    if (walkers.length === 0) return
+    if (runLive === null) {
+      // Start a fresh run from the authored seeds — on a COPY, so the seeds stay intact for Stop to
+      // restore — and mark each walker's starting tile visited at step 0.
+      const live = seeds.map((s) => ({ ...s }))
+      setRunLive(live)
+      setStep(0)
+      setOverlay((prev) => addVisits(prev, live.map((t) => t.tile), 0))
+    }
+    setRunning(true)
+  }
+  const pause = () => setRunning(false)
+  const cycleSpeed = () => setSpeed((s) => (s === 'slow' ? 'fast' : s === 'fast' ? 'max' : 'slow'))
+  // Stop: discard the live run and clear its trail (step >= 0 visits), restoring the AUTHORED state —
+  // the placed walkers (seeds) reappear and only hand-painted tiles (step -1) remain. Only Reset
+  // removes the seeds.
+  const stopRun = () => {
+    setRunning(false)
+    setRunLive(null)
+    setStep(0)
+    setOverlay((prev) => clearTraverserVisits(prev))
+  }
+  // Full Reset: wipe everything (painting + placed walkers) and end any run.
+  const resetAll = () => {
+    setRunning(false)
+    setRunLive(null)
+    setSeeds([])
+    setStep(0)
+    setOverlay(new Map())
+  }
+
+  // Authoring the initial state (only while stopped): place / remove / aim walkers. These edit
+  // `seeds`, the savable starting position — never the live run. Placement records no visit; the
+  // walk records visits once it runs.
+  const placeTraverser = (id: string) => {
+    if (seeds.some((t) => t.tile === id)) return
+    const heading = headingOptions(tiling, id)[0] ?? 0
+    const tid = `tr${(traverserSeq.current += 1)}`
+    setSeeds((list) => [...list, { id: tid, tile: id, heading }])
+  }
+  const removeTraverser = (id: string) => setSeeds((list) => list.filter((t) => t.tile !== id))
+  const rotateTraverser = (id: string, dir: 1 | -1) =>
+    setSeeds((list) =>
+      list.map((t) => (t.tile === id ? { ...t, heading: rotateHeading(tiling, id, t.heading, dir) } : t)),
+    )
 
   // Inspect ±: + adds a hand-made visit (step -1); − removes one (never touches traverser history).
   const bumpVisit = (id: string, delta: number) =>
@@ -115,6 +224,11 @@ export function Workspace() {
     if (id !== tilingId) {
       setOverlay(new Map())
       setSelectedId(null)
+      // Walkers are keyed by tile id, meaningless on another tiling — end the run + drop the seeds.
+      setRunning(false)
+      setRunLive(null)
+      setSeeds([])
+      setStep(0)
     }
     setTilingId(id)
   }
@@ -176,7 +290,46 @@ export function Workspace() {
 
       <div className="canvas-pane">
         <header className="panel-head">
-          <span className="panel-title">Canvas</span>
+          <div className="canvas-run" role="group" aria-label="traverser run">
+            <button
+              type="button"
+              className="run-btn"
+              onClick={play}
+              disabled={running || walkers.length === 0}
+              aria-label="Play — run the traversers"
+              title="Play — run the traversers"
+            >
+              ▶
+            </button>
+            <button
+              type="button"
+              className="run-btn"
+              onClick={pause}
+              disabled={!running}
+              aria-label="Pause — stop ticking, keep the walkers"
+              title="Pause — stop ticking, keep the walkers"
+            >
+              ❚❚
+            </button>
+            <button
+              type="button"
+              className="run-btn"
+              onClick={stopRun}
+              disabled={!running && runLive === null && !hasTraverserVisits(overlay)}
+              aria-label="Stop — end the run and clear its trail (keeps the walkers and your painting)"
+              title="Stop — end the run and clear its trail (keeps the walkers and your painting)"
+            >
+              ■
+            </button>
+            <button
+              type="button"
+              className="canvas-chip canvas-chip-btn run-speed"
+              onClick={cycleSpeed}
+              title="Run speed — click to cycle: slow, fast, max"
+            >
+              speed: {speed}
+            </button>
+          </div>
           <div className="canvas-tools">
             <TilingPicker value={tilingId} onChange={selectTiling} />
             <label className="canvas-chip canvas-paint" title="What a drag paints">
@@ -213,9 +366,9 @@ export function Workspace() {
             <button
               type="button"
               className="canvas-btn"
-              onClick={() => setOverlay(new Map())}
-              disabled={overlayIsEmpty(overlay)}
-              title="Reset the tiling — clears every visit and counter"
+              onClick={resetAll}
+              disabled={overlayIsEmpty(overlay) && seeds.length === 0 && runLive === null}
+              title="Reset — clears every visit and counter, and removes the walkers"
             >
               Reset
             </button>
@@ -236,6 +389,7 @@ export function Workspace() {
             selectedId={selectedId}
             overlay={overlay}
             colorFor={colorFor}
+            traverserHeads={traverserHeads}
             tileNumber={(id) => indexById.get(id) ?? -1}
             onSelect={setSelectedId}
             onPaint={paint}
@@ -252,10 +406,15 @@ export function Workspace() {
             number={indexById.get(selected.id) ?? -1}
             overlay={overlay}
             clip={clip}
+            traverserHeading={selectedTraverser ? selectedTraverser.heading : null}
+            canEditTraverser={stopped}
             onVisit={bumpVisit}
             onRegistry={bumpReg}
             onCopy={copyTile}
             onPaste={pasteTile}
+            onPlaceTraverser={placeTraverser}
+            onRemoveTraverser={removeTraverser}
+            onRotateTraverser={rotateTraverser}
           />
         ) : (
           <p className="pane-hint">Click a tile to inspect it.</p>
@@ -281,20 +440,32 @@ function InspectContent({
   number,
   overlay,
   clip,
+  traverserHeading,
+  canEditTraverser,
   onVisit,
   onRegistry,
   onCopy,
   onPaste,
+  onPlaceTraverser,
+  onRemoveTraverser,
+  onRotateTraverser,
 }: {
   tiling: Tiling
   node: TileNode
   number: number
   overlay: ReadonlyMap<string, TileState>
   clip: TileClip | null
+  // The heading (radians) of the walker on this tile, or null if there isn't one here.
+  traverserHeading: number | null
+  // Whether placements can be edited — only while stopped (a run owns the walkers).
+  canEditTraverser: boolean
   onVisit: (id: string, delta: number) => void
   onRegistry: (id: string, reg: Registry, delta: number) => void
   onCopy: () => void
   onPaste: () => void
+  onPlaceTraverser: (id: string) => void
+  onRemoveTraverser: (id: string) => void
+  onRotateTraverser: (id: string, dir: 1 | -1) => void
 }) {
   const st = tileState(overlay, node.id)
   const own = visitCount(st)
@@ -312,6 +483,56 @@ function InspectContent({
   return (
     <div className="tile-stats">
       <h3 className="stat-head">Tile #{number}</h3>
+
+      <div className="tile-traverser">
+        <div className="trav-head">
+          <span className="trav-title">traverser</span>
+          <HelpButton title="Traversers">
+            <p>
+              A <strong>traverser</strong> is a walker that sits on a tile. Press <strong>Play</strong>{' '}
+              (top-left of the canvas) and each tick it steps to an adjacent tile it hasn’t visited yet,
+              following its <strong>heading</strong> (the arrow) as best it can — leaving a visited trail.
+            </p>
+            <p>
+              Place one here, then aim it with <strong>↺ / ↻</strong>. <strong>Pause</strong> freezes the
+              walk; <strong>Stop</strong> (■) ends it and clears the trail but keeps the walkers (and tiles
+              you painted by hand — so painted tiles act as walls to route around). Only <strong>Reset</strong>{' '}
+              removes the walkers. See the trail in <em>display: stats</em> or with a coloring rule.
+            </p>
+          </HelpButton>
+        </div>
+        {!canEditTraverser ? (
+          <p className="trav-note">Stop the run to edit the walkers.</p>
+        ) : traverserHeading === null ? (
+          <button type="button" className="trav-place" onClick={() => onPlaceTraverser(node.id)}>
+            Place traverser
+          </button>
+        ) : (
+          <div className="trav-controls">
+            <button
+              type="button"
+              className="trav-rot"
+              onClick={() => onRotateTraverser(node.id, -1)}
+              aria-label="rotate heading left"
+            >
+              ↺
+            </button>
+            <HeadingArrow heading={traverserHeading} />
+            <button
+              type="button"
+              className="trav-rot"
+              onClick={() => onRotateTraverser(node.id, 1)}
+              aria-label="rotate heading right"
+            >
+              ↻
+            </button>
+            <button type="button" className="trav-remove" onClick={() => onRemoveTraverser(node.id)}>
+              Remove
+            </button>
+          </div>
+        )}
+      </div>
+
       <dl>
         {tileStats(tiling, node).map((stat) => (
           <Fragment key={stat.label}>
@@ -400,6 +621,31 @@ function InspectContent({
         </dd>
       </dl>
     </div>
+  )
+}
+
+// A small arrow showing a walker's heading. Heading is radians, world y-up (a side's outward
+// normal); screen is y-down, so the on-screen rotation negates it — matching the canvas arrow.
+function HeadingArrow({ heading }: { heading: number }) {
+  const deg = (-heading * 180) / Math.PI
+  return (
+    <svg
+      className="heading-arrow"
+      viewBox="0 0 24 24"
+      width="22"
+      height="22"
+      aria-hidden="true"
+      style={{ transform: `rotate(${deg}deg)` }}
+    >
+      <path
+        d="M3 12 H18 M13 7 L19 12 L13 17"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   )
 }
 

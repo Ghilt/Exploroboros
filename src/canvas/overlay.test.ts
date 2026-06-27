@@ -3,8 +3,11 @@ import {
   EMPTY_TILE_STATE,
   MANUAL_STEP,
   addVisit,
+  addVisits,
   applyPaint,
   bumpRegistry,
+  clearTraverserVisits,
+  hasTraverserVisits,
   overlayIsEmpty,
   removeManualVisit,
   tileState,
@@ -94,5 +97,57 @@ describe('overlayIsEmpty', () => {
     expect(overlayIsEmpty(new Map<string, TileState>())).toBe(true)
     expect(overlayIsEmpty(addVisit(new Map<string, TileState>(), 't1'))).toBe(false)
     expect(overlayIsEmpty(bumpRegistry(new Map<string, TileState>(), 't1', 'a', 1))).toBe(false)
+  })
+})
+
+describe('addVisits', () => {
+  it('appends a real step to each given tile in one pass', () => {
+    const o = addVisits(new Map<string, TileState>(), ['t1', 't2'], 7)
+    expect(o.get('t1')!.visits).toEqual([7])
+    expect(o.get('t2')!.visits).toEqual([7])
+  })
+  it('stacks onto existing visits and does not mutate the input', () => {
+    const before = addVisit(new Map<string, TileState>(), 't1', 1)
+    const after = addVisits(before, ['t1'], 2)
+    expect(after.get('t1')!.visits).toEqual([1, 2])
+    expect(before.get('t1')!.visits).toEqual([1])
+  })
+  it('an empty id list just copies the overlay', () => {
+    const before = addVisit(new Map<string, TileState>(), 't1', 1)
+    const after = addVisits(before, [], 9)
+    expect(after).not.toBe(before)
+    expect([...after]).toEqual([...before])
+  })
+})
+
+describe('clearTraverserVisits', () => {
+  it('drops step >= 0 visits but keeps manual (-1) ones', () => {
+    let o = new Map<string, TileState>()
+    o = addVisit(o, 't1', 3) // traverser
+    o = addVisit(o, 't1') // manual -1
+    o = clearTraverserVisits(o)
+    expect(o.get('t1')!.visits).toEqual([MANUAL_STEP])
+  })
+  it('keeps registries even when all visits were traverser-made', () => {
+    let o = bumpRegistry(new Map<string, TileState>(), 't1', 'a', 2)
+    o = addVisit(o, 't1', 4)
+    o = clearTraverserVisits(o)
+    expect(o.get('t1')!.visits).toEqual([])
+    expect(o.get('t1')!.a).toBe(2)
+  })
+  it('removes tiles left fully empty, so the overlay can go back to blank', () => {
+    let o = addVisit(new Map<string, TileState>(), 't1', 0)
+    o = addVisit(o, 't1', 1)
+    o = clearTraverserVisits(o)
+    expect(o.has('t1')).toBe(false)
+    expect(overlayIsEmpty(o)).toBe(true)
+  })
+})
+
+describe('hasTraverserVisits', () => {
+  it('true only when some tile has a step >= 0 visit', () => {
+    expect(hasTraverserVisits(new Map<string, TileState>())).toBe(false)
+    expect(hasTraverserVisits(addVisit(new Map<string, TileState>(), 't1'))).toBe(false) // manual -1
+    expect(hasTraverserVisits(addVisit(new Map<string, TileState>(), 't1', 0))).toBe(true)
   })
 })

@@ -28,9 +28,13 @@ vi.mock('./TilingCanvas', () => ({
 afterEach(cleanup)
 
 describe('Workspace', () => {
-  it('shows the canvas, the inspect pane, and the collapsed authoring panes', () => {
+  it('shows the canvas, the run controls, the inspect pane, and the collapsed authoring panes', () => {
     render(<Workspace />)
-    expect(screen.getByText('Canvas')).toBeTruthy()
+    expect(screen.getByTestId('mock-canvas')).toBeTruthy()
+    // Play/Pause/Stop replace the old "Canvas" title; Play starts disabled (no walkers yet).
+    expect((screen.getByRole('button', { name: /^play/i }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByRole('button', { name: /^pause/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^stop/i })).toBeTruthy()
     expect(screen.getByText(/click a tile to inspect/i)).toBeTruthy()
     // Traversers, Predicates and Coloring start collapsed — their titles live on the rail.
     expect(screen.getByRole('button', { name: /expand traversers/i })).toBeTruthy()
@@ -64,6 +68,18 @@ describe('Workspace', () => {
     expect(chip.textContent).toMatch(/stats/i)
     fireEvent.click(chip)
     expect(chip.textContent).toMatch(/edges/i)
+  })
+
+  it('the speed chip cycles slow -> fast -> max (default fast)', () => {
+    render(<Workspace />)
+    const chip = screen.getByRole('button', { name: /speed:/i })
+    expect(chip.textContent).toMatch(/fast/i)
+    fireEvent.click(chip)
+    expect(chip.textContent).toMatch(/max/i)
+    fireEvent.click(chip)
+    expect(chip.textContent).toMatch(/slow/i)
+    fireEvent.click(chip)
+    expect(chip.textContent).toMatch(/fast/i)
   })
 
   it('selecting a tile inspects it (number, row, column)', () => {
@@ -146,6 +162,43 @@ describe('Workspace', () => {
     // The visited overlay is gone (Reset disabled again) and the inspector is cleared.
     expect((screen.getByRole('button', { name: 'Reset' }) as HTMLButtonElement).disabled).toBe(true)
     expect(screen.getByText(/click a tile to inspect/i)).toBeTruthy()
+  })
+
+  it('places a traverser from Inspect: enables Play and shows aim controls, recording no visit yet', () => {
+    const { container } = render(<Workspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
+    // No walker yet -> the Place button is offered and Play is disabled.
+    expect((screen.getByRole('button', { name: /^play/i }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: /place traverser/i }))
+    // Placement records no visit (the walk records visits); Play is enabled and aim controls replace Place.
+    expect(container.querySelector('.visited-value')?.textContent).toBe('0')
+    expect((screen.getByRole('button', { name: /^play/i }) as HTMLButtonElement).disabled).toBe(false)
+    expect(screen.getByRole('button', { name: /rotate heading right/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /place traverser/i })).toBeNull()
+  })
+
+  it('Play marks the start tile; Stop restores the authored placement; only Reset removes it', () => {
+    const { container } = render(<Workspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'sq:1,1' }))
+    fireEvent.click(screen.getByRole('button', { name: /place traverser/i }))
+    expect(container.querySelector('.visited-value')?.textContent).toBe('0')
+
+    // Play seeds the start tile (step 0) and hands the walkers to the run (Inspect shows the note).
+    fireEvent.click(screen.getByRole('button', { name: /^play/i }))
+    expect(container.querySelector('.visited-value')?.textContent).toBe('1')
+    expect(screen.getByText(/stop the run to edit/i)).toBeTruthy()
+
+    // Stop discards the run trail and restores the authored state: tile back to 0, walker (aim
+    // controls) returns — the manually-crafted placement is intact.
+    fireEvent.click(screen.getByRole('button', { name: /^stop/i }))
+    expect(container.querySelector('.visited-value')?.textContent).toBe('0')
+    expect(screen.getByRole('button', { name: /rotate heading right/i })).toBeTruthy()
+    expect((screen.getByRole('button', { name: /^play/i }) as HTMLButtonElement).disabled).toBe(false)
+
+    // Only Reset removes the walker.
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
+    expect(screen.getByRole('button', { name: /place traverser/i })).toBeTruthy()
+    expect((screen.getByRole('button', { name: /^play/i }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('panels collapse and expand', () => {

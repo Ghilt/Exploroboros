@@ -46,6 +46,7 @@ type Palette = {
   visited: string
   accent: string
   accentStrong: string
+  traverser: string
   mono: string
 }
 
@@ -58,6 +59,8 @@ const FALLBACK: Palette = {
   visited: '#c9551c',
   accent: '#e2682a',
   accentStrong: '#c9551c',
+  // Traverser arrow — a fixed lime, not themed, so the head always reads as "the walker".
+  traverser: '#7CFC00',
   mono: 'ui-monospace, SFMono-Regular, Menlo, monospace',
 }
 
@@ -76,6 +79,8 @@ type Props = {
   // Precomputed fill per tile id (CSS colour), from the coloring rules. Tiles absent here keep the
   // base fill. Computed by the colorizer in Workspace, not per frame.
   colorFor?: ReadonlyMap<string, string>
+  // Tile id -> heading (radians, world y-up) for each traverser, drawn as an arrow in stats mode.
+  traverserHeads?: ReadonlyMap<string, number>
   tileNumber?: (id: string) => number
   onSelect?: (id: string) => void
   onPaint?: (ids: ReadonlyArray<string>) => void
@@ -89,6 +94,7 @@ export function TilingCanvas({
   selectedId = null,
   overlay,
   colorFor,
+  traverserHeads,
   tileNumber,
   onSelect,
   onPaint,
@@ -386,6 +392,14 @@ export function TilingCanvas({
               listening={false}
               sceneFunc={(ctx) => drawSelection(ctx, tiling, viewRef.current, paletteRef.current, selectedId)}
             />
+            <Shape
+              listening={false}
+              sceneFunc={(ctx) => {
+                if (displayMode === 'stats') {
+                  drawTraverserHeads(ctx, tiling, viewRef.current, paletteRef.current, traverserHeads)
+                }
+              }}
+            />
           </Layer>
         </Stage>
       )}
@@ -576,4 +590,49 @@ function drawSelection(ctx: Konva.Context, tiling: Tiling, view: View, pal: Pale
   ctx.setAttr('strokeStyle', pal.accentStrong)
   ctx.setAttr('lineWidth', 2.5)
   ctx.stroke()
+}
+
+// A traverser's head: a short arrow through the tile centre pointing along its heading. Heading is
+// radians world y-up; the world->screen flip means the screen direction is (cos h, -sin h) — read
+// straight off the mapping's uniform |scale| on both axes (no per-arrow transform needed). Drawn in
+// stats mode only (the owner's call), over the printed labels.
+function drawTraverserHeads(
+  ctx: Konva.Context,
+  tiling: Tiling,
+  view: View,
+  pal: Palette,
+  heads: ReadonlyMap<string, number> | undefined,
+): void {
+  if (!heads || heads.size === 0) return
+  const tilePx = representativeTileSize(tiling) * view.scale
+  const len = Math.max(10, Math.min(tilePx * 0.5, 44))
+  const headLen = len * 0.42
+  const barb = 0.5 // ~29° half-angle on the arrowhead
+  ctx.save()
+  ctx.setAttr('strokeStyle', pal.traverser)
+  ctx.setAttr('fillStyle', pal.traverser)
+  ctx.setAttr('lineWidth', Math.max(1.5, tilePx * 0.05))
+  ctx.setAttr('lineCap', 'round')
+  ctx.setAttr('lineJoin', 'round')
+  for (const [id, heading] of heads) {
+    const node = nodeById(tiling, id)
+    if (!node) continue
+    const c = worldToScreen(node.centroid, view)
+    const dx = Math.cos(heading)
+    const dy = -Math.sin(heading) // world y-up -> screen y-down
+    const tip = { x: c.x + dx * len * 0.5, y: c.y + dy * len * 0.5 }
+    const tail = { x: c.x - dx * len * 0.5, y: c.y - dy * len * 0.5 }
+    ctx.beginPath()
+    ctx.moveTo(tail.x, tail.y)
+    ctx.lineTo(tip.x, tip.y)
+    ctx.stroke()
+    const ang = Math.atan2(dy, dx)
+    ctx.beginPath()
+    ctx.moveTo(tip.x, tip.y)
+    ctx.lineTo(tip.x - headLen * Math.cos(ang - barb), tip.y - headLen * Math.sin(ang - barb))
+    ctx.lineTo(tip.x - headLen * Math.cos(ang + barb), tip.y - headLen * Math.sin(ang + barb))
+    ctx.closePath()
+    ctx.fill()
+  }
+  ctx.restore()
 }

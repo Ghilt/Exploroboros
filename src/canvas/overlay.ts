@@ -106,3 +106,41 @@ export function applyPaint(
   }
   return next
 }
+
+// Append a visit stamped with a real tick `step` to each given tile in one pass — the traverser
+// tick's batch write (mirrors applyPaint's visited stroke, but a real step instead of MANUAL_STEP).
+export function addVisits(
+  overlay: ReadonlyMap<string, TileState>,
+  ids: ReadonlyArray<string>,
+  step: number,
+): Map<string, TileState> {
+  const next = new Map(overlay)
+  for (const id of ids) {
+    const prev = next.get(id) ?? EMPTY_TILE_STATE
+    next.set(id, { ...prev, visits: [...prev.visits, step] })
+  }
+  return next
+}
+
+// Drop every traverser-made visit (step >= 0) while keeping hand-made ones (MANUAL_STEP) and the
+// A/B/C registries — what Stop uses to end a run without wiping the painted board. Tiles left with
+// nothing at all are removed so the overlay stays tidy (and overlayIsEmpty can go back to true).
+export function clearTraverserVisits(overlay: ReadonlyMap<string, TileState>): Map<string, TileState> {
+  const next = new Map<string, TileState>()
+  for (const [id, s] of overlay) {
+    const hasReal = s.visits.some((step) => step >= 0)
+    const kept = hasReal ? s.visits.filter((step) => step < 0) : s.visits
+    if (kept.length === 0 && s.a === 0 && s.b === 0 && s.c === 0) continue // fully empty -> drop
+    next.set(id, hasReal ? { ...s, visits: kept } : s)
+  }
+  return next
+}
+
+// True when any tile carries a traverser-made visit (step >= 0) — drives Stop's enabled state, the
+// way overlayIsEmpty drives the full Reset's.
+export function hasTraverserVisits(overlay: ReadonlyMap<string, TileState>): boolean {
+  for (const s of overlay.values()) {
+    for (const step of s.visits) if (step >= 0) return true
+  }
+  return false
+}

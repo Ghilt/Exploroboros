@@ -189,8 +189,17 @@ still needed into this doc **before** then; do not rely on the path persisting.
   accelerators), click an attribute to swap it, edit numbers/shapes inline; stays in sync with the text via
   serialize/parse. Structural add/group is still done in Text mode. Same pass: ramps can be driven by any
   attribute (incl. the step ones, with an index field for indexed ones).
-- **Next up:** port the **traverse engine** (§5, reuses this DSL) → **serverless PNG export** (§4.2) →
-  **deploy** to Vercel.
+- **Traverse engine — basic traverser + tick/run (done 2026-06-27):** a pure, isomorphic tick in
+  `src/traverse/` — a walker steps to the **least-turn adjacent unvisited** tile, re-aims along the crossed
+  edge, walkers on the same tile coalesce, the run auto-stops when all are trapped. UI: **Play / Pause / Stop**
+  + a **slow/fast/max** speed chip (top-left of the canvas, where the title was; `max` = one tick per animation
+  frame). Crucially it separates **authored seeds** (the placed + aimed walkers — the savable starting state of a
+  fractal) from a **live run copy**, so **Stop** discards the run and restores the seeds (+ hand-painting), while
+  only **Reset** removes the walkers. Inspect gets a Traverser section (Place / aim ↺↻ / Remove, locked during a
+  run) and a **lime heading arrow** shows each head in `stats`. The hardcoded behaviour is a placeholder for the
+  DSL-driven traversers below.
+- **Next up:** **DSL-driven traversers** (custom rules in the Traversers pane — paint/move/visit/split/guards/
+  state, §5; reuses the predicate DSL) → **serverless PNG export** (§4.2) → **deploy** to Vercel.
 
 ## 7. Verifying on a phone + verification log
 
@@ -305,7 +314,8 @@ Hard-won; read before fighting the tooling again.
   middle-mouse drag = pan, pinch / wheel = zoom. A **display chip** (Workspace) cycles tile rendering —
   `edges` / `none` / `stats`; in `stats` the tile number, visited `vN`, and any non-zero registries
   (`A# B# C#`) print inside each tile, but only once tiles are a few screen px (`MIN_LABEL_PX`), so on
-  dense grids you zoom in to read them (you can't fit thousands of readable labels at fit). `src/canvas/`
+  dense grids you zoom in to read them (you can't fit thousands of readable labels at fit). In `stats` a
+  **lime arrow** (`traverserHeads` prop → `drawTraverserHeads`) marks each traverser head + heading. `src/canvas/`
   holds its pure, tested helpers — `view.ts` (world↔screen transform), `pick.ts` (hit-testing),
   `stroke.ts` (paint gap-fill), `overlay.ts` (per-tile run state — the visit step-list + A/B/C
   registries, plus its updaters), `clipboard.ts`, `buildTiling.ts` — imported via `src/canvas/index.ts`.
@@ -317,7 +327,12 @@ Hard-won; read before fighting the tooling again.
   owns selection, the per-tile **state overlay** (`TileState` — a visit step-list + the A/B/C
   registries; see `src/canvas/overlay.ts`), the **paint-target** picker, and the copy/paste clipboard
   (all kept off the immutable `Tiling`, keyed by tile id). The Inspect dock edits visits (± as
-  step −1) and the registries (±), and shows the step list.
+  step −1) and the registries (±), and shows the step list. It also owns the **traverse run**:
+  authored **`seeds`** (placed + aimed walkers — the savable starting state) vs a throwaway **`runLive`**
+  copy (null while stopped), a `running` flag + a `setInterval`/`requestAnimationFrame` **clock**
+  (`slow`/`fast`/`max`), and the **Play / Pause / Stop** controls. **Stop** discards `runLive` and clears the
+  run trail → the seeds reappear; **Reset** removes the seeds too. The Inspect Traverser section places/aims/
+  removes seeds **only while stopped** (a run owns the walkers). Grid resize is locked while running.
 - `src/components/Panel.tsx` — reusable collapsible dock panel (collapses to a thin rail).
 - `src/components/HelpButton.tsx` (+ `.css`) — the reusable faded **"?" explainer**: a small muted
   button that opens a little info dialog (reuses the TilingPicker modal pattern — portal, Escape,
@@ -332,6 +347,14 @@ Hard-won; read before fighting the tooling again.
 - `src/colorizer/` — pure `colorize(rules, predicateText, tiling, overlay, indexById) → Map<id, rgba>`:
   evaluates each rule's predicate once, alpha-composites matching rules top→bottom (per-rule opacity =
   blend), resolves flat/ramp (modulo + optional breakpoints). Memoized in Workspace, **not** per frame.
+- `src/traverse/` — the **pure traverse engine** (no React/DOM/Konva), public API via `src/traverse/index.ts`.
+  `types.ts` (`Traverser {id,tile,heading}` — heading in radians, world y-up, same convention as a side's
+  outward `normalAngle`; `TraverseState`; `TickResult`), `step.ts` (`chooseMove` = least-turn to an adjacent
+  **unvisited** tile, returning the new heading; `stepTraversers` = the synchronous tick: read the frozen
+  overlay → compute all moves → coalesce same-tile walkers → write one visit per target at the new step;
+  `headingOptions`/`rotateHeading` for the edge-snapped Inspect aim). May import `src/tiling` + the overlay
+  helpers; the basic behaviour is hardcoded, with the **DSL-driven** traversers (§5) to slot in behind the same
+  `stepTraversers` shape — so keep it pure.
 - `src/state/` — localStorage-backed stores: `predicateStore.ts` (custom predicates as DSL text +
   name), `coloringStore.ts` (the ordered rules, key `…:coloring:v2`), `persist.ts` (SSR/quota-safe
   load/save + `newId`). Pure list updaters are unit-tested; the hooks wire them to persistence.

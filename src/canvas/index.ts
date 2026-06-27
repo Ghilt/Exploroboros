@@ -16,6 +16,9 @@ export {
   removeManualVisit,
   bumpRegistry,
   applyPaint,
+  addVisits,
+  clearTraverserVisits,
+  hasTraverserVisits,
 } from './overlay'
 export type { TileClip } from './clipboard'
 export { clipFromTile, canPaste, applyClip } from './clipboard'

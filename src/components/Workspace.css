@@ -30,6 +30,12 @@
   overflow: hidden;
   background-image: repeating-linear-gradient(45deg, var(--motif) 0 2px, transparent 2px 24px);
 }
+/* The canvas header holds two groups (run controls + tools); let them wrap to separate rows when
+   the viewport is narrow (mobile) instead of overflowing. */
+.canvas-pane .panel-head {
+  flex-wrap: wrap;
+  row-gap: 0.45rem;
+}
 .canvas-tools {
   display: flex;
   align-items: center;
@@ -114,6 +120,38 @@
   cursor: not-allowed;
 }
 
+/* Traverser run controls — Play / Pause / Stop, top-left of the canvas header (where the title was). */
+.canvas-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.run-btn {
+  width: 1.9rem;
+  height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  line-height: 1;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+}
+.run-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.run-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.run-speed {
+  margin-left: 0.25rem;
+}
+
 .pane-hint {
   margin: 0;
   color: var(--muted);
@@ -145,6 +183,88 @@
 .tile-stats .stat-head {
   margin: 0 0 0.7rem;
   font-size: 1.05rem;
+}
+
+/* Traverser block at the top of Inspect — place a walker on this tile, then aim its heading. */
+.tile-traverser {
+  margin: 0 0 0.9rem;
+  padding: 0 0 0.8rem;
+  border-bottom: 1px solid var(--line);
+}
+.trav-head {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 0.45rem;
+}
+.trav-title {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.trav-place {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--fg);
+  cursor: pointer;
+}
+.trav-place:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.trav-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.trav-rot {
+  width: 1.7rem;
+  height: 1.7rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  line-height: 1;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--fg);
+  cursor: pointer;
+}
+.trav-rot:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.heading-arrow {
+  /* Matches the lime traverser arrow on the canvas. */
+  color: #7cfc00;
+  flex: none;
+}
+.trav-remove {
+  margin-left: 0.3rem;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: pointer;
+}
+.trav-remove:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.trav-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-style: italic;
 }
 .tile-stats dl {
   display: grid;
