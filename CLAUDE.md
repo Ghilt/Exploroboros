@@ -259,9 +259,10 @@ in-session task tracker.
     Ctrl/Cmd+C / +V copy-paste of tile attributes (mobile Copy/Paste buttons + clipboard readout), a Fit
     button, and a grid-size slider with a tile-count + FPS HUD to find the rendering ceiling. Konva renderer
     (§3/§4.1) with pure tested helpers in `src/canvas/` *(verified 2026-06-27, `19c337d`)*
-  - [ ] Paint other attributes — the "paint:" chip is now a **picker** (`<select>`): a drag paints the
-    selected target — **visited, or registry A/B/C** *(done & verified 2026-06-27, `bd2b72f`)*. Still to
-    add: paint **colours / traverser seeds** when those land.
+  - [ ] Paint other attributes — the **drag popup** (off / select / paint→Visited·A·B·C) chooses what a
+    paint drag writes — **visited, or registry A/B/C** *(done & verified 2026-06-27, `bd2b72f`)*. Still to
+    add: **paint traverser seeds** — once **named traversers** exist, add them to the drag popup's Paint
+    list (and **colours** if useful).
   - [x] Step-tracked visits + per-tile registries (A/B/C) — a visit is now a **log of the steps** it
     happened on (count = list length; hand-made paint/Inspect visits are step −1); plus three free-form
     per-tile counters A/B/C. Both surface in the Inspect dock (with faded "?" explainers) and are
@@ -318,9 +319,11 @@ Hard-won; read before fighting the tooling again.
   `geometry.ts`, `shapes.ts`, `stitch.ts` (the shared edge-detection step), `graph.ts` (queries),
   `generators/` (one per tiling). Public API via `src/tiling/index.ts` — import from there.
 - `src/components/TilingCanvas.tsx` — the **live** interactive Konva renderer; the ONLY file that
-  imports `konva`/`react-konva`. **Interaction (no modes):** tap = inspect a tile, drag = paint the
-  current **paint target** (visited / A / B / C — chosen by the "paint:" picker), two-finger (touch) /
-  middle-mouse drag = pan, pinch / wheel = zoom. A **display chip** (Workspace) cycles tile rendering —
+  imports `konva`/`react-konva`. **Interaction:** tap = inspect a tile (always), two-finger (touch) /
+  middle-mouse drag = pan, pinch / wheel = zoom. A one-finger **drag** depends on the `dragMode` prop
+  (the Workspace "drag" popup): **off** (default — no capture; `touch-action: pan-y` lets the mobile page
+  scroll), **paint** (writes the chosen target — visited / A / B / C), or **select** (a marquee box →
+  `onSelectTiles` with every tile whose centre is inside). A **display chip** (Workspace) cycles tile rendering —
   `edges` / `none` / `stats`; in `stats` the tile number, visited `vN`, and any non-zero registries
   (`A# B# C#`) print inside each tile, but only once tiles are a few screen px (`MIN_LABEL_PX`), so on
   dense grids you zoom in to read them (you can't fit thousands of readable labels at fit). In `stats` a
@@ -333,10 +336,13 @@ Hard-won; read before fighting the tooling again.
   the main canvas (that's the Konva `TilingCanvas`), but don't delete it — the picker needs it.
 - `src/components/Workspace.tsx` — the Canvas-page multi-pane workspace (canvas + Inspect /
   Traversers / Coloring docks); **builds the `Tiling`** from the picker `tilingId` + grid-size, and
-  owns selection, the per-tile **state overlay** (`TileState` — a visit step-list + the A/B/C
-  registries; see `src/canvas/overlay.ts`), the **paint-target** picker, and the copy/paste clipboard
-  (all kept off the immutable `Tiling`, keyed by tile id). The Inspect dock edits visits (± as
-  step −1) and the registries (±), and shows the step list. It also owns the **traverse run**:
+  owns selection (`selectedIds` — one tile, or many from a select-box), the per-tile **state overlay**
+  (`TileState` — a visit step-list + the A/B/C registries; see `src/canvas/overlay.ts`), the **drag**
+  control (a popup choosing off / select / paint→target), and the copy/paste clipboard (all kept off the
+  immutable `Tiling`, keyed by tile id). The Inspect dock has three states: **1** tile → full stats +
+  controls (visits ± as step −1, registries ±, traverser Place/aim/Remove); **many** tiles (box-select) →
+  no per-tile stats, just the same edits applied to **all** at once (Place on all / rotate all / Remove
+  all / ±); **0** → a hint. It also owns the **traverse run**:
   authored **`seeds`** (placed + aimed walkers — the savable starting state) vs a throwaway **`runLive`**
   copy (null while stopped), a `running` flag + a `setInterval`/`requestAnimationFrame` **clock**
   (`slow`/`fast`/`max`), and the **Play / Pause / Stop** controls. **Stop** discards `runLive` and clears the

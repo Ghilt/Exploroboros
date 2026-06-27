@@ -17,10 +17,11 @@ import {
   overlayIsEmpty,
   clearTraverserVisits,
   hasTraverserVisits,
+  MANUAL_STEP,
 } from '../canvas'
 import type { TileClip, TileState, Registry, PaintTarget } from '../canvas'
 import { stepTraversers, headingOptions, rotateHeading, type Traverser } from '../traverse'
-import { TilingCanvas, type DisplayMode } from './TilingCanvas'
+import { TilingCanvas, type DisplayMode, type DragMode } from './TilingCanvas'
 import { TilingPicker } from './TilingPicker'
 import { Panel } from './Panel'
 import { HelpButton } from './HelpButton'
@@ -46,17 +47,34 @@ const REGISTRIES: ReadonlyArray<{ key: Registry; label: string }> = [
   { key: 'c', label: 'C' },
 ]
 
+// Paint targets offered in the drag popup. (Painting traverser seeds will join this once named
+// traversers exist — see CLAUDE.md §8.)
+const PAINT_TARGETS: ReadonlyArray<{ key: PaintTarget; label: string }> = [
+  { key: 'visited', label: 'Visited' },
+  { key: 'a', label: 'A' },
+  { key: 'b', label: 'B' },
+  { key: 'c', label: 'C' },
+]
+const paintLabel = (t: PaintTarget) => (t === 'visited' ? 'visited' : t.toUpperCase())
+
 // The Canvas-page workspace: a central canvas flanked by collapsible docks — authoring panes
 // (Traversers, Coloring) on the left, the Inspect pane on the right. It owns per-run state
 // (selection, the tile overlay) off the immutable Tiling, and builds the Tiling itself from the
 // picker choice + grid size.
 export function Workspace() {
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Selected tiles: one (tap / single-tile inspect) or many (select-mode box → bulk edit).
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   // Per-tile run state (visits-as-step-list + the A/B/C registries), keyed by tile id and kept off
   // the immutable Tiling (CLAUDE.md §4.3). See src/canvas/overlay.ts.
   const [overlay, setOverlay] = useState<ReadonlyMap<string, TileState>>(() => new Map())
-  // What a drag paints: the visit log, or one of the registries.
+  // What a one-pointer drag does: paint the target, box-select tiles, or nothing (mobile page
+  // scroll). Defaults to "off" so a drag doesn't paint by accident — especially on touch.
+  const [dragMode, setDragMode] = useState<DragMode>('off')
+  // What a paint drag writes: the visit log, or one of the registries. Chosen from the drag popup.
   const [paintTarget, setPaintTarget] = useState<PaintTarget>('visited')
+  // The drag-control popup (mode + paint target in one menu).
+  const [dragMenuOpen, setDragMenuOpen] = useState(false)
+  const dragMenuRef = useRef<HTMLDivElement>(null)
   // The traverse run. `seeds` is the AUTHORED initial state — the walkers the user placed and aimed,
   // i.e. the savable "starting position" of a fractal. A run works on a COPY (`runLive`) so the
   // originals are never lost: `runLive` is null while stopped (we then show `seeds`) and an array
@@ -171,7 +189,36 @@ export function Workspace() {
     }
   }, [toolsOpen])
 
-  const selected = selectedId ? nodeById(tiling, selectedId) ?? null : null
+  // Same for the drag-mode popup.
+  useEffect(() => {
+    if (!dragMenuOpen) return
+    const onDown = (e: PointerEvent) => {
+      if (dragMenuRef.current && !dragMenuRef.current.contains(e.target as Node)) setDragMenuOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDragMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [dragMenuOpen])
+
+  // Drag popup choices: a mode (off / select) or a paint target (which also switches to paint mode).
+  const chooseDrag = (m: DragMode) => {
+    setDragMode(m)
+    setDragMenuOpen(false)
+  }
+  const choosePaint = (t: PaintTarget) => {
+    setPaintTarget(t)
+    setDragMode('paint')
+    setDragMenuOpen(false)
+  }
+
+  // A single-tile selection drives the full Inspect view; a multi-tile box drives the bulk view.
+  const selected = selectedIds.length === 1 ? nodeById(tiling, selectedIds[0]) ?? null : null
   // Walkers to show + inspect: the live run if one's in progress, else the authored seeds. Authoring
   // (place/remove/aim) is only allowed while stopped (`runLive === null`).
   const walkers = runLive ?? seeds
@@ -226,6 +273,40 @@ export function Workspace() {
       list.map((t) => (t.tile === id ? { ...t, heading: rotateHeading(tiling, id, t.heading, dir) } : t)),
     )
 
+  // ---- bulk edits over a box-selected set (the multi-tile Inspect view) ----
+  const placeTraversersMany = (ids: ReadonlyArray<string>) =>
+    setSeeds((list) => {
+      const have = new Set(list.map((t) => t.tile))
+      const adds: Traverser[] = []
+      for (const id of ids) {
+        if (have.has(id)) continue
+        have.add(id)
+        adds.push({ id: `tr${(traverserSeq.current += 1)}`, tile: id, heading: headingOptions(tiling, id)[0] ?? 0 })
+      }
+      return adds.length ? [...list, ...adds] : list
+    })
+  const removeTraversersMany = (ids: ReadonlyArray<string>) => {
+    const set = new Set(ids)
+    setSeeds((list) => list.filter((t) => !set.has(t.tile)))
+  }
+  const rotateTraversersMany = (ids: ReadonlyArray<string>, dir: 1 | -1) => {
+    const set = new Set(ids)
+    setSeeds((list) => list.map((t) => (set.has(t.tile) ? { ...t, heading: rotateHeading(tiling, t.tile, t.heading, dir) } : t)))
+  }
+  const bumpVisitMany = (ids: ReadonlyArray<string>, delta: number) =>
+    setOverlay((prev) => {
+      if (delta >= 0) return addVisits(prev, ids, MANUAL_STEP)
+      let next = prev
+      for (const id of ids) next = removeManualVisit(next, id)
+      return next
+    })
+  const bumpRegMany = (ids: ReadonlyArray<string>, reg: Registry, delta: number) =>
+    setOverlay((prev) => {
+      let next = prev
+      for (const id of ids) next = bumpRegistry(next, id, reg, delta)
+      return next
+    })
+
   // Inspect ±: + adds a hand-made visit (step -1); − removes one (never touches traverser history).
   const bumpVisit = (id: string, delta: number) =>
     setOverlay((prev) => (delta >= 0 ? addVisit(prev, id) : removeManualVisit(prev, id)))
@@ -243,7 +324,7 @@ export function Workspace() {
   const selectTiling = (id: string) => {
     if (id !== tilingId) {
       setOverlay(new Map())
-      setSelectedId(null)
+      setSelectedIds([])
       // Walkers are keyed by tile id, meaningless on another tiling — end the run + drop the seeds.
       setRunning(false)
       setRunLive(null)
@@ -352,20 +433,42 @@ export function Workspace() {
           </div>
           <div className="canvas-tools">
             <TilingPicker value={tilingId} onChange={selectTiling} />
-            <label className="canvas-chip canvas-paint" title="What a drag paints">
-              paint:
-              <select
-                className="canvas-paint-select"
-                value={paintTarget}
-                aria-label="paint target"
-                onChange={(e) => setPaintTarget(e.target.value as PaintTarget)}
+            <div className="canvas-drag" ref={dragMenuRef}>
+              <button
+                type="button"
+                className="canvas-chip canvas-chip-btn"
+                aria-label="drag mode"
+                aria-haspopup="menu"
+                aria-expanded={dragMenuOpen}
+                title="What a one-finger drag does"
+                onClick={() => setDragMenuOpen((o) => !o)}
               >
-                <option value="visited">visited</option>
-                <option value="a">A</option>
-                <option value="b">B</option>
-                <option value="c">C</option>
-              </select>
-            </label>
+                {dragMode === 'off' ? 'drag: off' : dragMode === 'select' ? 'drag: select' : `paint: ${paintLabel(paintTarget)}`}
+              </button>
+              {dragMenuOpen && (
+                <div className="drag-menu" role="menu">
+                  <button type="button" role="menuitem" className="drag-item" onClick={() => chooseDrag('off')}>
+                    Off — scroll / pan
+                  </button>
+                  <button type="button" role="menuitem" className="drag-item" onClick={() => chooseDrag('select')}>
+                    Select tiles
+                  </button>
+                  <div className="drag-menu-label">Paint</div>
+                  {PAINT_TARGETS.map((t) => (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      key={t.key}
+                      className="drag-item drag-item--indent"
+                      aria-current={dragMode === 'paint' && paintTarget === t.key}
+                      onClick={() => choosePaint(t.key)}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button
               type="button"
               className="canvas-chip canvas-chip-btn"
@@ -425,12 +528,14 @@ export function Workspace() {
           <TilingCanvas
             tiling={tiling}
             displayMode={displayMode}
-            selectedId={selectedId}
+            dragMode={dragMode}
+            selectedIds={selectedIds}
             overlay={overlay}
             colorFor={colorFor}
             traverserHeads={traverserHeads}
             tileNumber={(id) => indexById.get(id) ?? -1}
-            onSelect={setSelectedId}
+            onSelect={(id) => setSelectedIds([id])}
+            onSelectTiles={setSelectedIds}
             onPaint={paint}
             fitSignal={fitNonce}
           />
@@ -455,8 +560,18 @@ export function Workspace() {
             onRemoveTraverser={removeTraverser}
             onRotateTraverser={rotateTraverser}
           />
+        ) : selectedIds.length > 1 ? (
+          <MultiInspectContent
+            count={selectedIds.length}
+            canEditTraverser={stopped}
+            onPlaceTraverser={() => placeTraversersMany(selectedIds)}
+            onRemoveTraverser={() => removeTraversersMany(selectedIds)}
+            onRotateTraverser={(dir) => rotateTraversersMany(selectedIds, dir)}
+            onVisit={(delta) => bumpVisitMany(selectedIds, delta)}
+            onRegistry={(reg, delta) => bumpRegMany(selectedIds, reg, delta)}
+          />
         ) : (
-          <p className="pane-hint">Click a tile to inspect it.</p>
+          <p className="pane-hint">Click a tile to inspect it — or switch drag to “select” and box a group.</p>
         )}
       </Panel>
     </div>
@@ -658,6 +773,87 @@ function InspectContent({
               : 'empty'}
           </span>
         </dd>
+      </dl>
+    </div>
+  )
+}
+
+// The Inspect view for a box-selected group: no per-tile stats (they differ), just the edit
+// controls applied to every selected tile at once — place/aim/remove walkers, and the visit /
+// registry steppers.
+function MultiInspectContent({
+  count,
+  canEditTraverser,
+  onPlaceTraverser,
+  onRemoveTraverser,
+  onRotateTraverser,
+  onVisit,
+  onRegistry,
+}: {
+  count: number
+  canEditTraverser: boolean
+  onPlaceTraverser: () => void
+  onRemoveTraverser: () => void
+  onRotateTraverser: (dir: 1 | -1) => void
+  onVisit: (delta: number) => void
+  onRegistry: (reg: Registry, delta: number) => void
+}) {
+  return (
+    <div className="tile-stats">
+      <h3 className="stat-head">{count} tiles selected</h3>
+      <p className="pane-hint">Edits apply to all selected tiles.</p>
+
+      <div className="tile-traverser">
+        <div className="trav-head">
+          <span className="trav-title">traverser</span>
+        </div>
+        {!canEditTraverser ? (
+          <p className="trav-note">Stop the run to edit the walkers.</p>
+        ) : (
+          <div className="trav-controls trav-controls--multi">
+            <button type="button" className="trav-place" onClick={onPlaceTraverser}>
+              Place on all
+            </button>
+            <button type="button" className="trav-rot" onClick={() => onRotateTraverser(-1)} aria-label="rotate all headings left">
+              ↺
+            </button>
+            <button type="button" className="trav-rot" onClick={() => onRotateTraverser(1)} aria-label="rotate all headings right">
+              ↻
+            </button>
+            <button type="button" className="trav-remove" onClick={onRemoveTraverser}>
+              Remove all
+            </button>
+          </div>
+        )}
+      </div>
+
+      <dl>
+        <dt>visited</dt>
+        <dd className="visited-control">
+          <button type="button" onClick={() => onVisit(-1)} aria-label="decrease visited on all">
+            −
+          </button>
+          <span className="visited-value">—</span>
+          <button type="button" onClick={() => onVisit(1)} aria-label="increase visited on all">
+            +
+          </button>
+        </dd>
+        <dt className="reg-head">registries</dt>
+        <dd className="reg-hint">free-form</dd>
+        {REGISTRIES.map(({ key, label }) => (
+          <Fragment key={key}>
+            <dt>{label}</dt>
+            <dd className="reg-control">
+              <button type="button" onClick={() => onRegistry(key, -1)} aria-label={`decrease ${label} on all`}>
+                −
+              </button>
+              <span className={`reg-value reg-${key}`}>—</span>
+              <button type="button" onClick={() => onRegistry(key, 1)} aria-label={`increase ${label} on all`}>
+                +
+              </button>
+            </dd>
+          </Fragment>
+        ))}
       </dl>
     </div>
   )

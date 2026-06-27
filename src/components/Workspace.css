@@ -56,21 +56,55 @@
   white-space: nowrap;
 }
 
-/* Paint-target picker — a chip wrapping a bare <select> for visited / A / B / C. */
-.canvas-paint {
+/* Drag control — a chip that opens a popup: Off / Select / Paint (Visited, A, B, C). */
+.canvas-drag {
+  position: relative;
   display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  cursor: pointer;
 }
-.canvas-paint-select {
+.drag-menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  min-width: 9.5rem;
+  padding: 0.3rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.drag-item {
+  text-align: left;
   font-family: var(--mono);
-  font-size: 0.72rem;
-  font-weight: 600;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.55rem;
   border: none;
+  border-radius: var(--radius-sm);
   background: none;
-  color: var(--accent);
+  color: var(--fg);
   cursor: pointer;
+  white-space: nowrap;
+}
+.drag-item:hover {
+  background: var(--surface-2);
+  color: var(--accent);
+}
+.drag-item[aria-current='true'] {
+  color: var(--accent);
+  font-weight: 600;
+}
+.drag-item--indent {
+  padding-left: 1.1rem;
+}
+.drag-menu-label {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0.35rem 0.55rem 0.15rem;
 }
 
 /* Grid-size slider with an N×N label */
@@ -277,6 +311,10 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+}
+/* Bulk view packs four buttons — let them wrap on a narrow dock. */
+.trav-controls--multi {
+  flex-wrap: wrap;
 }
 .trav-rot {
   width: 1.7rem;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { pointInPolygon, representativeTileSize, pickTile, SpatialHash } from './pick'
+import { pointInPolygon, representativeTileSize, pickTile, SpatialHash, tilesInRect } from './pick'
 import { squareTiling } from '../tiling'
 import type { Tiling } from '../tiling'
 
@@ -56,5 +56,19 @@ describe('pickTile — general spatial-hash path', () => {
     const hash = new SpatialHash(t)
     expect(hash.pick({ x: 1.5, y: 0.5 })).toBe('sq:0,1')
     expect(hash.pick({ x: 50, y: 50 })).toBeNull()
+  })
+})
+
+describe('tilesInRect', () => {
+  const t = squareTiling(3, 3) // centroids at (c+0.5, r+0.5)
+
+  it('selects every tile whose centroid is inside the box (a full row)', () => {
+    const ids = tilesInRect(t, { x: -0.5, y: 0 }, { x: 3.5, y: 1 }).sort()
+    expect(ids).toEqual(['sq:0,0', 'sq:0,1', 'sq:0,2'])
+  })
+
+  it('takes corners in any order, and selects nothing when no centroid is inside', () => {
+    expect(tilesInRect(t, { x: 3.5, y: 1 }, { x: -0.5, y: 0 }).length).toBe(3) // reversed corners
+    expect(tilesInRect(t, { x: 0.9, y: 0.9 }, { x: 0.95, y: 0.95 })).toEqual([]) // between centroids
   })
 })

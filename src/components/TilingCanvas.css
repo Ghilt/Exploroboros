@@ -12,6 +12,16 @@
   -webkit-user-select: none;
 }
 
+/* Box-select marquee — a translucent accent rectangle drawn while dragging in select mode. */
+.canvas-marquee {
+  position: absolute;
+  display: none;
+  pointer-events: none;
+  border: 1px solid var(--accent, #e2682a);
+  background: color-mix(in srgb, var(--accent, #e2682a) 18%, transparent);
+  border-radius: 2px;
+}
+
 /* Tile count + FPS readout for the grid-size lag probe — a small HUD in the corner. */
 .canvas-hud {
   position: absolute;

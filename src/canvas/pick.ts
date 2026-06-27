@@ -115,3 +115,18 @@ export function pickTile(tiling: Tiling, p: Vec2): string | null {
   if (tiling.meta.id === 'square') return pickSquare(tiling, p)
   return spatialHashFor(tiling).pick(p)
 }
+
+// Tiles whose centroid lies within the world rectangle spanned by `a` and `b` (corners in any
+// order) — the box-select query. O(n); runs once per drag release, not per frame.
+export function tilesInRect(tiling: Tiling, a: Vec2, b: Vec2): string[] {
+  const x0 = Math.min(a.x, b.x)
+  const x1 = Math.max(a.x, b.x)
+  const y0 = Math.min(a.y, b.y)
+  const y1 = Math.max(a.y, b.y)
+  const ids: string[] = []
+  for (const node of tiling.nodes) {
+    const c = node.centroid
+    if (c.x >= x0 && c.x <= x1 && c.y >= y0 && c.y <= y1) ids.push(node.id)
+  }
+  return ids
+}

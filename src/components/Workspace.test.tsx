@@ -10,9 +10,11 @@ vi.mock('./TilingCanvas', () => ({
   TilingCanvas: ({
     tiling,
     onSelect,
+    onSelectTiles,
   }: {
     tiling: { nodes: ReadonlyArray<{ id: string }> }
     onSelect?: (id: string) => void
+    onSelectTiles?: (ids: string[]) => void
   }) => (
     <div data-testid="mock-canvas">
       {tiling.nodes.map((n) => (
@@ -20,6 +22,10 @@ vi.mock('./TilingCanvas', () => ({
           {n.id}
         </button>
       ))}
+      {/* Stand in for a select-mode box drag selecting the first three tiles. */}
+      <button type="button" data-testid="mock-box" onClick={() => onSelectTiles?.(tiling.nodes.slice(0, 3).map((n) => n.id))}>
+        box-select
+      </button>
     </div>
   ),
 }))
@@ -42,20 +48,29 @@ describe('Workspace', () => {
     expect(screen.getByRole('button', { name: /expand coloring/i })).toBeTruthy()
   })
 
-  it('offers the tiling picker, the paint picker, the display chip, and the grid-size control', () => {
+  it('offers the tiling picker, the drag control, the display chip, and the grid-size control', () => {
     render(<Workspace />)
     expect(screen.getByRole('button', { name: /square/i })).toBeTruthy()
-    expect((screen.getByRole('combobox', { name: /paint target/i }) as HTMLSelectElement).value).toBe('visited')
+    // Drag defaults to off (a drag doesn't paint by accident).
+    expect(screen.getByRole('button', { name: /drag mode/i }).textContent).toMatch(/off/i)
     expect(screen.getByRole('button', { name: /display:/i })).toBeTruthy()
     expect(screen.getByRole('slider', { name: /grid size/i })).toBeTruthy()
   })
 
-  it('lets you choose what a drag paints (visited / A / B / C)', () => {
+  it('the drag popup picks a paint target (which switches to paint mode), or select / off', () => {
     render(<Workspace />)
-    const paint = screen.getByRole('combobox', { name: /paint target/i }) as HTMLSelectElement
-    expect(paint.value).toBe('visited')
-    fireEvent.change(paint, { target: { value: 'b' } })
-    expect(paint.value).toBe('b')
+    const chip = screen.getByRole('button', { name: /drag mode/i })
+    expect(chip.textContent).toMatch(/off/i)
+    // Open the popup and choose Paint → B.
+    fireEvent.click(chip)
+    expect(screen.getByRole('menuitem', { name: /select tiles/i })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: /^visited$/i })).toBeTruthy()
+    fireEvent.click(screen.getByRole('menuitem', { name: /^B$/ }))
+    expect(chip.textContent).toMatch(/paint:\s*B/i) // now paint mode, target B
+    // Reopen and switch to Select.
+    fireEvent.click(chip)
+    fireEvent.click(screen.getByRole('menuitem', { name: /select tiles/i }))
+    expect(chip.textContent).toMatch(/select/i)
   })
 
   it('the display chip cycles edges -> none -> stats -> edges', () => {
@@ -102,6 +117,22 @@ describe('Workspace', () => {
     expect(more.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(more)
     expect(more.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('box-select shows a multi-tile bulk view and places traversers on all at once', () => {
+    render(<Workspace />)
+    fireEvent.click(screen.getByTestId('mock-box')) // select the first three tiles
+    expect(screen.getByText(/3 tiles selected/i)).toBeTruthy()
+    // No per-tile stats (no "Tile #" heading), Play disabled until walkers exist.
+    expect(screen.queryByText(/^Tile #/)).toBeNull()
+    expect((screen.getByRole('button', { name: /^play/i }) as HTMLButtonElement).disabled).toBe(true)
+    // Place on all three with one click -> Play enabled.
+    fireEvent.click(screen.getByRole('button', { name: /place on all/i }))
+    expect((screen.getByRole('button', { name: /^play/i }) as HTMLButtonElement).disabled).toBe(false)
+    // Bulk rotate + remove are offered.
+    expect(screen.getByRole('button', { name: /rotate all headings right/i })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /remove all/i }))
+    expect((screen.getByRole('button', { name: /^play/i }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('selecting a tile inspects it (number, row, column)', () => {

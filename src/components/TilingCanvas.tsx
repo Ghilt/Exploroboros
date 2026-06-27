@@ -1,5 +1,5 @@
 import './TilingCanvas.css'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Stage, Layer, Shape } from 'react-konva'
 import Konva from 'konva'
 import type { Tiling, Vec2 } from '../tiling'
@@ -12,6 +12,7 @@ import {
   panBy,
   clampView,
   pickTile,
+  tilesInRect,
   tilesAlongSegment,
   representativeTileSize,
   tileState,
@@ -71,10 +72,17 @@ const NO_OVERLAY: ReadonlyMap<string, TileState> = new Map()
 // tile number + visited count printed inside). Cycled by the display chip.
 export type DisplayMode = 'edges' | 'none' | 'stats'
 
+// What a one-pointer drag does: paint the current target, box-select tiles, or nothing (so a
+// touch drag scrolls the mobile page). Tap always inspects; two-finger / wheel always pan+zoom.
+export type DragMode = 'paint' | 'select' | 'off'
+
+const NO_SELECTION: ReadonlyArray<string> = []
+
 type Props = {
   tiling: Tiling
   displayMode?: DisplayMode
-  selectedId?: string | null
+  dragMode?: DragMode
+  selectedIds?: ReadonlyArray<string>
   overlay?: ReadonlyMap<string, TileState>
   // Precomputed fill per tile id (CSS colour), from the coloring rules. Tiles absent here keep the
   // base fill. Computed by the colorizer in Workspace, not per frame.
@@ -83,6 +91,7 @@ type Props = {
   traverserHeads?: ReadonlyMap<string, number>
   tileNumber?: (id: string) => number
   onSelect?: (id: string) => void
+  onSelectTiles?: (ids: string[]) => void
   onPaint?: (ids: ReadonlyArray<string>) => void
   // Bumping this counter (e.g. a Fit button) re-frames the whole tiling.
   fitSignal?: number
@@ -91,12 +100,14 @@ type Props = {
 export function TilingCanvas({
   tiling,
   displayMode = 'edges',
-  selectedId = null,
+  dragMode = 'paint',
+  selectedIds = NO_SELECTION,
   overlay,
   colorFor,
   traverserHeads,
   tileNumber,
   onSelect,
+  onSelectTiles,
   onPaint,
   fitSignal,
 }: Props) {
@@ -115,10 +126,25 @@ export function TilingCanvas({
   const sizeRef = useRef(size)
   sizeRef.current = size
   const userMovedRef = useRef(false)
+  const marqueeRef = useRef<HTMLDivElement>(null)
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
+  const onSelectTilesRef = useRef(onSelectTiles)
+  onSelectTilesRef.current = onSelectTiles
   const onPaintRef = useRef(onPaint)
   onPaintRef.current = onPaint
+  const dragModeRef = useRef(dragMode)
+  dragModeRef.current = dragMode
+
+  // Highlighted tiles as a Set (built once per selection change, not per redraw — a box-select can
+  // be large and the draw functions run on every pan/zoom frame).
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
+
+  // Let a one-finger touch drag scroll the mobile page in "off" mode (no paint/select to capture);
+  // otherwise the canvas owns the gesture. Two-finger pan/zoom still works either way.
+  useEffect(() => {
+    if (hostRef.current) hostRef.current.style.touchAction = dragMode === 'off' ? 'pan-y' : 'none'
+  }, [dragMode])
 
   const redraw = () => {
     tilesLayerRef.current?.batchDraw()
@@ -236,6 +262,19 @@ export function TilingCanvas({
       userMovedRef.current = true
       redraw()
     }
+    // The box-select marquee (a plain DOM rectangle over the canvas), in screen px.
+    const setMarquee = (a: Vec2, b: Vec2) => {
+      const el = marqueeRef.current
+      if (!el) return
+      el.style.display = 'block'
+      el.style.left = `${Math.min(a.x, b.x)}px`
+      el.style.top = `${Math.min(a.y, b.y)}px`
+      el.style.width = `${Math.abs(a.x - b.x)}px`
+      el.style.height = `${Math.abs(a.y - b.y)}px`
+    }
+    const hideMarquee = () => {
+      if (marqueeRef.current) marqueeRef.current.style.display = 'none'
+    }
     // Paint every tile from the last paint point to `toWorld`, deduped within the stroke.
     const paintTo = (toWorld: Vec2) => {
       if (!strokePainted) return
@@ -255,18 +294,21 @@ export function TilingCanvas({
       const { minScale, maxScale } = scaleLimits(tilingRef.current, sizeRef.current)
       apply(zoomAt(viewRef.current, local(e), Math.exp(-e.deltaY * 0.0015), minScale, maxScale))
     }
-    const onDown = (e: PointerEvent) => {
-      e.preventDefault()
+    const capture = (id: number) => {
       // Keep receiving moves if the finger/mouse leaves the canvas; harmless if unsupported.
       try {
-        host.setPointerCapture(e.pointerId)
+        host.setPointerCapture(id)
       } catch {
         // ignore — capture is a nicety, not required for the gesture
       }
+    }
+    const onDown = (e: PointerEvent) => {
       pointers.set(e.pointerId, local(e))
       const vals = [...pointers.values()]
       if (vals.length === 2) {
-        // a second finger ends any paint stroke and starts a pinch + pan
+        // a second finger ends any stroke and starts a pinch + pan (every mode)
+        e.preventDefault()
+        capture(e.pointerId)
         strokePainted = null
         lastPaintWorld = null
         downAt = null
@@ -275,23 +317,32 @@ export function TilingCanvas({
         pinched = true
         pinchLast = dist(vals[0], vals[1])
         centerLast = { x: (vals[0].x + vals[1].x) / 2, y: (vals[0].y + vals[1].y) / 2 }
+        hideMarquee()
         host.style.cursor = 'grabbing'
         return
       }
       if (e.button === 1) {
-        // middle-mouse drag pans (left-drag is reserved for painting)
+        // middle-mouse drag pans (every mode)
+        e.preventDefault()
+        capture(e.pointerId)
         middlePan = true
         panLast = local(e)
         host.style.cursor = 'grabbing'
         return
       }
-      // left button / single touch — tap vs paint decided on move/up
+      // single pointer — tap vs paint/select decided on move/up
       downAt = local(e)
       moved = false
       pinched = false
       middlePan = false
       strokePainted = null
       lastPaintWorld = null
+      // "off" mode doesn't capture or preventDefault, so a touch drag scrolls the page; a tap (no
+      // move) still selects on pointerup. paint/select own the gesture.
+      if (dragModeRef.current !== 'off') {
+        e.preventDefault()
+        capture(e.pointerId)
+      }
     }
     const onMove = (e: PointerEvent) => {
       if (!pointers.has(e.pointerId)) return
@@ -316,9 +367,21 @@ export function TilingCanvas({
         panLast = p
         return
       }
-      // single pointer: a drag past the slop becomes a paint stroke (a tap stays a select)
+      // single pointer: a drag past the slop does the current mode's action; a tap stays a select.
       if (!downAt) return
       const slop = e.pointerType === 'touch' ? 12 : 6
+      const mode = dragModeRef.current
+      if (mode === 'off') {
+        // not capturing — a moved touch is the browser scrolling, so it's no longer a tap
+        if (dist(p, downAt) > slop) moved = true
+        return
+      }
+      if (mode === 'select') {
+        if (!moved && dist(p, downAt) > slop) moved = true
+        if (moved) setMarquee(downAt, p)
+        return
+      }
+      // paint
       if (!moved) {
         if (dist(p, downAt) > slop) {
           moved = true
@@ -336,10 +399,16 @@ export function TilingCanvas({
       const vals = [...pointers.values()]
       if (vals.length === 0) {
         if (!pinched && !middlePan && !moved && downAt) {
-          // a tap selects the tile under the press
+          // a tap selects the single tile under the press (every mode)
           const id = pickTile(tilingRef.current, screenToWorld(downAt, viewRef.current))
           if (id) onSelectRef.current?.(id)
+        } else if (dragModeRef.current === 'select' && moved && downAt) {
+          // a box drag selects every tile whose centre is inside it
+          const a = screenToWorld(downAt, viewRef.current)
+          const b = screenToWorld(local(e), viewRef.current)
+          onSelectTilesRef.current?.(tilesInRect(tilingRef.current, a, b))
         }
+        hideMarquee()
         panLast = null
         pinchLast = null
         centerLast = null
@@ -383,14 +452,14 @@ export function TilingCanvas({
             <Shape
               listening={false}
               sceneFunc={(ctx) =>
-                drawTiles(ctx, tiling, viewRef.current, size, paletteRef.current, selectedId, overlay, colorFor, displayMode, tileNumber)
+                drawTiles(ctx, tiling, viewRef.current, size, paletteRef.current, selectedSet, overlay, colorFor, displayMode, tileNumber)
               }
             />
           </Layer>
           <Layer ref={uiLayerRef} listening={false}>
             <Shape
               listening={false}
-              sceneFunc={(ctx) => drawSelection(ctx, tiling, viewRef.current, paletteRef.current, selectedId)}
+              sceneFunc={(ctx) => drawSelection(ctx, tiling, viewRef.current, paletteRef.current, selectedSet)}
             />
             <Shape
               listening={false}
@@ -403,6 +472,7 @@ export function TilingCanvas({
           </Layer>
         </Stage>
       )}
+      <div ref={marqueeRef} className="canvas-marquee" aria-hidden="true" />
       <div className="canvas-hud" aria-hidden="true">
         <span>{tiling.nodes.length.toLocaleString()} tiles</span>
         <span ref={fpsRef}>— fps</span>
@@ -440,7 +510,7 @@ function drawTiles(
   view: View,
   size: Size,
   pal: Palette,
-  selectedId: string | null,
+  selectedSet: ReadonlySet<string>,
   overlay: ReadonlyMap<string, TileState> | undefined,
   colorFor: ReadonlyMap<string, string> | undefined,
   displayMode: DisplayMode,
@@ -470,7 +540,7 @@ function drawTiles(
       ctx.setAttr('fillStyle', fill)
       ctx.fill()
     }
-    if (node.id === selectedId) {
+    if (selectedSet.has(node.id)) {
       ctx.save()
       ctx.setAttr('globalAlpha', 0.14)
       ctx.setAttr('fillStyle', pal.accent)
@@ -571,10 +641,12 @@ function drawTiles(
   }
 }
 
-// The selected tile, drawn slightly enlarged on its own layer — matches the SVG SelectionOverlay
-// (accent 22% fill, accent-strong stroke).
-function drawSelection(ctx: Konva.Context, tiling: Tiling, view: View, pal: Palette, selectedId: string | null): void {
-  if (!selectedId) return
+// A single selected tile is drawn slightly enlarged with a strong outline (the focused look). A
+// multi-tile box-select shows only as the faint accent fill drawTiles already paints on each
+// selected tile (culled to the viewport), so a big selection costs nothing extra per frame.
+function drawSelection(ctx: Konva.Context, tiling: Tiling, view: View, pal: Palette, selectedSet: ReadonlySet<string>): void {
+  if (selectedSet.size !== 1) return
+  const [selectedId] = selectedSet
   const node = nodeById(tiling, selectedId)
   if (!node) return
   traceTile(
