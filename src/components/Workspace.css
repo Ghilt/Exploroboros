@@ -25,7 +25,53 @@
 .canvas-tools {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  row-gap: 0.4rem;
+}
+
+/* Inspect | Paint segmented toggle */
+.mode-toggle {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.mode-toggle button {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  border: none;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+.mode-toggle button + button {
+  border-left: 1px solid var(--line);
+}
+.mode-toggle button.is-active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Grid-size slider with an N×N label */
+.canvas-grid {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.canvas-grid-label {
+  min-width: 3.4rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.canvas-grid input[type='range'] {
+  width: 6rem;
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 .canvas-toggle {
   display: inline-flex;
@@ -35,6 +81,20 @@
   font-size: 0.75rem;
   color: var(--muted);
   cursor: pointer;
+}
+.canvas-btn {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+}
+.canvas-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .pane-hint {
@@ -109,6 +169,32 @@
   text-align: center;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
+}
+
+.clip-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.clip-control button {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--fg);
+  cursor: pointer;
+}
+.clip-control button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.clip-readout {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--muted);
 }
 
 /* Stack vertically on narrow screens, canvas first and tall. */

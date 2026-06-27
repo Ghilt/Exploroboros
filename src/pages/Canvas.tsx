@@ -1,12 +1,7 @@
 import './Canvas.css'
-import { useMemo } from 'react'
 import { Workspace } from '../components/Workspace'
-import { squareTiling } from '../tiling'
 
 export function Canvas() {
-  // Precomputed on load; no user-triggered computation yet.
-  const tiling = useMemo(() => squareTiling(20, 20), [])
-
   return (
     <div className="canvas-page">
       <header className="page-head">
@@ -17,7 +12,7 @@ export function Canvas() {
         </p>
       </header>
 
-      <Workspace tiling={tiling} />
+      <Workspace />
     </div>
   )
 }

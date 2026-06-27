@@ -57,9 +57,16 @@ Installed and confirmed working 2026-06-26:
 - **Tiling engine (added 2026-06-26):** pure, isomorphic TypeScript in `src/tiling/` — no React/DOM/canvas, no
   pixels (abstract **world coords, y-up, vertices CCW**), so the same code can run server-side later (SSR for
   slow devices). A tiling is a **node graph**: tiles (nodes) + **first-class edges**, built by per-tiling
-  **generator** routines that emit polygons into a shared `stitch()` step (data shape in §4.3). Drawn for now
-  by a **plain-SVG** debug view (`src/components/TilingDebugView.tsx`) — **no new dependency**; the heavy
-  interactive renderer (§4.1) stays deferred until the real pan/zoom plane.
+  **generator** routines that emit polygons into a shared `stitch()` step (data shape in §4.3). The Canvas page
+  now renders it through the interactive Konva plane (below); the original **plain-SVG** debug view
+  (`src/components/TilingDebugView.tsx`) is kept as a dependency-free, tested reference.
+- **Interactive canvas renderer (added 2026-06-27, resolves §4.1):** **Konva `^10.3`** + **react-konva
+  `^19.2`** (matches React 19). `src/components/TilingCanvas.tsx` draws the whole tiling in ONE `Konva.Shape`
+  `sceneFunc` — one canvas pass, viewport-culled, so it scales to ~10k tiles — with wheel/drag/pinch pan+zoom,
+  tap-to-select, and drag-to-paint. All the math (world↔screen transform, hit-testing, stroke gap-fill,
+  clipboard, tiling factory) lives in pure, isomorphic, Vitest-tested modules in `src/canvas/`. **Hard rule:
+  `konva`/`react-konva` are imported ONLY in `TilingCanvas.tsx`** (a stray import into a pure module breaks
+  Vitest/SSR). Installed 2026-06-27 with the owner's OK (`npm install konva react-konva`).
 - **Hosting (planned, not yet wired):** Vercel — SPA auto-detected; native `@vercel/og` (Satori + resvg) for
   future serverless PNG export.
 - **Repo:** local git repo at `E:\Code\exploroboros` (the owner's machine).
@@ -70,11 +77,12 @@ Resolve each at the noted trigger — **ask the owner the question; don't assume
 
 1. **Tile renderer** *(trigger: building the interactive plane).* PixiJS (WebGL; scales to 10k–50k+ tiles;
    pinch/pan via `pixi-viewport`; heavier, steeper curve) vs **Konva** (Canvas2D; touch-first; first-class
-   `react-konva`; simplest to ~3k tiles). *Recommendation:* start with Konva for the MVP, wrap it behind a
-   small renderer interface, migrate to PixiJS if tile counts grow. Hit-testing big tilings: `rbush` spatial
-   index + point-in-polygon, or GPU color-picking at extreme counts. *(Status 2026-06-26: still open — the
-   static square debug view renders with plain SVG behind a thin component boundary, so this stays untriggered.
-   Revisit when building the real interactive pan/zoom plane; swap `<TilingDebugView>` for the new renderer.)*
+   `react-konva`; simplest to ~3k tiles). *(**Resolved 2026-06-27: Konva**, the owner's call when the
+   interactive plane was built. `src/components/TilingCanvas.tsx` renders all tiles in a single `Konva.Shape`
+   sceneFunc — one canvas pass, viewport-culled — with manual hit-testing via a dependency-free uniform
+   spatial-hash + point-in-polygon (the square inverts its lattice O(1)); `rbush` stays the documented upgrade
+   if hit-testing ever needs it. PixiJS/WebGL remains the escape hatch behind the same `TilingCanvas` boundary
+   if tile counts must grow past Canvas2D limits.)*
 2. **Serverless image export** *(trigger: building export).* `@vercel/og` (Satori + resvg; runs on Vercel
    edge; simplest) vs `@napi-rs/canvas` (full Canvas API; Node function). *Recommendation:* `@vercel/og`
    unless we need pixel-level canvas drawing. Cache by hashing the (tiling + rules) params.
@@ -158,9 +166,10 @@ still needed into this doc **before** then; do not rely on the path persisting.
 - **Phase 0 (done):** repo + this doc + responsive hello-world.
 - **Prototype migration (done 2026-06-26):** still-needed prototype detail captured + generalized in §5 — the
   origin repo can now be deleted safely.
-- **In progress — generic tiling render + data model (§4.3):** backbone built — data model, generic `stitch()`,
-  square generator, SVG debug view (20×20 on the Canvas page). *Awaiting owner real-device verification (§7).*
-  Next: more tilings (the 11 uniform Euclidean tilings + octagon+wedge).
+- **In progress — generic tiling render + data model (§4.3):** data model, generic `stitch()`, square
+  generator, and the tiling picker are in and verified. The Canvas page now has an **interactive Konva plane**
+  (zoom/pan, tap-select, drag-paint, copy/paste, a grid-size lag probe). *Awaiting owner real-device
+  verification (§7).* Next: more tilings (the 11 uniform Euclidean tilings + octagon+wedge).
 - Then: port **static coloring DSL** → port **traverse engine** → **rule-authoring UI** (click/touch) →
   **serverless PNG export** (§4.2) → **deploy** to Vercel.
 
@@ -200,6 +209,10 @@ in-session task tracker.
     Octagon+Wedge a faithful preview thumbnail (from prototype geometry) but disabled; the other 10
     uniform tilings are placeholder cards. Catalog in `src/data/tilings.ts`; selection wired via
     Workspace `tilingId` for when real generators land *(verified 2026-06-27, `e4f4e48`)*
+  - [ ] Interactive Konva canvas — zoom/pan (wheel + drag + pinch), tap-to-select, drag-to-paint visited,
+    Ctrl/Cmd+C / +V copy-paste of tile attributes (mobile Copy/Paste buttons + clipboard readout), a Fit
+    button, and a grid-size slider with a tile-count + FPS HUD to find the rendering ceiling. Konva renderer
+    (§3/§4.1) with pure tested helpers in `src/canvas/`. *Built — awaiting owner real-device verification.*
   - [ ] More tilings — the 11 uniform Euclidean tilings + the octagon+wedge (needs a collinear-overlap matcher)
   - [ ] Tile numbering as a canvas control — user-selectable scheme/origin (debug view currently numbers by generation order)
   - [ ] Visualise edge numbering + opposite edges for the user — show each tile's clockwise-from-top edge numbers and which edges are opposite (engine support exists: `clockwiseEdgeOrder`, `opposite`)
@@ -217,10 +230,16 @@ Hard-won; read before fighting the tooling again.
 - `src/tiling/` — the pure, isomorphic engine (no React/DOM/canvas, no pixels). `types.ts`,
   `geometry.ts`, `shapes.ts`, `stitch.ts` (the shared edge-detection step), `graph.ts` (queries),
   `generators/` (one per tiling). Public API via `src/tiling/index.ts` — import from there.
-- `src/components/TilingDebugView.tsx` — SVG renderer of a `Tiling` (no deps; §4.1 still deferred).
+- `src/components/TilingCanvas.tsx` — the **live** interactive Konva renderer (zoom/pan/paint/
+  select); the ONLY file that imports `konva`/`react-konva`. `src/canvas/` holds its pure, tested
+  helpers — `view.ts` (world↔screen transform), `pick.ts` (hit-testing), `stroke.ts` (paint
+  gap-fill), `clipboard.ts`, `buildTiling.ts` — imported via `src/canvas/index.ts`.
+- `src/components/TilingDebugView.tsx` — the original SVG renderer, now a dependency-free **tested
+  reference** (not mounted in the app). Safe to delete once the Konva canvas is owner-verified.
 - `src/components/Workspace.tsx` — the Canvas-page multi-pane workspace (canvas + Inspect /
-  Traversers / Coloring docks); owns the selection + the per-tile **visited** overlay (kept off
-  the immutable `Tiling`, keyed by tile id).
+  Traversers / Coloring docks); **builds the `Tiling`** from the picker `tilingId` + grid-size, and
+  owns selection, mode (inspect/paint), the per-tile **visited** overlay, and the copy/paste
+  clipboard (all kept off the immutable `Tiling`, keyed by tile id).
 - `src/components/Panel.tsx` — reusable collapsible dock panel (collapses to a thin rail).
 - Edge numbering has **two layers**: internal **local CCW side index** (geometry/winding) vs the
   user-facing **clockwise-from-top** number (`clockwiseEdgeOrder`). Don't conflate them.
@@ -251,3 +270,16 @@ overflow that does NOT happen on real phones (overlay scrollbars). Verify by lis
 **Tests:** no global test setup file, so `@testing-library/react` renders accumulate within a file;
 `screen.getBy*` then throws "multiple elements". Add `afterEach(cleanup)` in component tests that use
 `screen` (or scope queries to each render's `container`).
+
+**Konva + HMR ("Several Konva instances detected").** Editing the Konva-importing module
+(`TilingCanvas.tsx`) under Vite HMR reloads it repeatedly, so the page accumulates several Konva
+instances and react-konva logs reconciler / `<Canvas>` errors — *even though the render looks fine*.
+It's a dev-HMR artifact, not a real bug: **stop + start the dev server** for a clean read (a fresh load
+has a silent console). The production `build` is unaffected.
+
+**Testing a Konva component (jsdom has no canvas).** Don't render `<TilingCanvas>` in Vitest — jsdom
+can't back a real canvas. Keep the meaningful logic in the pure `src/canvas/` modules (unit-tested
+there); where a component test needs the canvas, **`vi.mock` it** — `Workspace.test.tsx` mocks
+`./TilingCanvas` with a tiny DOM stand-in that exposes the `onSelect` callback, so the
+selection→inspect / paint / copy-paste wiring is testable without a canvas. The interactive feel is
+verified on a real device.
