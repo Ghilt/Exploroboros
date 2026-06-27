@@ -3,7 +3,14 @@
 // (CLAUDE.md §4.3). Extend the switch as generators land.
 
 import type { Tiling } from '../tiling'
-import { squareTiling, kallebodaTiling, triangularTiling, hexagonalTiling } from '../tiling'
+import {
+  squareTiling,
+  kallebodaTiling,
+  triangularTiling,
+  hexagonalTiling,
+  truncatedSquareTiling,
+  trihexagonalTiling,
+} from '../tiling'
 
 export function buildTiling(tilingId: string, n: number): Tiling {
   const count = Math.max(1, Math.floor(n))
@@ -14,6 +21,10 @@ export function buildTiling(tilingId: string, n: number): Tiling {
       return triangularTiling(count)
     case 'hexagonal':
       return hexagonalTiling(count)
+    case 'truncated-square':
+      return truncatedSquareTiling(count)
+    case 'trihexagonal':
+      return trihexagonalTiling(count)
     case 'square':
     default:
       return squareTiling(count, count)

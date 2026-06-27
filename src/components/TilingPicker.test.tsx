@@ -41,8 +41,8 @@ describe('TilingPicker', () => {
   it('a not-yet-built tiling is present but disabled', () => {
     render(<TilingPicker value="square" onChange={() => {}} />)
     fireEvent.click(screen.getByRole('button'))
-    // exact text avoids matching "Truncated Trihexagonal"
-    const card = within(screen.getByRole('dialog')).getByText('Trihexagonal').closest('button')
+    // exact text avoids matching "Snub Hexagonal"
+    const card = within(screen.getByRole('dialog')).getByText('Snub Square').closest('button')
     expect(card?.disabled).toBe(true)
   })
 
