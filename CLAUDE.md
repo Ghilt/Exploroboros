@@ -192,6 +192,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-26 | Tiling engine backbone + square-tiling debug view | ✅ yes | owner viewed the 20×20 square grid (white tiles, black edges) on desktop + phone and approved | `31c28d0` |
 | 2026-06-27 | Multi-pane canvas workspace + tile inspector | ✅ yes | owner reviewed the running workspace (panes + collapse, click-to-inspect, visited controls; desktop + mobile) and approved | `6c73647` |
 | 2026-06-27 | Tiling picker — modal gallery (Square + faithful Octagon+Wedge thumbnails; 10 planned) | ✅ yes | owner reviewed the running picker (open/close, choose Square, disabled Octagon+Wedge; desktop + mobile + dark) and approved | `e4f4e48` |
+| 2026-06-27 | Interactive Konva canvas — zoom/pan, tap-select, drag-paint, copy/paste, grid-size + FPS probe | ✅ yes | owner reviewed the running interactive canvas (zoom/pan, paint, copy/paste, grid-size slider + tile-count/FPS) and approved as a checkpoint | `19c337d` |
 
 ## 8. Todo list (working backlog)
 
@@ -209,10 +210,10 @@ in-session task tracker.
     Octagon+Wedge a faithful preview thumbnail (from prototype geometry) but disabled; the other 10
     uniform tilings are placeholder cards. Catalog in `src/data/tilings.ts`; selection wired via
     Workspace `tilingId` for when real generators land *(verified 2026-06-27, `e4f4e48`)*
-  - [ ] Interactive Konva canvas — zoom/pan (wheel + drag + pinch), tap-to-select, drag-to-paint visited,
+  - [x] Interactive Konva canvas — zoom/pan (wheel + drag + pinch), tap-to-select, drag-to-paint visited,
     Ctrl/Cmd+C / +V copy-paste of tile attributes (mobile Copy/Paste buttons + clipboard readout), a Fit
     button, and a grid-size slider with a tile-count + FPS HUD to find the rendering ceiling. Konva renderer
-    (§3/§4.1) with pure tested helpers in `src/canvas/`. *Built — awaiting owner real-device verification.*
+    (§3/§4.1) with pure tested helpers in `src/canvas/` *(verified 2026-06-27, `19c337d`)*
   - [ ] More tilings — the 11 uniform Euclidean tilings + the octagon+wedge (needs a collinear-overlap matcher)
   - [ ] Tile numbering as a canvas control — user-selectable scheme/origin (debug view currently numbers by generation order)
   - [ ] Visualise edge numbering + opposite edges for the user — show each tile's clockwise-from-top edge numbers and which edges are opposite (engine support exists: `clockwiseEdgeOrder`, `opposite`)
