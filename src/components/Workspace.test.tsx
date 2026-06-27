@@ -86,6 +86,17 @@ describe('Workspace', () => {
     expect(container.querySelector('.visited-value')?.textContent).toBe('1')
   })
 
+  it('Reset is disabled until something is painted, then clears the visited counts', () => {
+    const { container } = render(<Workspace />)
+    expect((screen.getByRole('button', { name: 'Reset' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
+    fireEvent.click(screen.getByRole('button', { name: /increase visited/i }))
+    expect(container.querySelector('.visited-value')?.textContent).toBe('1')
+    expect((screen.getByRole('button', { name: 'Reset' }) as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
+    expect(container.querySelector('.visited-value')?.textContent).toBe('0')
+  })
+
   it('panels collapse and expand', () => {
     render(<Workspace />)
     fireEvent.click(screen.getByRole('button', { name: /collapse inspect/i }))

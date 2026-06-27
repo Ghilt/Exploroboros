@@ -146,6 +146,15 @@ export function Workspace() {
             </button>
             <button
               type="button"
+              className="canvas-btn"
+              onClick={() => setVisited(new Map())}
+              disabled={visited.size === 0}
+              title="Reset the tiling — clears every visited count"
+            >
+              Reset
+            </button>
+            <button
+              type="button"
               className="canvas-chip canvas-chip-btn"
               onClick={() => setDisplayMode((m) => (m === 'edges' ? 'none' : m === 'none' ? 'stats' : 'edges'))}
               title="Tile display — click to cycle: edges, none, stats"

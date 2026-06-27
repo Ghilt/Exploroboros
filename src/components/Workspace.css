@@ -88,9 +88,13 @@
   color: var(--fg);
   cursor: pointer;
 }
-.canvas-btn:hover {
+.canvas-btn:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);
+}
+.canvas-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .pane-hint {
