@@ -61,14 +61,14 @@
   accent-color: var(--accent);
   cursor: pointer;
 }
-.canvas-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-family: var(--mono);
-  font-size: 0.75rem;
-  color: var(--muted);
+/* Clickable variant of .canvas-chip — cycles the tile display mode */
+.canvas-chip-btn {
   cursor: pointer;
+  color: var(--fg);
+}
+.canvas-chip-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .canvas-btn {
   font-family: var(--mono);

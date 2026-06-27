@@ -237,7 +237,10 @@ Hard-won; read before fighting the tooling again.
   `generators/` (one per tiling). Public API via `src/tiling/index.ts` — import from there.
 - `src/components/TilingCanvas.tsx` — the **live** interactive Konva renderer; the ONLY file that
   imports `konva`/`react-konva`. **Interaction (no modes):** tap = inspect a tile, drag = paint the
-  visited overlay, two-finger (touch) / middle-mouse drag = pan, pinch / wheel = zoom. `src/canvas/`
+  visited overlay, two-finger (touch) / middle-mouse drag = pan, pinch / wheel = zoom. A **display
+  chip** (Workspace) cycles tile rendering — `edges` / `none` / `stats`; in `stats` the tile number +
+  visited `vN` print inside each tile, but only once tiles are a few screen px (`MIN_LABEL_PX`), so on
+  dense grids you zoom in to read them (you can't fit thousands of readable labels at fit). `src/canvas/`
   holds its pure, tested helpers — `view.ts` (world↔screen transform), `pick.ts` (hit-testing),
   `stroke.ts` (paint gap-fill), `clipboard.ts`, `buildTiling.ts` — imported via `src/canvas/index.ts`.
 - `src/components/TilingDebugView.tsx` — the original SVG renderer, now a dependency-free **tested

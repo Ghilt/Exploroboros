@@ -4,7 +4,7 @@ import type { Tiling, TileNode } from '../tiling'
 import { nodeById, neighborEdges, uniqueNeighbors } from '../tiling'
 import { buildTiling, canPaste, applyClip, clipFromTile } from '../canvas'
 import type { TileClip } from '../canvas'
-import { TilingCanvas } from './TilingCanvas'
+import { TilingCanvas, type DisplayMode } from './TilingCanvas'
 import { TilingPicker } from './TilingPicker'
 import { Panel } from './Panel'
 
@@ -18,7 +18,8 @@ const GRID_MAX = 140
 export function Workspace() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [visited, setVisited] = useState<ReadonlyMap<string, number>>(() => new Map())
-  const [showNumbers, setShowNumbers] = useState(false)
+  // Tile display: edged outline / no outline / outline + printed stats (number + visited).
+  const [displayMode, setDisplayMode] = useState<DisplayMode>('edges')
   // Copied tile attributes (today: the visited count), pasteable onto a same-shape tile.
   const [clip, setClip] = useState<TileClip | null>(null)
   // Bumped to ask the canvas to re-frame the whole tiling (Fit button).
@@ -143,20 +144,20 @@ export function Workspace() {
             <button type="button" className="canvas-btn" onClick={() => setFitNonce((n) => n + 1)}>
               Fit
             </button>
-            <label className="canvas-toggle">
-              <input
-                type="checkbox"
-                checked={showNumbers}
-                onChange={(e) => setShowNumbers(e.target.checked)}
-              />
-              numbers
-            </label>
+            <button
+              type="button"
+              className="canvas-chip canvas-chip-btn"
+              onClick={() => setDisplayMode((m) => (m === 'edges' ? 'none' : m === 'none' ? 'stats' : 'edges'))}
+              title="Tile display — click to cycle: edges, none, stats"
+            >
+              display: {displayMode}
+            </button>
           </div>
         </header>
         <div className="canvas-stage">
           <TilingCanvas
             tiling={tiling}
-            showNumbers={showNumbers}
+            displayMode={displayMode}
             selectedId={selectedId}
             visited={visited}
             tileNumber={(id) => indexById.get(id) ?? -1}

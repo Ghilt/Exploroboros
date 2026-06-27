@@ -37,19 +37,24 @@ describe('Workspace', () => {
     expect(screen.getByRole('button', { name: /expand coloring/i })).toBeTruthy()
   })
 
-  it('offers the tiling picker, the paint chip, and the grid-size control', () => {
+  it('offers the tiling picker, the paint chip, the display chip, and the grid-size control', () => {
     render(<Workspace />)
     expect(screen.getByRole('button', { name: /square/i })).toBeTruthy()
     expect(screen.getByText(/paint: visited/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /display:/i })).toBeTruthy()
     expect(screen.getByRole('slider', { name: /grid size/i })).toBeTruthy()
   })
 
-  it('the numbers toggle is off by default and turns on', () => {
+  it('the display chip cycles edges -> none -> stats -> edges', () => {
     render(<Workspace />)
-    const numbers = screen.getByRole('checkbox', { name: /numbers/i }) as HTMLInputElement
-    expect(numbers.checked).toBe(false)
-    fireEvent.click(numbers)
-    expect(numbers.checked).toBe(true)
+    const chip = screen.getByRole('button', { name: /display:/i })
+    expect(chip.textContent).toMatch(/edges/i)
+    fireEvent.click(chip)
+    expect(chip.textContent).toMatch(/none/i)
+    fireEvent.click(chip)
+    expect(chip.textContent).toMatch(/stats/i)
+    fireEvent.click(chip)
+    expect(chip.textContent).toMatch(/edges/i)
   })
 
   it('selecting a tile inspects it (number, row, column)', () => {

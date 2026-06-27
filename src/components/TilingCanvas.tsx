@@ -29,6 +29,9 @@ if (typeof window !== 'undefined') {
 }
 
 const HIGHLIGHT_SCALE = 1.2 // matches the SVG selection overlay
+// Stats labels need at least this many screen px to be worth drawing; below it they'd be an
+// unreadable smear (and slow at 10k+ tiles), so on very large grids you zoom in to reveal them.
+const MIN_LABEL_PX = 3
 
 type Palette = {
   tile: string
@@ -52,9 +55,13 @@ const FALLBACK: Palette = {
   mono: 'ui-monospace, SFMono-Regular, Menlo, monospace',
 }
 
+// How tiles are drawn: edges (black outline), none (fills only, no outline), or stats (outline +
+// tile number + visited count printed inside). Cycled by the display chip.
+export type DisplayMode = 'edges' | 'none' | 'stats'
+
 type Props = {
   tiling: Tiling
-  showNumbers?: boolean
+  displayMode?: DisplayMode
   selectedId?: string | null
   visited?: ReadonlyMap<string, number>
   tileNumber?: (id: string) => number
@@ -66,7 +73,7 @@ type Props = {
 
 export function TilingCanvas({
   tiling,
-  showNumbers = false,
+  displayMode = 'edges',
   selectedId = null,
   visited,
   tileNumber,
@@ -357,7 +364,7 @@ export function TilingCanvas({
             <Shape
               listening={false}
               sceneFunc={(ctx) =>
-                drawTiles(ctx, tiling, viewRef.current, size, paletteRef.current, selectedId, visited, showNumbers, tileNumber)
+                drawTiles(ctx, tiling, viewRef.current, size, paletteRef.current, selectedId, visited, displayMode, tileNumber)
               }
             />
           </Layer>
@@ -408,7 +415,7 @@ function drawTiles(
   pal: Palette,
   selectedId: string | null,
   visited: ReadonlyMap<string, number> | undefined,
-  showNumbers: boolean,
+  displayMode: DisplayMode,
   tileNumber: ((id: string) => number) | undefined,
 ): void {
   // World-space viewport (+ one-tile margin) — skip tiles off-screen so cost tracks what's
@@ -443,33 +450,45 @@ function drawTiles(
       ctx.fill()
       ctx.restore()
     }
-    ctx.setAttr('strokeStyle', pal.edge)
-    ctx.setAttr('lineWidth', 1)
-    ctx.stroke()
+    if (displayMode !== 'none') {
+      ctx.setAttr('strokeStyle', pal.edge)
+      ctx.setAttr('lineWidth', 1)
+      ctx.stroke()
+    }
   }
 
-  // Labels only when there's something to show AND they'd be large enough to read.
+  // Stats mode only: print the tile number + visited count inside each tile. Labels need a few
+  // screen px to be legible (and cheap), so on very large grids at fit they hide until you zoom
+  // in. Drawn in two single-font passes (number, then vN) so the font is set once, not per tile.
+  if (displayMode !== 'stats') return
   const numPx = 0.3 * view.scale
   const visPx = 0.26 * view.scale
   const anyVisited = visited ? [...visited.values()].some((n) => n > 0) : false
-  const showNums = showNumbers && numPx >= 6
-  const showVisited = anyVisited && visPx >= 6
+  const showNums = numPx >= MIN_LABEL_PX
+  const showVisited = anyVisited && visPx >= MIN_LABEL_PX
   if (!showNums && !showVisited) return
   ctx.setAttr('textAlign', 'center')
   ctx.setAttr('textBaseline', 'middle')
-  for (const node of tiling.nodes) {
-    if (!onScreen(node.centroid)) continue
-    const v = visited?.get(node.id) ?? 0
-    if (!showNums && !(showVisited && v > 0)) continue
-    const c = worldToScreen(node.centroid, view)
-    if (showNums) {
-      ctx.setAttr('font', `${numPx}px ${pal.mono}`)
-      ctx.setAttr('fillStyle', pal.num)
-      ctx.fillText(tileNumber ? String(tileNumber(node.id)) : '', c.x, c.y + (v > 0 ? -numPx * 0.5 : 0))
+
+  if (showNums) {
+    ctx.setAttr('font', `${numPx}px ${pal.mono}`)
+    ctx.setAttr('fillStyle', pal.num)
+    for (const node of tiling.nodes) {
+      if (!onScreen(node.centroid)) continue
+      const c = worldToScreen(node.centroid, view)
+      // nudge the number up a touch when a vN sits below it
+      const dy = showVisited && (visited?.get(node.id) ?? 0) > 0 ? -numPx * 0.5 : 0
+      ctx.fillText(tileNumber ? String(tileNumber(node.id)) : '', c.x, c.y + dy)
     }
-    if (showVisited && v > 0) {
-      ctx.setAttr('font', `700 ${visPx}px ${pal.mono}`)
-      ctx.setAttr('fillStyle', pal.visited)
+  }
+  if (showVisited) {
+    ctx.setAttr('font', `700 ${visPx}px ${pal.mono}`)
+    ctx.setAttr('fillStyle', pal.visited)
+    for (const node of tiling.nodes) {
+      if (!onScreen(node.centroid)) continue
+      const v = visited?.get(node.id) ?? 0
+      if (v <= 0) continue
+      const c = worldToScreen(node.centroid, view)
       ctx.fillText(`v${v}`, c.x, c.y + (showNums ? numPx * 0.7 : 0))
     }
   }
