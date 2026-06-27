@@ -38,7 +38,7 @@
   row-gap: 0.4rem;
 }
 
-/* Passive chip naming what a drag paints (other attributes come later) */
+/* Chip naming a canvas control (display mode, paint target) */
 .canvas-chip {
   font-family: var(--mono);
   font-size: 0.72rem;
@@ -48,6 +48,23 @@
   background: var(--surface-2);
   color: var(--muted);
   white-space: nowrap;
+}
+
+/* Paint-target picker — a chip wrapping a bare <select> for visited / A / B / C. */
+.canvas-paint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
+.canvas-paint-select {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: none;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
 }
 
 /* Grid-size slider with an N×N label */
@@ -145,12 +162,14 @@
   font-variant-numeric: tabular-nums;
 }
 
-.visited-control {
+.visited-control,
+.reg-control {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
 }
-.visited-control button {
+.visited-control button,
+.reg-control button {
   width: 1.6rem;
   height: 1.6rem;
   display: inline-flex;
@@ -164,11 +183,31 @@
   font-size: 1rem;
   line-height: 1;
 }
-.visited-value {
+.visited-value,
+.reg-value {
   min-width: 1.5rem;
   text-align: center;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
+}
+
+/* Registries sub-heading + its faded "free-form" hint. */
+.reg-head {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.2rem;
+}
+.reg-hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-style: italic;
+  align-self: center;
+}
+.steps-readout {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  word-break: break-word;
 }
 
 .clip-control {

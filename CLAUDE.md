@@ -28,6 +28,10 @@ It grows out of a Python prototype (the "nandeck octagon visualizer"); its hard-
   needed, propose it, get the owner's OK, and add it to §3 — never introduce dependencies silently.
 - **When unsure, consult §4 (Open Questions) and ASK.** §4 is the embedded quiz: the genuine forks we haven't
   locked. If a task touches one, ask the owner the recorded question before building.
+- **UX matters — help users understand (this app is for others too).** Prefer plain hover tooltips (HTML
+  `title`) for quick hints; for a concept that needs a sentence or two, add a small faded **"?" explainer**
+  (`HelpButton`, §9) that opens a little info dialog — kept muted so it doesn't clutter. When a new feature
+  introduces a non-obvious concept, **ask the owner** whether it wants a "?" explainer there.
 - **Commits:** only on the owner's say-so; to `main` unless told otherwise; the owner pushes.
 
 ## 3. Locked technology decisions (approved-tech registry)
@@ -230,9 +234,14 @@ in-session task tracker.
     Ctrl/Cmd+C / +V copy-paste of tile attributes (mobile Copy/Paste buttons + clipboard readout), a Fit
     button, and a grid-size slider with a tile-count + FPS HUD to find the rendering ceiling. Konva renderer
     (§3/§4.1) with pure tested helpers in `src/canvas/` *(verified 2026-06-27, `19c337d`)*
-  - [ ] Paint other attributes — a drag currently paints the **visited count** (shown by a passive
-    "paint: visited" chip); let the user choose what a drag paints (e.g. colours, traverser seeds) once
-    those land. Turn the chip into a picker then.
+  - [ ] Paint other attributes — the "paint:" chip is now a **picker** (`<select>`): a drag paints the
+    selected target — **visited, or registry A/B/C**. Extend with **colours / traverser seeds** when
+    those land. *(picker built — awaiting owner verify)*
+  - [ ] Step-tracked visits + per-tile registries (A/B/C) — a visit is now a **log of the steps** it
+    happened on (count = list length; hand-made paint/Inspect visits are step −1); plus three free-form
+    per-tile counters A/B/C. Both surface in the Inspect dock (with faded "?" explainers) and are
+    paintable; in `stats` display they print inside tiles. Pure model + updaters in
+    `src/canvas/overlay.ts`. Foundation for the traverse engine (§5). *(built — awaiting owner verify)*
   - [x] Octagon+wedge tiling (`kalleboda`) — second selectable tiling; wedge-snap + vertex-weld so the
     generic `stitch()` pairs shared edges (incl. the two-edged-adjacency quirk) *(verified 2026-06-27, `6fd812e`)*
   - [x] Regular uniform tilings — triangular (3.3.3.3.3.3) + hexagonal (6.6.6); gallery thumbnails now
@@ -266,19 +275,26 @@ Hard-won; read before fighting the tooling again.
   `generators/` (one per tiling). Public API via `src/tiling/index.ts` — import from there.
 - `src/components/TilingCanvas.tsx` — the **live** interactive Konva renderer; the ONLY file that
   imports `konva`/`react-konva`. **Interaction (no modes):** tap = inspect a tile, drag = paint the
-  visited overlay, two-finger (touch) / middle-mouse drag = pan, pinch / wheel = zoom. A **display
-  chip** (Workspace) cycles tile rendering — `edges` / `none` / `stats`; in `stats` the tile number +
-  visited `vN` print inside each tile, but only once tiles are a few screen px (`MIN_LABEL_PX`), so on
+  current **paint target** (visited / A / B / C — chosen by the "paint:" picker), two-finger (touch) /
+  middle-mouse drag = pan, pinch / wheel = zoom. A **display chip** (Workspace) cycles tile rendering —
+  `edges` / `none` / `stats`; in `stats` the tile number, visited `vN`, and any non-zero registries
+  (`A# B# C#`) print inside each tile, but only once tiles are a few screen px (`MIN_LABEL_PX`), so on
   dense grids you zoom in to read them (you can't fit thousands of readable labels at fit). `src/canvas/`
   holds its pure, tested helpers — `view.ts` (world↔screen transform), `pick.ts` (hit-testing),
-  `stroke.ts` (paint gap-fill), `clipboard.ts`, `buildTiling.ts` — imported via `src/canvas/index.ts`.
+  `stroke.ts` (paint gap-fill), `overlay.ts` (per-tile run state — the visit step-list + A/B/C
+  registries, plus its updaters), `clipboard.ts`, `buildTiling.ts` — imported via `src/canvas/index.ts`.
 - `src/components/TilingDebugView.tsx` — the original SVG renderer, now a dependency-free **tested
   reference** (not mounted in the app). Safe to delete once the Konva canvas is owner-verified.
 - `src/components/Workspace.tsx` — the Canvas-page multi-pane workspace (canvas + Inspect /
   Traversers / Coloring docks); **builds the `Tiling`** from the picker `tilingId` + grid-size, and
-  owns selection, the per-tile **visited** overlay, and the copy/paste clipboard (all kept off the
-  immutable `Tiling`, keyed by tile id).
+  owns selection, the per-tile **state overlay** (`TileState` — a visit step-list + the A/B/C
+  registries; see `src/canvas/overlay.ts`), the **paint-target** picker, and the copy/paste clipboard
+  (all kept off the immutable `Tiling`, keyed by tile id). The Inspect dock edits visits (± as
+  step −1) and the registries (±), and shows the step list.
 - `src/components/Panel.tsx` — reusable collapsible dock panel (collapses to a thin rail).
+- `src/components/HelpButton.tsx` (+ `.css`) — the reusable faded **"?" explainer**: a small muted
+  button that opens a little info dialog (reuses the TilingPicker modal pattern — portal, Escape,
+  backdrop, focus). Use it for non-obvious concepts (ethos §2); currently on Registries + step-visits.
 - **Canvas page layout:** full-height on **desktop** — `App.tsx` adds an `app-canvas` class so `.app`
   becomes a fixed-height, non-scrolling viewport (`App.css`, `@media min-width: 64rem`); the workspace
   fills it and only the canvas (pan/zoom) and docks (own overflow) scroll. There's **no page header**

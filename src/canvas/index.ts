@@ -5,6 +5,18 @@ export type { View, Size } from './view'
 export { worldToScreen, screenToWorld, clampScale, zoomAt, panBy, fitToView, clampView } from './view'
 export { pointInPolygon, representativeTileSize, SpatialHash, pickTile } from './pick'
 export { tilesAlongSegment } from './stroke'
-export type { TileAttrs, TileClip } from './clipboard'
+export type { TileState, Registry, PaintTarget } from './overlay'
+export {
+  EMPTY_TILE_STATE,
+  MANUAL_STEP,
+  tileState,
+  visitCount,
+  overlayIsEmpty,
+  addVisit,
+  removeManualVisit,
+  bumpRegistry,
+  applyPaint,
+} from './overlay'
+export type { TileClip } from './clipboard'
 export { clipFromTile, canPaste, applyClip } from './clipboard'
 export { buildTiling } from './buildTiling'

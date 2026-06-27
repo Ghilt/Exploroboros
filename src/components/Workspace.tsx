@@ -2,25 +2,48 @@ import './Workspace.css'
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Tiling, TileNode } from '../tiling'
 import { nodeById, neighborEdges, uniqueNeighbors } from '../tiling'
-import { buildTiling, canPaste, applyClip, clipFromTile } from '../canvas'
-import type { TileClip } from '../canvas'
+import {
+  buildTiling,
+  canPaste,
+  applyClip,
+  clipFromTile,
+  addVisit,
+  removeManualVisit,
+  bumpRegistry,
+  applyPaint,
+  tileState,
+  visitCount,
+  overlayIsEmpty,
+} from '../canvas'
+import type { TileClip, TileState, Registry, PaintTarget } from '../canvas'
 import { TilingCanvas, type DisplayMode } from './TilingCanvas'
 import { TilingPicker } from './TilingPicker'
 import { Panel } from './Panel'
+import { HelpButton } from './HelpButton'
 
 const GRID_MIN = 10
 const GRID_MAX = 140
 
+const REGISTRIES: ReadonlyArray<{ key: Registry; label: string }> = [
+  { key: 'a', label: 'A' },
+  { key: 'b', label: 'B' },
+  { key: 'c', label: 'C' },
+]
+
 // The Canvas-page workspace: a central canvas flanked by collapsible docks — authoring panes
 // (Traversers, Coloring) on the left, the Inspect pane on the right. It owns per-run state
-// (selection, the visited overlay) off the immutable Tiling, and builds the Tiling itself from
-// the picker choice + grid size.
+// (selection, the tile overlay) off the immutable Tiling, and builds the Tiling itself from the
+// picker choice + grid size.
 export function Workspace() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [visited, setVisited] = useState<ReadonlyMap<string, number>>(() => new Map())
-  // Tile display: edged outline / no outline / outline + printed stats (number + visited).
+  // Per-tile run state (visits-as-step-list + the A/B/C registries), keyed by tile id and kept off
+  // the immutable Tiling (CLAUDE.md §4.3). See src/canvas/overlay.ts.
+  const [overlay, setOverlay] = useState<ReadonlyMap<string, TileState>>(() => new Map())
+  // What a drag paints: the visit log, or one of the registries.
+  const [paintTarget, setPaintTarget] = useState<PaintTarget>('visited')
+  // Tile display: edged outline / no outline / outline + printed stats (number + visited + counters).
   const [displayMode, setDisplayMode] = useState<DisplayMode>('edges')
-  // Copied tile attributes (today: the visited count), pasteable onto a same-shape tile.
+  // Copied tile state, pasteable onto a same-shape tile.
   const [clip, setClip] = useState<TileClip | null>(null)
   // Bumped to ask the canvas to re-frame the whole tiling (Fit button).
   const [fitNonce, setFitNonce] = useState(0)
@@ -48,43 +71,35 @@ export function Workspace() {
 
   const selected = selectedId ? nodeById(tiling, selectedId) ?? null : null
 
-  const bumpVisited = (id: string, delta: number) =>
-    setVisited((prev) => {
-      const next = new Map(prev)
-      next.set(id, Math.max(0, (next.get(id) ?? 0) + delta))
-      return next
-    })
+  // Inspect ±: + adds a hand-made visit (step -1); − removes one (never touches traverser history).
+  const bumpVisit = (id: string, delta: number) =>
+    setOverlay((prev) => (delta >= 0 ? addVisit(prev, id) : removeManualVisit(prev, id)))
+  const bumpReg = (id: string, reg: Registry, delta: number) =>
+    setOverlay((prev) => bumpRegistry(prev, id, reg, delta))
 
-  // Paint: bump each given tile by +1 (the canvas dedupes within a stroke).
-  const paintVisited = (ids: ReadonlyArray<string>) => {
-    if (ids.length === 0) return
-    setVisited((prev) => {
-      const next = new Map(prev)
-      for (const id of ids) next.set(id, (next.get(id) ?? 0) + 1)
-      return next
-    })
-  }
+  // Paint: bump each given tile's current paint target (the canvas dedupes within a stroke).
+  const paint = (ids: ReadonlyArray<string>) => setOverlay((prev) => applyPaint(prev, ids, paintTarget))
 
-  // Switching tiling type starts a fresh plane: drop the visited overlay and selection. Both are
-  // keyed by tile id, which is only meaningful within one tiling — ids can collide across tilings
-  // (e.g. the centroid-keyed squares the rhombitrihexagonal and truncated-trihexagonal generators
-  // share), so a stale overlay would paint tiles on the new tiling. A grid-size change keeps the
-  // overlay (non-destructive resize); only a type change resets it.
+  // Switching tiling type starts a fresh plane: drop the overlay and selection. Both are keyed by
+  // tile id, which is only meaningful within one tiling — ids can collide across tilings (e.g. the
+  // centroid-keyed squares the rhombitrihexagonal and truncated-trihexagonal generators share), so
+  // a stale overlay would paint tiles on the new tiling. A grid-size change keeps the overlay
+  // (non-destructive resize); only a type change resets it.
   const selectTiling = (id: string) => {
     if (id !== tilingId) {
-      setVisited(new Map())
+      setOverlay(new Map())
       setSelectedId(null)
     }
     setTilingId(id)
   }
 
-  // Copy the selected tile's attributes; paste onto the selected tile when shapes match.
+  // Copy the selected tile's state; paste onto the selected tile when shapes match.
   const copyTile = () => {
-    if (selected) setClip(clipFromTile(selected.shape, visited.get(selected.id) ?? 0))
+    if (selected) setClip(clipFromTile(selected.shape, tileState(overlay, selected.id)))
   }
   const pasteTile = () => {
     if (selected && canPaste(clip, selected.shape)) {
-      setVisited((prev) => applyClip(prev, selected.id, clip))
+      setOverlay((prev) => applyClip(prev, selected.id, clip))
     }
   }
 
@@ -137,9 +152,20 @@ export function Workspace() {
           <span className="panel-title">Canvas</span>
           <div className="canvas-tools">
             <TilingPicker value={tilingId} onChange={selectTiling} />
-            <span className="canvas-chip" title="Drag paints the visited count (other attributes later)">
-              paint: visited
-            </span>
+            <label className="canvas-chip canvas-paint" title="What a drag paints">
+              paint:
+              <select
+                className="canvas-paint-select"
+                value={paintTarget}
+                aria-label="paint target"
+                onChange={(e) => setPaintTarget(e.target.value as PaintTarget)}
+              >
+                <option value="visited">visited</option>
+                <option value="a">A</option>
+                <option value="b">B</option>
+                <option value="c">C</option>
+              </select>
+            </label>
             <label className="canvas-grid" title="Grid size — tiles = N × N">
               <span className="canvas-grid-label">
                 {gridInput}×{gridInput}
@@ -160,9 +186,9 @@ export function Workspace() {
             <button
               type="button"
               className="canvas-btn"
-              onClick={() => setVisited(new Map())}
-              disabled={visited.size === 0}
-              title="Reset the tiling — clears every visited count"
+              onClick={() => setOverlay(new Map())}
+              disabled={overlayIsEmpty(overlay)}
+              title="Reset the tiling — clears every visit and counter"
             >
               Reset
             </button>
@@ -181,10 +207,10 @@ export function Workspace() {
             tiling={tiling}
             displayMode={displayMode}
             selectedId={selectedId}
-            visited={visited}
+            overlay={overlay}
             tileNumber={(id) => indexById.get(id) ?? -1}
             onSelect={setSelectedId}
-            onPaint={paintVisited}
+            onPaint={paint}
             fitSignal={fitNonce}
           />
         </div>
@@ -196,9 +222,10 @@ export function Workspace() {
             tiling={tiling}
             node={selected}
             number={indexById.get(selected.id) ?? -1}
-            visited={visited}
+            overlay={overlay}
             clip={clip}
-            onBump={bumpVisited}
+            onVisit={bumpVisit}
+            onRegistry={bumpReg}
             onCopy={copyTile}
             onPaste={pasteTile}
           />
@@ -224,27 +251,35 @@ function InspectContent({
   tiling,
   node,
   number,
-  visited,
+  overlay,
   clip,
-  onBump,
+  onVisit,
+  onRegistry,
   onCopy,
   onPaste,
 }: {
   tiling: Tiling
   node: TileNode
   number: number
-  visited: ReadonlyMap<string, number>
+  overlay: ReadonlyMap<string, TileState>
   clip: TileClip | null
-  onBump: (id: string, delta: number) => void
+  onVisit: (id: string, delta: number) => void
+  onRegistry: (id: string, reg: Registry, delta: number) => void
   onCopy: () => void
   onPaste: () => void
 }) {
-  const own = visited.get(node.id) ?? 0
-  // adjacent-visited-count: total visits across adjacent edges (a two-edge neighbour counts
-  // twice — matches the prototype's adjacent-visited). adjacent-tiles-visited-count: distinct
-  // adjacent tiles visited at least once. Identical for the edge-to-edge square tiling.
-  const adjacentVisited = neighborEdges(tiling, node.id).reduce((sum, e) => sum + (visited.get(e.tile) ?? 0), 0)
-  const adjacentTilesVisited = uniqueNeighbors(tiling, node.id).filter((id) => (visited.get(id) ?? 0) > 0).length
+  const st = tileState(overlay, node.id)
+  const own = visitCount(st)
+  // adjacent-visited-count: total visits across adjacent edges (a two-edge neighbour counts twice —
+  // matches the prototype's adjacent-visited). adjacent-tiles-visited-count: distinct adjacent tiles
+  // visited at least once. Identical for the edge-to-edge square tiling.
+  const adjacentVisited = neighborEdges(tiling, node.id).reduce(
+    (sum, e) => sum + visitCount(tileState(overlay, e.tile)),
+    0,
+  )
+  const adjacentTilesVisited = uniqueNeighbors(tiling, node.id).filter(
+    (id) => visitCount(tileState(overlay, id)) > 0,
+  ).length
 
   return (
     <div className="tile-stats">
@@ -256,20 +291,66 @@ function InspectContent({
             <dd>{stat.value}</dd>
           </Fragment>
         ))}
-        <dt>visited</dt>
+        <dt>
+          visited
+          <HelpButton title="Visits &amp; steps">
+            <p>
+              Every time a tile is visited, that visit is recorded — along with <strong>which step
+              (tick)</strong> it happened on. The <strong>visited</strong> number is just how many
+              visits there are.
+            </p>
+            <p>
+              Visits you add by hand — painting, or the + here — are stamped <strong>step −1</strong>,
+              meaning “outside a run”. Once traverser rules arrive, each automatic visit will carry
+              its real tick number, so you’ll be able to ask <em>when</em> a tile was reached, not
+              only how often.
+            </p>
+          </HelpButton>
+        </dt>
         <dd className="visited-control">
-          <button type="button" onClick={() => onBump(node.id, -1)} aria-label="decrease visited">
+          <button type="button" onClick={() => onVisit(node.id, -1)} aria-label="decrease visited">
             −
           </button>
           <span className="visited-value">{own}</span>
-          <button type="button" onClick={() => onBump(node.id, 1)} aria-label="increase visited">
+          <button type="button" onClick={() => onVisit(node.id, 1)} aria-label="increase visited">
             +
           </button>
         </dd>
+        <dt>steps</dt>
+        <dd className="steps-readout">{formatSteps(st.visits)}</dd>
         <dt>adjacent-visited-count</dt>
         <dd>{adjacentVisited}</dd>
         <dt>adjacent-tiles-visited-count</dt>
         <dd>{adjacentTilesVisited}</dd>
+        <dt className="reg-head">
+          registries
+          <HelpButton title="Registries A, B, C">
+            <p>
+              A, B and C are three <strong>free-form counters</strong> on every tile. The app gives
+              them no built-in meaning — they’re yours to use.
+            </p>
+            <p>
+              Soon you’ll read and change them from traverser rules: count something, mark a tile,
+              leave a breadcrumb, gate a branch — whatever a pattern needs. For now, set them here or
+              with the paint tool to experiment.
+            </p>
+          </HelpButton>
+        </dt>
+        <dd className="reg-hint">free-form</dd>
+        {REGISTRIES.map(({ key, label }) => (
+          <Fragment key={key}>
+            <dt>{label}</dt>
+            <dd className="reg-control">
+              <button type="button" onClick={() => onRegistry(node.id, key, -1)} aria-label={`decrease ${label}`}>
+                −
+              </button>
+              <span className={`reg-value reg-${key}`}>{st[key]}</span>
+              <button type="button" onClick={() => onRegistry(node.id, key, 1)} aria-label={`increase ${label}`}>
+                +
+              </button>
+            </dd>
+          </Fragment>
+        ))}
         <dt>clipboard</dt>
         <dd className="clip-control">
           <button type="button" onClick={onCopy} aria-label="copy tile attributes">
@@ -283,11 +364,24 @@ function InspectContent({
           >
             Paste
           </button>
-          <span className="clip-readout">{clip ? `v${clip.attrs.visited} · ${clip.shape}` : 'empty'}</span>
+          <span className="clip-readout">
+            {clip
+              ? `v${visitCount(clip.state)} · A${clip.state.a} B${clip.state.b} C${clip.state.c} · ${clip.shape}`
+              : 'empty'}
+          </span>
         </dd>
       </dl>
     </div>
   )
+}
+
+// Compact readout of the visit step-list. All hand-made visits are step −1 today; traverser rules
+// will add real tick numbers. Cap the length so a heavily-visited tile stays readable.
+function formatSteps(visits: ReadonlyArray<number>): string {
+  if (visits.length === 0) return '—'
+  const shown = visits.slice(0, 10).map((s) => (s < 0 ? `−${-s}` : String(s)))
+  const extra = visits.length - 10
+  return extra > 0 ? `${shown.join(', ')} … (+${extra})` : shown.join(', ')
 }
 
 // Per-tiling stats. Different tilings expose different intrinsic coordinates; the square

@@ -14,8 +14,10 @@ import {
   pickTile,
   tilesAlongSegment,
   representativeTileSize,
+  tileState,
+  visitCount,
 } from '../canvas'
-import type { View, Size } from '../canvas'
+import type { View, Size, TileState } from '../canvas'
 
 // The interactive Konva plane (CLAUDE.md §4.1 — resolved: Konva). All tiles draw in ONE
 // Konva.Shape via a custom sceneFunc — one canvas pass, culled to the viewport, so it scales to
@@ -59,6 +61,9 @@ const FALLBACK: Palette = {
   mono: 'ui-monospace, SFMono-Regular, Menlo, monospace',
 }
 
+// Reused empty overlay so drawTiles can treat "no overlay" uniformly without per-frame allocation.
+const NO_OVERLAY: ReadonlyMap<string, TileState> = new Map()
+
 // How tiles are drawn: edges (black outline), none (fills only, no outline), or stats (outline +
 // tile number + visited count printed inside). Cycled by the display chip.
 export type DisplayMode = 'edges' | 'none' | 'stats'
@@ -67,7 +72,7 @@ type Props = {
   tiling: Tiling
   displayMode?: DisplayMode
   selectedId?: string | null
-  visited?: ReadonlyMap<string, number>
+  overlay?: ReadonlyMap<string, TileState>
   tileNumber?: (id: string) => number
   onSelect?: (id: string) => void
   onPaint?: (ids: ReadonlyArray<string>) => void
@@ -79,7 +84,7 @@ export function TilingCanvas({
   tiling,
   displayMode = 'edges',
   selectedId = null,
-  visited,
+  overlay,
   tileNumber,
   onSelect,
   onPaint,
@@ -368,7 +373,7 @@ export function TilingCanvas({
             <Shape
               listening={false}
               sceneFunc={(ctx) =>
-                drawTiles(ctx, tiling, viewRef.current, size, paletteRef.current, selectedId, visited, displayMode, tileNumber)
+                drawTiles(ctx, tiling, viewRef.current, size, paletteRef.current, selectedId, overlay, displayMode, tileNumber)
               }
             />
           </Layer>
@@ -418,10 +423,11 @@ function drawTiles(
   size: Size,
   pal: Palette,
   selectedId: string | null,
-  visited: ReadonlyMap<string, number> | undefined,
+  overlay: ReadonlyMap<string, TileState> | undefined,
   displayMode: DisplayMode,
   tileNumber: ((id: string) => number) | undefined,
 ): void {
+  const ov = overlay ?? NO_OVERLAY
   // World-space viewport (+ one-tile margin) — skip tiles off-screen so cost tracks what's
   // visible, not the total tile count.
   const margin = representativeTileSize(tiling)
@@ -438,7 +444,7 @@ function drawTiles(
     traceTile(ctx, node.vertices, view)
     ctx.setAttr('fillStyle', pal.tile)
     ctx.fill()
-    const v = visited?.get(node.id) ?? 0
+    const v = visitCount(tileState(ov, node.id))
     if (v > 0) {
       // Visited tiles shade accent, deeper with the count, so painted regions read at a glance.
       ctx.save()
@@ -473,7 +479,7 @@ function drawTiles(
   // edges than a square/hexagon's, so an equal fraction reads as cramped.
   const numPxFor = (shape: string) => (shape === 'triangle' ? 0.2 : 0.3) * labelScale
   const visPxFor = (shape: string) => numPxFor(shape) * (0.26 / 0.3)
-  const anyVisited = visited ? [...visited.values()].some((n) => n > 0) : false
+  const anyVisited = [...ov.values()].some((s) => s.visits.length > 0)
   // Quick out if even the roomiest shape's label would fall below the legibility floor.
   if (0.3 * labelScale < MIN_LABEL_PX && !(anyVisited && 0.26 * labelScale >= MIN_LABEL_PX)) return
   ctx.setAttr('textAlign', 'center')
@@ -493,7 +499,7 @@ function drawTiles(
     }
     const c = worldToScreen(node.centroid, view)
     // nudge the number up a touch when a vN sits below it
-    const hasV = anyVisited && (visited?.get(node.id) ?? 0) > 0
+    const hasV = anyVisited && visitCount(tileState(ov, node.id)) > 0
     ctx.fillText(tileNumber ? String(tileNumber(node.id)) : '', c.x, hasV ? c.y - numPx * 0.5 : c.y)
   }
 
@@ -503,7 +509,7 @@ function drawTiles(
     lastFont = ''
     for (const node of tiling.nodes) {
       if (!onScreen(node.centroid)) continue
-      const v = visited?.get(node.id) ?? 0
+      const v = visitCount(tileState(ov, node.id))
       if (v <= 0) continue
       const visPx = visPxFor(node.shape)
       if (visPx < MIN_LABEL_PX) continue
@@ -515,6 +521,35 @@ function drawTiles(
       const c = worldToScreen(node.centroid, view)
       const numPx = numPxFor(node.shape)
       ctx.fillText(`v${v}`, c.x, numPx >= MIN_LABEL_PX ? c.y + numPx * 0.7 : c.y)
+    }
+  }
+
+  // Registries pass: any non-zero A/B/C printed as a compact "A# B# C#" line beneath vN, in the
+  // neutral number colour. Slightly smaller than vN, gated by the same legibility floor.
+  const anyReg = [...ov.values()].some((s) => s.a !== 0 || s.b !== 0 || s.c !== 0)
+  if (anyReg) {
+    ctx.setAttr('fillStyle', pal.num)
+    lastFont = ''
+    for (const node of tiling.nodes) {
+      if (!onScreen(node.centroid)) continue
+      const s = ov.get(node.id)
+      if (!s || (s.a === 0 && s.b === 0 && s.c === 0)) continue
+      const numPx = numPxFor(node.shape)
+      const regPx = numPx * (0.24 / 0.3)
+      if (regPx < MIN_LABEL_PX) continue
+      const font = `${regPx}px ${pal.mono}`
+      if (font !== lastFont) {
+        ctx.setAttr('font', font)
+        lastFont = font
+      }
+      const parts: string[] = []
+      if (s.a !== 0) parts.push(`A${s.a}`)
+      if (s.b !== 0) parts.push(`B${s.b}`)
+      if (s.c !== 0) parts.push(`C${s.c}`)
+      const c = worldToScreen(node.centroid, view)
+      // sit a line below vN when this tile has visits, else where vN would be (below the number)
+      const dy = numPx * 0.7 + (s.visits.length > 0 ? regPx * 1.15 : 0)
+      ctx.fillText(parts.join(' '), c.x, c.y + dy)
     }
   }
 }

@@ -1,14 +1,14 @@
-// Pure copy/paste of tile attributes. Today the only attribute is the visited count; the
-// shape of TileAttrs is the extension point for future per-tile attributes (colour, seed...).
-// Paste only applies between "similar" tiles (same shape class).
+// Pure copy/paste of tile attributes — the whole per-tile run state (the visit log + the A/B/C
+// registries). Paste only applies between "similar" tiles (same shape class).
 
 import type { ShapeType } from '../tiling'
+import type { TileState } from './overlay'
 
-export type TileAttrs = { visited: number }
-export type TileClip = { shape: ShapeType; attrs: TileAttrs }
+export type TileClip = { shape: ShapeType; state: TileState }
 
-export function clipFromTile(shape: ShapeType, visited: number): TileClip {
-  return { shape, attrs: { visited } }
+// Snapshot the tile's state so a later edit to the live overlay can't reach back into the clipboard.
+export function clipFromTile(shape: ShapeType, state: TileState): TileClip {
+  return { shape, state: { ...state, visits: [...state.visits] } }
 }
 
 // Two tiles are "similar" (paste-compatible) when they share a shape class. A type guard so a
@@ -17,14 +17,14 @@ export function canPaste(clip: TileClip | null, targetShape: ShapeType): clip is
   return clip !== null && clip.shape === targetShape
 }
 
-// Paste replaces the target tile's attributes. Returns a new visited overlay (the input map is
-// not mutated), so it slots straight into React state.
+// Paste replaces the target tile's state with a fresh copy of the clip's (so pasting twice doesn't
+// alias the visit list). Returns a new overlay; the input map is untouched.
 export function applyClip(
-  visited: ReadonlyMap<string, number>,
+  overlay: ReadonlyMap<string, TileState>,
   targetId: string,
   clip: TileClip,
-): Map<string, number> {
-  const next = new Map(visited)
-  next.set(targetId, clip.attrs.visited)
+): Map<string, TileState> {
+  const next = new Map(overlay)
+  next.set(targetId, { ...clip.state, visits: [...clip.state.visits] })
   return next
 }

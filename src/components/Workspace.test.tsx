@@ -37,12 +37,20 @@ describe('Workspace', () => {
     expect(screen.getByRole('button', { name: /expand coloring/i })).toBeTruthy()
   })
 
-  it('offers the tiling picker, the paint chip, the display chip, and the grid-size control', () => {
+  it('offers the tiling picker, the paint picker, the display chip, and the grid-size control', () => {
     render(<Workspace />)
     expect(screen.getByRole('button', { name: /square/i })).toBeTruthy()
-    expect(screen.getByText(/paint: visited/i)).toBeTruthy()
+    expect((screen.getByRole('combobox', { name: /paint target/i }) as HTMLSelectElement).value).toBe('visited')
     expect(screen.getByRole('button', { name: /display:/i })).toBeTruthy()
     expect(screen.getByRole('slider', { name: /grid size/i })).toBeTruthy()
+  })
+
+  it('lets you choose what a drag paints (visited / A / B / C)', () => {
+    render(<Workspace />)
+    const paint = screen.getByRole('combobox', { name: /paint target/i }) as HTMLSelectElement
+    expect(paint.value).toBe('visited')
+    fireEvent.change(paint, { target: { value: 'b' } })
+    expect(paint.value).toBe('b')
   })
 
   it('the display chip cycles edges -> none -> stats -> edges', () => {
@@ -71,6 +79,31 @@ describe('Workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
     fireEvent.click(screen.getByRole('button', { name: /increase visited/i }))
     expect(container.querySelector('.visited-value')?.textContent).toBe('1')
+  })
+
+  it('records a manual visit and surfaces it in the steps readout', () => {
+    const { container } = render(<Workspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
+    const steps = () => container.querySelector('.steps-readout')?.textContent ?? ''
+    expect(steps()).not.toMatch(/\d/) // blank ("—") before any visit
+    fireEvent.click(screen.getByRole('button', { name: /increase visited/i }))
+    expect(container.querySelector('.visited-value')?.textContent).toBe('1')
+    expect(steps()).toMatch(/1/) // the step (−1) is now listed
+  })
+
+  it('the registry steppers raise and clamp a tile’s A counter, and Reset clears it', () => {
+    const { container } = render(<Workspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
+    expect(container.querySelector('.reg-a')?.textContent).toBe('0')
+    fireEvent.click(screen.getByRole('button', { name: /increase A/i }))
+    fireEvent.click(screen.getByRole('button', { name: /increase A/i }))
+    expect(container.querySelector('.reg-a')?.textContent).toBe('2')
+    fireEvent.click(screen.getByRole('button', { name: /decrease A/i }))
+    expect(container.querySelector('.reg-a')?.textContent).toBe('1')
+    // a counter alone enables Reset, which clears everything
+    expect((screen.getByRole('button', { name: 'Reset' }) as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
+    expect(container.querySelector('.reg-a')?.textContent).toBe('0')
   })
 
   it('copies a tile’s attributes and pastes them onto another tile', () => {
