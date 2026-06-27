@@ -168,12 +168,14 @@ still needed into this doc **before** then; do not rely on the path persisting.
 - **Phase 0 (done):** repo + this doc + responsive hello-world.
 - **Prototype migration (done 2026-06-26):** still-needed prototype detail captured + generalized in §5 — the
   origin repo can now be deleted safely.
-- **In progress — generic tiling render + data model (§4.3):** data model, generic `stitch()`, square
-  generator, and the tiling picker are in and verified. The Canvas page now has an **interactive Konva plane**
-  (zoom/pan, tap-select, drag-paint, copy/paste, a grid-size lag probe). *Awaiting owner real-device
-  verification (§7).* Next: more tilings (the 11 uniform Euclidean tilings + octagon+wedge).
-- Then: port **static coloring DSL** → port **traverse engine** → **rule-authoring UI** (click/touch) →
-  **serverless PNG export** (§4.2) → **deploy** to Vercel.
+- **Generic tiling render + data model (§4.3) — tiling set complete (2026-06-27):** data model, generic
+  `stitch()`, the interactive Konva plane (zoom/pan, tap-select, drag-paint, copy/paste, grid-size probe),
+  and the tiling picker are in and verified. **All 11 convex uniform Euclidean tilings + kalleboda now have
+  generators** and are owner-verified (§7). Remaining sub-items are polish, not new tilings: let a drag paint
+  attributes other than `visited`, a user-facing tile-numbering control, and edge-/opposite-edge visualisation
+  (§8) — plus an optional look at the *expanded* uniform-tiling list for exotic extras.
+- **Next up — the pattern engine:** port **static coloring DSL** → port **traverse engine** → **rule-authoring
+  UI** (click/touch) → **serverless PNG export** (§4.2) → **deploy** to Vercel.
 
 ## 7. Verifying on a phone + verification log
 
@@ -205,6 +207,8 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-27 | Elongated Triangular (3.3.3.4.4) + Truncated Hexagonal (3.12.12) tilings | ✅ yes | owner reviewed both running tilings (square/triangle bands; dodecagons + triangle gaps) — gapless, ~388 tiles; approved | `3559ec0` |
 | 2026-06-27 | Rhombitrihexagonal (3.4.6.4) + Truncated Trihexagonal (4.6.12) tilings | ✅ yes | owner reviewed both running tilings (hexagon rosettes ringed by squares+triangles; dodecagons + hexagons + squares) — gapless, ~399 tiles; approved | `bcd901a` |
 | 2026-06-27 | Fix — visited overlay + selection cleared on tiling-type switch (no cross-tiling paint bleed; grid-size resize still keeps paint) | ✅ yes | owner reproduced the carry-over (paint Truncated Trihexagonal → switch to Rhombitrihexagonal), confirmed the new tiling now comes up blank and a resize still preserves paint | `8d241a8` |
+| 2026-06-27 | Snub Square (3.3.4.3.4) + Snub Hexagonal (3.3.3.3.6) tilings — completes all 11 uniform + kalleboda | ✅ yes | owner reviewed both running chiral tilings (tilted-square pinwheel; hexagons in a triangle sea) — gapless, ~400 tiles; approved | `2e23482` |
+| 2026-06-27 | Stats labels cap with zoom (more breathing room the closer you zoom) + triangles use a smaller share (20% vs 30%) | ✅ yes | owner verified on-device in display:stats (preview screenshot tool was wedged); zooming gives numbers room, triangle numbers no longer cramped | `8cd1212` |
 
 ## 8. Todo list (working backlog)
 
@@ -236,9 +240,10 @@ in-session task tracker.
   - [x] Semiregular batch 1 — truncated square (4.8.8) + trihexagonal (3.6.3.6) *(verified 2026-06-27, `1eab3c4`)*
   - [x] Semiregular batch 2 — elongated triangular (3.3.3.4.4) + truncated hexagonal (3.12.12) *(verified 2026-06-27, `3559ec0`)*
   - [x] Semiregular batch 3 — rhombitrihexagonal (3.4.6.4) + truncated trihexagonal (4.6.12) *(verified 2026-06-27, `bcd901a`)*
-  - [ ] More tilings — the 2 remaining (chiral, "pinwheel") semiregular uniform Euclidean tilings: snub
-    square (3.3.4.3.4), snub hexagonal (3.3.3.3.6) — these have a left/right handedness, a different
-    construction from the rest (verified between)
+  - [x] Semiregular batch 4 — snub square (3.3.4.3.4) + snub hexagonal (3.3.3.3.6); the chiral pair.
+    **All 11 convex uniform Euclidean tilings + kalleboda now have generators** *(verified 2026-06-27, `2e23482`)*
+  - [x] Stats-label polish — labels cap their size as you zoom in (more breathing room) and triangles use a
+    smaller share of the tile than other shapes *(verified 2026-06-27, `8cd1212`)*
   - [ ] Investigate the **expanded** uniform-tiling list
     (https://en.wikipedia.org/wiki/Uniform_tiling#Expanded_lists_of_uniform_tilings) for cool tilings to add
     beyond the 11 convex uniform + kalleboda (k-uniform, non-edge-to-edge, star/zero-angle forms, etc.) —
@@ -316,6 +321,16 @@ It's a dev-HMR artifact, not a real bug: **stop + start the dev server** for a c
 has a silent console). The production `build` is unaffected. A telltale variant after several edits: the
 page reloads but the Stage never mounts — `size` stays 0×0, there are **no `<canvas>` elements** (only the
 `.canvas-hud` shows), and the console is silent. Same cause, same fix (restart); a fresh load renders fine.
+Note the 0×0 is `requestAnimationFrame`-gated: `TilingCanvas` measures its host in a rAF
+(`TilingCanvas.tsx`), which a backgrounded/throttled headless tab won't fire, so the Stage waits for a paint
+that never comes — a `preview_screenshot` (which forces a paint) usually mounts it.
+
+**Preview-capture can wedge after many ops in a session.** Seen 2026-06-27: `preview_screenshot` timing out
+after 30s **even on the canvas-free landing page**, with a silent console, surviving `preview_stop`/`start`
+(the browser tab persists across server restarts). That's the capture subsystem, not the app — the dev server
++ `build` are fine and the owner's own browser renders normally. Don't loop on it: confirm via build / lint /
+tests (the canvas render fn only runs *after* the Stage mounts, so a no-canvas state can't be caused by edits
+to `drawTiles`) and hand visual checks to the owner's device. Retrying later sometimes finds it unstuck.
 
 **Testing a Konva component (jsdom has no canvas).** Don't render `<TilingCanvas>` in Vitest — jsdom
 can't back a real canvas. Keep the meaningful logic in the pure `src/canvas/` modules (unit-tested
