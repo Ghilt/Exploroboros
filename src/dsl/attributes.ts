@@ -44,7 +44,7 @@ export const ATTRIBUTES: ReadonlyArray<AttrSpec> = [
   {
     // Visited neighbour EDGES — a two-edge neighbour counts twice (the prototype's adjacent-visited).
     name: 'adjacent-visited',
-    label: 'adjacent-visited-count',
+    label: 'adj-v-count',
     indexed: false,
     needsDefault: false,
     scopes: ['tile'],
@@ -53,7 +53,7 @@ export const ATTRIBUTES: ReadonlyArray<AttrSpec> = [
   {
     // Distinct visited neighbour TILES (a two-edge neighbour counts once) — the usual Rule-90 count.
     name: 'adjacent-visited-unique',
-    label: 'adjacent-tiles-visited-count',
+    label: 'adj-t-v-count',
     indexed: false,
     needsDefault: false,
     scopes: ['tile'],

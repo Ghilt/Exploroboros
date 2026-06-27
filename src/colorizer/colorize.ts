@@ -59,9 +59,11 @@ function rampColor(ramp: Ramp, v: number): string {
 
 function hexFor(rule: ColoringRule, ctx: EvalContext): string {
   if (rule.color.kind === 'flat') return rule.color.hex
-  const spec = attrSpec(rule.color.ramp.attr)
-  const v = spec?.compute(ctx) ?? 0
-  return rampColor(rule.color.ramp, v)
+  const ramp = rule.color.ramp
+  const spec = attrSpec(ramp.attr)
+  // Indexed attrs (coordinate, step) read at attrIndex; a missing value reads as 0 (the fade floor).
+  const v = spec?.compute(ctx, ramp.attrIndex ?? 0) ?? 0
+  return rampColor(ramp, v)
 }
 
 type Accum = { r: number; g: number; b: number; a: number }

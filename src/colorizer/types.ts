@@ -1,35 +1,15 @@
 // Data model for coloring rules. Pure (no React/DOM) so the colorizer can live beside src/tiling and
 // run under Vitest/SSR; the React store in src/state imports these types.
 
-import type { AttrName } from '../dsl'
+import { ATTRIBUTES, type AttrName } from '../dsl'
 
-// A ramp fades across up to 5 colours, driven by a numeric tile attribute. Modulo (the normal usage)
-// wraps the attribute into a repeating cycle. Only the always-defined, non-indexed attributes drive a
-// ramp, so the value never needs a default.
-export type RampAttr = Extract<
-  AttrName,
-  | 'visited'
-  | 'adjacent-visited'
-  | 'adjacent-visited-unique'
-  | 'registry-a'
-  | 'registry-b'
-  | 'registry-c'
-  | 'edge-count'
-  | 'tile-number'
-  | 'rotation'
->
+// A ramp fades across up to 5 colours, driven by a numeric tile attribute. Any attribute the DSL
+// exposes can drive it — including the step ones (first-step / latest-step / step[n]) and coordinates.
+// Indexed attributes (coordinate, step) use `attrIndex`; an attribute with no value for a tile reads
+// as 0. Modulo (the normal usage) wraps the value into a repeating cycle.
+export type RampAttr = AttrName
 
-export const RAMP_ATTRS: ReadonlyArray<RampAttr> = [
-  'visited',
-  'adjacent-visited',
-  'adjacent-visited-unique',
-  'registry-a',
-  'registry-b',
-  'registry-c',
-  'edge-count',
-  'tile-number',
-  'rotation',
-]
+export const RAMP_ATTRS: ReadonlyArray<RampAttr> = ATTRIBUTES.map((a) => a.name)
 
 export const MAX_RAMP_STOPS = 5
 
@@ -40,6 +20,7 @@ export type RampStop = { hex: string; at: number | null }
 
 export type Ramp = {
   attr: RampAttr
+  attrIndex?: number // for indexed attributes (coordinate, step); ignored otherwise
   mod: number | null
   stops: ReadonlyArray<RampStop> // 1..MAX_RAMP_STOPS
 }

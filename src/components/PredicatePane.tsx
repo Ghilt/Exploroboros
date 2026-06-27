@@ -5,6 +5,7 @@ import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
 import type { PredicateStore, StoredPredicate } from '../state/predicateStore'
 import { HelpButton } from './HelpButton'
 import { TrashButton } from './TrashButton'
+import { PredicateVisualEditor } from './PredicateVisualEditor'
 
 // The Predicate pane: a library of reusable tile predicates. Rows show just the name; click one to
 // expand it — a bundled predicate reveals its DSL (read-only), a custom one opens its editor. "+ New"
@@ -109,6 +110,7 @@ function PredicateEditor({
   onSetText: (id: string, text: string) => void
   onRename: (id: string, name: string) => void
 }) {
+  const [mode, setMode] = useState<'text' | 'visual'>('text')
   const result = useMemo(() => parsePredicate(predicate.text), [predicate.text])
 
   return (
@@ -122,17 +124,32 @@ function PredicateEditor({
           aria-label="predicate name"
         />
       </label>
-      <label className="pred-field">
-        <span className="pred-field-label">DSL</span>
-        <textarea
-          className="pred-text"
-          value={predicate.text}
-          spellCheck={false}
-          rows={3}
-          aria-label="predicate DSL"
-          onChange={(e) => onSetText(predicate.id, e.target.value)}
-        />
-      </label>
+
+      <div className="pred-mode" role="group" aria-label="editor mode">
+        <button type="button" aria-pressed={mode === 'text'} onClick={() => setMode('text')}>
+          Text
+        </button>
+        <button type="button" aria-pressed={mode === 'visual'} onClick={() => setMode('visual')}>
+          Visual
+        </button>
+      </div>
+
+      {mode === 'text' ? (
+        <label className="pred-field">
+          <span className="pred-field-label">DSL</span>
+          <textarea
+            className="pred-text"
+            value={predicate.text}
+            spellCheck={false}
+            rows={3}
+            aria-label="predicate DSL"
+            onChange={(e) => onSetText(predicate.id, e.target.value)}
+          />
+        </label>
+      ) : (
+        <PredicateVisualEditor text={predicate.text} onChange={(t) => onSetText(predicate.id, t)} />
+      )}
+
       {result.ok ? (
         <p className="pred-status pred-status--ok">✓ {serialize(result.value)}</p>
       ) : (

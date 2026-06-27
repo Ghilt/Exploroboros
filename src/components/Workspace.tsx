@@ -346,9 +346,9 @@ function InspectContent({
         </dd>
         <dt>steps</dt>
         <dd className="steps-readout">{formatSteps(st.visits)}</dd>
-        <dt>adjacent-visited-count</dt>
+        <dt title="adjacent-visited-count: visited adjacent edges (a two-edge neighbour counts twice)">adj-v-count</dt>
         <dd>{adjacentVisited}</dd>
-        <dt>adjacent-tiles-visited-count</dt>
+        <dt title="adjacent-tiles-visited-count: distinct adjacent tiles visited">adj-t-v-count</dt>
         <dd>{adjacentTilesVisited}</dd>
         <dt className="reg-head">
           registries

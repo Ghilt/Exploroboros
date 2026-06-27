@@ -135,6 +135,28 @@
   border-radius: var(--radius-sm);
   padding: 0.5rem;
 }
+
+/* Text / Visual mode toggle. */
+.pred-mode {
+  display: inline-flex;
+  align-self: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.pred-mode button {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  padding: 0.15rem 0.6rem;
+  border: none;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+.pred-mode button[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
 .pred-field {
   display: flex;
   flex-direction: column;

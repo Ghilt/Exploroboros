@@ -1,0 +1,112 @@
+.pv-editor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  min-height: 1.8rem;
+}
+
+/* Fragment wrappers don't draw a box — their chips lay out flat in the editor's wrapping row. */
+.pv-frag {
+  display: contents;
+}
+
+/* An attribute (name + optional [index] + default) stays together as one item. */
+.pv-attr {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.pv-chip-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.pv-name,
+.pv-op,
+.pv-num,
+.pv-value {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  padding: 0.1rem 0.4rem;
+}
+
+/* Attribute / value chips read as the "nouns". */
+.pv-name,
+.pv-value {
+  background: var(--surface-2);
+  color: var(--accent);
+  font-family: var(--mono);
+}
+.pv-name:hover,
+.pv-value:hover {
+  border-color: var(--accent);
+}
+
+/* Operator chips are the "verbs" — accent-filled so they pop between operands. */
+.pv-op {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+  font-family: var(--mono);
+  min-width: 1.5rem;
+  text-align: center;
+}
+.pv-op:hover {
+  background: var(--accent-strong, var(--accent));
+}
+
+.pv-num {
+  background: var(--surface);
+  color: var(--fg);
+  font-family: var(--mono);
+}
+.pv-num:hover {
+  border-color: var(--accent);
+}
+
+.pv-num-input,
+.pv-text-input {
+  width: 3.4rem;
+  font-size: 0.8rem;
+  font-family: var(--mono);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  padding: 0.1rem 0.3rem;
+}
+.pv-text-input {
+  width: 6rem;
+}
+
+/* Non-editable words: not, unary −, tile-type, parentheses, "default". */
+.pv-static,
+.pv-paren {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+.pv-default {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+}
+
+.pv-invalid {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.4;
+}

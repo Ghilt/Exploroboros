@@ -61,6 +61,17 @@ export function ColorField({
             </option>
           ))}
         </select>
+        {attrSpec(ramp.attr)?.indexed && (
+          <input
+            type="number"
+            min={0}
+            className="rule-num"
+            value={ramp.attrIndex ?? 0}
+            aria-label="ramp attribute index"
+            title="which index to fade over"
+            onChange={(e) => setRamp({ attrIndex: Math.max(0, Math.round(Number(e.target.value) || 0)) })}
+          />
+        )}
         <span className="rule-word" aria-hidden="true">
           %
         </span>

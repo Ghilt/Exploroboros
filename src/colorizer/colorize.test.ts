@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { squareTiling } from '../tiling'
 import { addVisit, type TileState } from '../canvas'
 import { colorize, compileRules } from './colorize'
-import type { ColoringRule, RuleColor } from './types'
+import type { ColoringRule, RampAttr, RuleColor } from './types'
 
 type Overlay = ReadonlyMap<string, TileState>
 const NO_TEXT = new Map<string, string>()
@@ -45,8 +45,9 @@ describe('colorize — ramps', () => {
   const ramp = (
     stops: Array<{ hex: string; at: number | null }>,
     mod: number | null,
-    attr: 'visited' = 'visited',
-  ): RuleColor => ({ kind: 'ramp', ramp: { attr, mod, stops } })
+    attr: RampAttr = 'visited',
+    attrIndex?: number,
+  ): RuleColor => ({ kind: 'ramp', ramp: { attr, mod, stops, attrIndex } })
 
   it('fades across an attribute with modulo and even (blank) breakpoints', () => {
     let overlay: Overlay = new Map()
@@ -72,6 +73,21 @@ describe('colorize — ramps', () => {
     const color = ramp([{ hex: '#123456', at: null }], null)
     const out = run([inline('visited >= 0', color)])
     expect(out.get('sq:0,0')).toBe('rgba(18, 52, 86, 1)')
+  })
+
+  it('fades over a step attribute (an unvisited tile reads as 0)', () => {
+    const overlay = addVisit(new Map(), 'sq:0,0', 5) // latest-step = 5
+    const color = ramp([{ hex: '#000000', at: null }, { hex: '#ffffff', at: null }], 10, 'latest-step')
+    const out = run([inline('visited >= 0', color)], overlay)
+    expect(out.get('sq:0,0')).toBe('rgba(128, 128, 128, 1)') // 5 of 0..10 -> halfway
+    expect(out.get('sq:1,1')).toBe('rgba(0, 0, 0, 1)') // unvisited -> step 0 -> first colour
+  })
+
+  it('fades over an indexed attribute using attrIndex', () => {
+    // coordinate[1] of sq:1,2 is the column = 2; over 0..4 that's halfway
+    const color = ramp([{ hex: '#000000', at: null }, { hex: '#ffffff', at: null }], 4, 'coordinate', 1)
+    const out = run([inline('visited >= 0', color)])
+    expect(out.get('sq:1,2')).toBe('rgba(128, 128, 128, 1)')
   })
 })
 
