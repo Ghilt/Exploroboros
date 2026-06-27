@@ -201,6 +201,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-27 | Kalleboda (octagon + wedge) tiling — second selectable tiling | ✅ yes | owner approved the running tiling (select Kalleboda → gapless octagons + wedges; tap-select + drag-paint work on the concave tiles; light + dark desktop preview) | `6fd812e` |
 | 2026-06-27 | Reset button (clears the visited overlay; disabled when blank) | ✅ yes | owner painted, hit Reset, saw it clear and the button grey out; approved | `b51e1ae` |
 | 2026-06-27 | Triangular + Hexagonal tilings (+ auto gallery thumbnails) | ✅ yes | owner reviewed both running tilings (select Triangular / Hexagonal → gapless, ~400 tiles, select + paint work) and the gallery thumbnails; approved | `f4a6b92` |
+| 2026-06-27 | Truncated Square (4.8.8) + Trihexagonal (3.6.3.6) tilings | ✅ yes | owner reviewed both running tilings (octagons+squares; kagome hexagons+triangles) — gapless, ~400 tiles; approved | `1eab3c4` |
 
 ## 8. Todo list (working backlog)
 
@@ -229,9 +230,10 @@ in-session task tracker.
     generic `stitch()` pairs shared edges (incl. the two-edged-adjacency quirk) *(verified 2026-06-27, `6fd812e`)*
   - [x] Regular uniform tilings — triangular (3.3.3.3.3.3) + hexagonal (6.6.6); gallery thumbnails now
     auto-render each ready tiling's real generator *(verified 2026-06-27, `f4a6b92`)*
-  - [ ] More tilings — the 8 remaining (semiregular) uniform Euclidean tilings: trihexagonal, snub square,
-    snub hexagonal, elongated triangular, truncated square, truncated hexagonal, rhombitrihexagonal,
-    truncated trihexagonal (added in small batches, verified between)
+  - [x] Semiregular batch 1 — truncated square (4.8.8) + trihexagonal (3.6.3.6) *(verified 2026-06-27, `1eab3c4`)*
+  - [ ] More tilings — the 6 remaining semiregular uniform Euclidean tilings: snub square (3.3.4.3.4),
+    snub hexagonal (3.3.3.3.6), elongated triangular (3.3.3.4.4), truncated hexagonal (3.12.12),
+    rhombitrihexagonal (3.4.6.4), truncated trihexagonal (4.6.12) (added in small batches, verified between)
   - [ ] Tile numbering as a canvas control — user-selectable scheme/origin (debug view currently numbers by generation order)
   - [ ] Visualise edge numbering + opposite edges for the user — show each tile's clockwise-from-top edge numbers and which edges are opposite (engine support exists: `clockwiseEdgeOrder`, `opposite`)
 - [ ] **Port the static coloring DSL** *(§5)*
