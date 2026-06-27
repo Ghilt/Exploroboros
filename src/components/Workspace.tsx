@@ -65,6 +65,19 @@ export function Workspace() {
     })
   }
 
+  // Switching tiling type starts a fresh plane: drop the visited overlay and selection. Both are
+  // keyed by tile id, which is only meaningful within one tiling — ids can collide across tilings
+  // (e.g. the centroid-keyed squares the rhombitrihexagonal and truncated-trihexagonal generators
+  // share), so a stale overlay would paint tiles on the new tiling. A grid-size change keeps the
+  // overlay (non-destructive resize); only a type change resets it.
+  const selectTiling = (id: string) => {
+    if (id !== tilingId) {
+      setVisited(new Map())
+      setSelectedId(null)
+    }
+    setTilingId(id)
+  }
+
   // Copy the selected tile's attributes; paste onto the selected tile when shapes match.
   const copyTile = () => {
     if (selected) setClip(clipFromTile(selected.shape, visited.get(selected.id) ?? 0))
@@ -123,7 +136,7 @@ export function Workspace() {
         <header className="panel-head">
           <span className="panel-title">Canvas</span>
           <div className="canvas-tools">
-            <TilingPicker value={tilingId} onChange={setTilingId} />
+            <TilingPicker value={tilingId} onChange={selectTiling} />
             <span className="canvas-chip" title="Drag paints the visited count (other attributes later)">
               paint: visited
             </span>

@@ -97,6 +97,23 @@ describe('Workspace', () => {
     expect(container.querySelector('.visited-value')?.textContent).toBe('0')
   })
 
+  it('switching tiling type clears the visited overlay and the selection', () => {
+    const { container } = render(<Workspace />)
+    // Paint a tile on the default square tiling.
+    fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
+    fireEvent.click(screen.getByRole('button', { name: /increase visited/i }))
+    expect(container.querySelector('.visited-value')?.textContent).toBe('1')
+    expect((screen.getByRole('button', { name: 'Reset' }) as HTMLButtonElement).disabled).toBe(false)
+
+    // Switch to a different tiling via the picker.
+    fireEvent.click(screen.getByRole('button', { name: /^square/i })) // open the gallery
+    fireEvent.click(screen.getByRole('button', { name: /^triangular/i })) // choose Triangular
+
+    // The visited overlay is gone (Reset disabled again) and the inspector is cleared.
+    expect((screen.getByRole('button', { name: 'Reset' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText(/click a tile to inspect/i)).toBeTruthy()
+  })
+
   it('panels collapse and expand', () => {
     render(<Workspace />)
     fireEvent.click(screen.getByRole('button', { name: /collapse inspect/i }))
