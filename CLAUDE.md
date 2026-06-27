@@ -178,8 +178,14 @@ still needed into this doc **before** then; do not rely on the path persisting.
   generators** and are owner-verified (§7). Remaining sub-items are polish, not new tilings: let a drag paint
   attributes other than `visited`, a user-facing tile-numbering control, and edge-/opposite-edge visualisation
   (§8) — plus an optional look at the *expanded* uniform-tiling list for exotic extras.
-- **Next up — the pattern engine:** port **static coloring DSL** → port **traverse engine** → **rule-authoring
-  UI** (click/touch) → **serverless PNG export** (§4.2) → **deploy** to Vercel.
+- **Pattern engine — coloring + predicates (done 2026-06-27, `b391faa`):** a pure tile-predicate **DSL**
+  (`src/dsl/`: lex/parse/serialize/eval + attribute registry), a **Predicate pane** (expandable presets +
+  persisted custom predicates authored as DSL text), and a **Coloring pane** + pure **colorizer**
+  (`src/colorizer/`) turning drag-reorderable predicate→colour rules (flat or ramp, per-rule opacity) into the
+  canvas fill. Coordinates were made **unique per tile** first (dynamic Inspect labels; `tile-type` and
+  `rotation` attributes). The old visit-count shading is gone; drag-to-paint stays as a data tool.
+- **Next up:** the **visual** (mouse-driven chip) predicate editor over the same DSL AST → port the
+  **traverse engine** (§5) → **serverless PNG export** (§4.2) → **deploy** to Vercel.
 
 ## 7. Verifying on a phone + verification log
 
@@ -214,6 +220,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-27 | Snub Square (3.3.4.3.4) + Snub Hexagonal (3.3.3.3.6) tilings — completes all 11 uniform + kalleboda | ✅ yes | owner reviewed both running chiral tilings (tilted-square pinwheel; hexagons in a triangle sea) — gapless, ~400 tiles; approved | `2e23482` |
 | 2026-06-27 | Stats labels cap with zoom (more breathing room the closer you zoom) + triangles use a smaller share (20% vs 30%) | ✅ yes | owner verified on-device in display:stats (preview screenshot tool was wedged); zooming gives numbers room, triangle numbers no longer cramped | `8cd1212` |
 | 2026-06-27 | Step-tracked visits (a visit logs its step; hand-made paint/Inspect = −1) + per-tile registries A/B/C; "paint:" target picker (visited/A/B/C); reusable faded "?" explainer (on Registries + step-visits) | ✅ yes | owner reviewed the running canvas on desktop + phone (Inspect shows the step list + A/B/C steppers with "?" dialogs; paint picker switches target; copy-paste carries all state; Reset clears) and approved | `bd2b72f` |
+| 2026-06-27 | Tile-predicate DSL + Predicate pane + Coloring pane + colorizer; unique tile coordinates (dynamic Inspect); `tile-type` & `rotation` attributes; pane/colour UI polish | ✅ yes | owner reviewed the running app (desktop) across several iterations — authored predicates (presets expand, custom persist, live compile/errors), saw coloring rules recolour the tiling (flat, ramps with breakpoints, opacity blend), drag-reordered rules — and approved; old visit-shading removed, drag-paint kept as data | `b391faa` |
 
 ## 8. Todo list (working backlog)
 
@@ -254,15 +261,26 @@ in-session task tracker.
     **All 11 convex uniform Euclidean tilings + kalleboda now have generators** *(verified 2026-06-27, `2e23482`)*
   - [x] Stats-label polish — labels cap their size as you zoom in (more breathing room) and triangles use a
     smaller share of the tile than other shapes *(verified 2026-06-27, `8cd1212`)*
+  - [x] Unique tile coordinates + dynamic Inspect — every tiling's `lattice` now uniquely identifies each tile
+    (triangular gains an orientation dim; multi-shape tilings a class/slot dim; the three centroid-keyed
+    generators re-keyed to `[i,j,class]`); per-tiling `latticeLabels` on `TilingMeta` drive the Inspect
+    coordinate readout. Prefactor for the DSL's `coordinate[n]` *(verified 2026-06-27, `b391faa`)*
   - [ ] Investigate the **expanded** uniform-tiling list
     (https://en.wikipedia.org/wiki/Uniform_tiling#Expanded_lists_of_uniform_tilings) for cool tilings to add
     beyond the 11 convex uniform + kalleboda (k-uniform, non-edge-to-edge, star/zero-angle forms, etc.) —
     pick favourites with the owner before building
   - [ ] Tile numbering as a canvas control — user-selectable scheme/origin (debug view currently numbers by generation order)
   - [ ] Visualise edge numbering + opposite edges for the user — show each tile's clockwise-from-top edge numbers and which edges are opposite (engine support exists: `clockwiseEdgeOrder`, `opposite`)
-- [ ] **Port the static coloring DSL** *(§5)*
-- [ ] **Port the traverse engine** *(§5)*
-- [ ] **Rule-authoring UI** — click/touch
+- [x] **Tile-predicate DSL + Predicate pane + Coloring pane** *(§5)* — pure `src/dsl/` engine
+  (lex/parse/serialize/eval + attribute registry: numeric attrs, arithmetic, comparisons, and/or/not,
+  grouping, required defaults, `tile-type == <shape>`, `rotation`); a Predicate pane (presets + persisted
+  custom predicates as DSL text); a Coloring pane + pure `src/colorizer/` (predicate→colour rules, flat/ramp
+  with breakpoints + modulo, per-rule opacity, drag-reorder) wired into the canvas. localStorage stores in
+  `src/state/`; no new deps *(verified 2026-06-27, `b391faa`)*
+- [ ] **Visual predicate editor** — the mouse-driven **chip** UI over the same DSL AST (click an operator →
+  dropdown; click an attribute → swap; keyboard accelerators), kept in sync with the text editor. Text
+  authoring is already in; this is the click/touch layer
+- [ ] **Port the traverse engine** *(§5)* — reuses the predicate DSL
 - [ ] **Serverless PNG export** *(§4.2)*
 - [ ] **Deploy to Vercel**
 
@@ -295,7 +313,28 @@ Hard-won; read before fighting the tooling again.
 - `src/components/Panel.tsx` — reusable collapsible dock panel (collapses to a thin rail).
 - `src/components/HelpButton.tsx` (+ `.css`) — the reusable faded **"?" explainer**: a small muted
   button that opens a little info dialog (reuses the TilingPicker modal pattern — portal, Escape,
-  backdrop, focus). Use it for non-obvious concepts (ethos §2); currently on Registries + step-visits.
+  backdrop, focus). Use it for non-obvious concepts (ethos §2); the Predicate + Coloring panes float
+  one in their **top-right corner** (`.pane-help`, absolute), not inline with the lead text.
+- `src/dsl/` — the **pure tile-predicate DSL** (no React/DOM/Konva), public API via `src/dsl/index.ts`.
+  `types.ts` (AST: numeric `Expr` + boolean `Pred`, incl. the `shape`/`tile-type` leaf), `lex.ts`,
+  `parse.ts` (recursive descent), `serialize.ts` (canonical text = the auto-name), `eval.ts`
+  (`evalNumber`/`evalPredicate`; ÷/% by zero → 0; missing attr → its `default`), `attributes.ts` (the
+  keyword→compute registry + `EvalContext`), `analyze.ts` (`referencedShapes`). Reused by the future
+  visual editor + traversers, so keep it pure.
+- `src/colorizer/` — pure `colorize(rules, predicateText, tiling, overlay, indexById) → Map<id, rgba>`:
+  evaluates each rule's predicate once, alpha-composites matching rules top→bottom (per-rule opacity =
+  blend), resolves flat/ramp (modulo + optional breakpoints). Memoized in Workspace, **not** per frame.
+- `src/state/` — localStorage-backed stores: `predicateStore.ts` (custom predicates as DSL text +
+  name), `coloringStore.ts` (the ordered rules, key `…:coloring:v2`), `persist.ts` (SSR/quota-safe
+  load/save + `newId`). Pure list updaters are unit-tested; the hooks wire them to persistence.
+- `src/components/{PredicatePane,ColoringPane,ColorField,ColorPicker,ReorderableList,TrashButton}.tsx`
+  — the panes + their pieces. `ReorderableList` is a dependency-free pointer drag-reorder (touch+mouse);
+  `ColorField` writes a coloring rule's colour as a readable sentence (a `+` turns one colour into a
+  ramp); the colour picker is the native input (opacity lives on the **rule**, not per colour).
+- **Tile fill now comes from the coloring rules**, not visit counts: Workspace passes a precomputed
+  `colorFor` map into `TilingCanvas`; `drawTiles` paints the base then that colour. The old visit-count
+  shading is removed — **drag-to-paint still records `visited`/A/B/C data** (the rules read it), it just
+  no longer colours tiles itself.
 - **Canvas page layout:** full-height on **desktop** — `App.tsx` adds an `app-canvas` class so `.app`
   becomes a fixed-height, non-scrolling viewport (`App.css`, `@media min-width: 64rem`); the workspace
   fills it and only the canvas (pan/zoom) and docks (own overflow) scroll. There's **no page header**
