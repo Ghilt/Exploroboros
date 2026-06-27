@@ -213,6 +213,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-27 | Fix — visited overlay + selection cleared on tiling-type switch (no cross-tiling paint bleed; grid-size resize still keeps paint) | ✅ yes | owner reproduced the carry-over (paint Truncated Trihexagonal → switch to Rhombitrihexagonal), confirmed the new tiling now comes up blank and a resize still preserves paint | `8d241a8` |
 | 2026-06-27 | Snub Square (3.3.4.3.4) + Snub Hexagonal (3.3.3.3.6) tilings — completes all 11 uniform + kalleboda | ✅ yes | owner reviewed both running chiral tilings (tilted-square pinwheel; hexagons in a triangle sea) — gapless, ~400 tiles; approved | `2e23482` |
 | 2026-06-27 | Stats labels cap with zoom (more breathing room the closer you zoom) + triangles use a smaller share (20% vs 30%) | ✅ yes | owner verified on-device in display:stats (preview screenshot tool was wedged); zooming gives numbers room, triangle numbers no longer cramped | `8cd1212` |
+| 2026-06-27 | Step-tracked visits (a visit logs its step; hand-made paint/Inspect = −1) + per-tile registries A/B/C; "paint:" target picker (visited/A/B/C); reusable faded "?" explainer (on Registries + step-visits) | ✅ yes | owner reviewed the running canvas on desktop + phone (Inspect shows the step list + A/B/C steppers with "?" dialogs; paint picker switches target; copy-paste carries all state; Reset clears) and approved | `bd2b72f` |
 
 ## 8. Todo list (working backlog)
 
@@ -235,13 +236,13 @@ in-session task tracker.
     button, and a grid-size slider with a tile-count + FPS HUD to find the rendering ceiling. Konva renderer
     (§3/§4.1) with pure tested helpers in `src/canvas/` *(verified 2026-06-27, `19c337d`)*
   - [ ] Paint other attributes — the "paint:" chip is now a **picker** (`<select>`): a drag paints the
-    selected target — **visited, or registry A/B/C**. Extend with **colours / traverser seeds** when
-    those land. *(picker built — awaiting owner verify)*
-  - [ ] Step-tracked visits + per-tile registries (A/B/C) — a visit is now a **log of the steps** it
+    selected target — **visited, or registry A/B/C** *(done & verified 2026-06-27, `bd2b72f`)*. Still to
+    add: paint **colours / traverser seeds** when those land.
+  - [x] Step-tracked visits + per-tile registries (A/B/C) — a visit is now a **log of the steps** it
     happened on (count = list length; hand-made paint/Inspect visits are step −1); plus three free-form
     per-tile counters A/B/C. Both surface in the Inspect dock (with faded "?" explainers) and are
     paintable; in `stats` display they print inside tiles. Pure model + updaters in
-    `src/canvas/overlay.ts`. Foundation for the traverse engine (§5). *(built — awaiting owner verify)*
+    `src/canvas/overlay.ts`. Foundation for the traverse engine (§5) *(verified 2026-06-27, `bd2b72f`)*
   - [x] Octagon+wedge tiling (`kalleboda`) — second selectable tiling; wedge-snap + vertex-weld so the
     generic `stitch()` pairs shared edges (incl. the two-edged-adjacency quirk) *(verified 2026-06-27, `6fd812e`)*
   - [x] Regular uniform tilings — triangular (3.3.3.3.3.3) + hexagonal (6.6.6); gallery thumbnails now
