@@ -184,8 +184,13 @@ still needed into this doc **before** then; do not rely on the path persisting.
   (`src/colorizer/`) turning drag-reorderable predicate→colour rules (flat or ramp, per-rule opacity) into the
   canvas fill. Coordinates were made **unique per tile** first (dynamic Inspect labels; `tile-type` and
   `rotation` attributes). The old visit-count shading is gone; drag-to-paint stays as a data tool.
-- **Next up:** the **visual** (mouse-driven chip) predicate editor over the same DSL AST → port the
-  **traverse engine** (§5) → **serverless PNG export** (§4.2) → **deploy** to Vercel.
+- **Visual predicate editor (done 2026-06-27, `50f1aa0`):** a Text/Visual toggle on a custom predicate;
+  Visual renders the predicate as chips over its AST — click an operator for a dropdown (with keyboard
+  accelerators), click an attribute to swap it, edit numbers/shapes inline; stays in sync with the text via
+  serialize/parse. Structural add/group is still done in Text mode. Same pass: ramps can be driven by any
+  attribute (incl. the step ones, with an index field for indexed ones).
+- **Next up:** port the **traverse engine** (§5, reuses this DSL) → **serverless PNG export** (§4.2) →
+  **deploy** to Vercel.
 
 ## 7. Verifying on a phone + verification log
 
@@ -221,6 +226,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-27 | Stats labels cap with zoom (more breathing room the closer you zoom) + triangles use a smaller share (20% vs 30%) | ✅ yes | owner verified on-device in display:stats (preview screenshot tool was wedged); zooming gives numbers room, triangle numbers no longer cramped | `8cd1212` |
 | 2026-06-27 | Step-tracked visits (a visit logs its step; hand-made paint/Inspect = −1) + per-tile registries A/B/C; "paint:" target picker (visited/A/B/C); reusable faded "?" explainer (on Registries + step-visits) | ✅ yes | owner reviewed the running canvas on desktop + phone (Inspect shows the step list + A/B/C steppers with "?" dialogs; paint picker switches target; copy-paste carries all state; Reset clears) and approved | `bd2b72f` |
 | 2026-06-27 | Tile-predicate DSL + Predicate pane + Coloring pane + colorizer; unique tile coordinates (dynamic Inspect); `tile-type` & `rotation` attributes; pane/colour UI polish | ✅ yes | owner reviewed the running app (desktop) across several iterations — authored predicates (presets expand, custom persist, live compile/errors), saw coloring rules recolour the tiling (flat, ramps with breakpoints, opacity blend), drag-reordered rules — and approved; old visit-shading removed, drag-paint kept as data | `b391faa` |
+| 2026-06-27 | Visual chip predicate editor (Text/Visual toggle; click operator → dropdown + key accelerators, click attribute to swap, inline number/shape edits); ramps over any attribute incl. the step ones (+ index field for indexed); shortened adj-v-count / adj-t-v-count labels | ✅ yes | owner reviewed the running app and approved ("very good"); verified live — chips render, the operator dropdown's "-"/"<" accelerators set the op, the ramp dropdown lists first/latest/step + coordinate with an index field | `50f1aa0` |
 
 ## 8. Todo list (working backlog)
 
@@ -277,9 +283,10 @@ in-session task tracker.
   custom predicates as DSL text); a Coloring pane + pure `src/colorizer/` (predicate→colour rules, flat/ramp
   with breakpoints + modulo, per-rule opacity, drag-reorder) wired into the canvas. localStorage stores in
   `src/state/`; no new deps *(verified 2026-06-27, `b391faa`)*
-- [ ] **Visual predicate editor** — the mouse-driven **chip** UI over the same DSL AST (click an operator →
-  dropdown; click an attribute → swap; keyboard accelerators), kept in sync with the text editor. Text
-  authoring is already in; this is the click/touch layer
+- [x] **Visual predicate editor** — the mouse-driven **chip** UI over the same DSL AST (click an operator →
+  dropdown w/ key accelerators; click an attribute → swap; inline number/shape edits), kept in sync with the
+  text editor via serialize/parse. Structural add/group still done in Text mode — a possible follow-up
+  *(verified 2026-06-27, `50f1aa0`)*
 - [ ] **Port the traverse engine** *(§5)* — reuses the predicate DSL
 - [ ] **Serverless PNG export** *(§4.2)*
 - [ ] **Deploy to Vercel**
