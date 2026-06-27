@@ -97,9 +97,11 @@ Resolve each at the noted trigger — **ask the owner the question; don't assume
    Edges are numbered **per tile** as a **local CCW side index** (`0..N-1`), each carrying an **outward-normal
    angle** (relative *and* absolute direction for the rules). Adjacency is the **stored side↔side pairing**
    (reciprocal by construction — no `(k+4)%N` formula). Opposite edges live on the shape as an array: 1 for
-   even-sided polygons, 2 for odd (see §5). Stitching matches sides by quantized endpoint keys; the
-   non-edge-to-edge octagon+wedge will add a collinear-overlap matcher later. User-imported tilings remain a
-   possible *future* feature, not built.
+   even-sided polygons, 2 for odd (see §5). Stitching matches sides by quantized endpoint keys. The
+   octagon+wedge (`kalleboda`, built 2026-06-27) turned out edge-to-edge at the *unit-edge* level, so its
+   generator **welds coincident vertices** before `stitch()` rather than needing a collinear-overlap matcher —
+   an octagon and a wedge still often share two edges, captured naturally as two paired sides. User-imported
+   tilings remain a possible *future* feature, not built.
 4. **Styling at scale** *(trigger: UI grows past a few screens).* Stay plain CSS, or adopt CSS Modules /
    Tailwind? *Recommendation:* CSS Modules when component count climbs.
 5. **State management** *(trigger: rule-authoring UI).* React state + context, Zustand, or Redux?
@@ -196,6 +198,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-27 | Drag-to-paint — click inspects, click-drag paints (no mode toggle); passive "paint: visited" chip | ✅ yes | owner used the running canvas (tap-inspect, drag-paint, non-destructive resize) and approved; chose to keep resize non-destructive | `421a349` |
 | 2026-06-27 | Display chip (edges / none / stats); stats labels engage across grid sizes (zoom to read on dense grids) | ✅ yes | owner reviewed the three display modes + the stats-label fix and approved | `ea86122` |
 | 2026-06-27 | Full-height desktop canvas page — intro header removed, canvas fills the viewport, no page scroll | ✅ yes | owner viewed the canvas filling the desktop viewport with no page-scroll and approved | `3b18e69` |
+| 2026-06-27 | Kalleboda (octagon + wedge) tiling — second selectable tiling | ✅ yes | owner approved the running tiling (select Kalleboda → gapless octagons + wedges; tap-select + drag-paint work on the concave tiles; light + dark desktop preview) | `6fd812e` |
 
 ## 8. Todo list (working backlog)
 
@@ -220,7 +223,9 @@ in-session task tracker.
   - [ ] Paint other attributes — a drag currently paints the **visited count** (shown by a passive
     "paint: visited" chip); let the user choose what a drag paints (e.g. colours, traverser seeds) once
     those land. Turn the chip into a picker then.
-  - [ ] More tilings — the 11 uniform Euclidean tilings + the octagon+wedge (needs a collinear-overlap matcher)
+  - [x] Octagon+wedge tiling (`kalleboda`) — second selectable tiling; wedge-snap + vertex-weld so the
+    generic `stitch()` pairs shared edges (incl. the two-edged-adjacency quirk) *(verified 2026-06-27, `6fd812e`)*
+  - [ ] More tilings — the 11 uniform Euclidean tilings
   - [ ] Tile numbering as a canvas control — user-selectable scheme/origin (debug view currently numbers by generation order)
   - [ ] Visualise edge numbering + opposite edges for the user — show each tile's clockwise-from-top edge numbers and which edges are opposite (engine support exists: `clockwiseEdgeOrder`, `opposite`)
 - [ ] **Port the static coloring DSL** *(§5)*
@@ -291,7 +296,9 @@ overflow that does NOT happen on real phones (overlay scrollbars). Verify by lis
 (`TilingCanvas.tsx`) under Vite HMR reloads it repeatedly, so the page accumulates several Konva
 instances and react-konva logs reconciler / `<Canvas>` errors — *even though the render looks fine*.
 It's a dev-HMR artifact, not a real bug: **stop + start the dev server** for a clean read (a fresh load
-has a silent console). The production `build` is unaffected.
+has a silent console). The production `build` is unaffected. A telltale variant after several edits: the
+page reloads but the Stage never mounts — `size` stays 0×0, there are **no `<canvas>` elements** (only the
+`.canvas-hud` shows), and the console is silent. Same cause, same fix (restart); a fresh load renders fine.
 
 **Testing a Konva component (jsdom has no canvas).** Don't render `<TilingCanvas>` in Vitest — jsdom
 can't back a real canvas. Keep the meaningful logic in the pure `src/canvas/` modules (unit-tested
