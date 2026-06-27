@@ -20,6 +20,12 @@ import { TilingCanvas, type DisplayMode } from './TilingCanvas'
 import { TilingPicker } from './TilingPicker'
 import { Panel } from './Panel'
 import { HelpButton } from './HelpButton'
+import { PredicatePane } from './PredicatePane'
+import { ColoringPane } from './ColoringPane'
+import { usePredicateStore } from '../state/predicateStore'
+import { useColoringStore } from '../state/coloringStore'
+import { colorize } from '../colorizer'
+import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
 
 const GRID_MIN = 10
 const GRID_MAX = 140
@@ -58,6 +64,11 @@ export function Workspace() {
     return () => clearTimeout(t)
   }, [gridInput])
 
+  // The user's predicate library (bundled + custom) and coloring rules, persisted in the browser.
+  // Lifted here so the colorizer below can read both.
+  const predicateStore = usePredicateStore()
+  const coloringStore = useColoringStore()
+
   // Built here from the picker choice + grid size (CLAUDE.md §4.3). Only the square has a
   // generator today; buildTiling falls back to it for any other id.
   const tiling = useMemo(() => buildTiling(tilingId, gridN), [tilingId, gridN])
@@ -68,6 +79,21 @@ export function Workspace() {
     tiling.nodes.forEach((node, i) => map.set(node.id, i))
     return map
   }, [tiling])
+
+  // Predicate id -> DSL text (bundled + custom), so a coloring rule can reference a predicate by id.
+  const predicateText = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const b of BUNDLED_PREDICATES) map.set(b.id, b.text)
+    for (const p of predicateStore.predicates) map.set(p.id, p.text)
+    return map
+  }, [predicateStore.predicates])
+
+  // The tiling's appearance: evaluate the coloring rules per tile, once per input change (not per
+  // frame). Tiles with no matching rule are absent and keep the base fill.
+  const colorFor = useMemo(
+    () => colorize(coloringStore.rules, predicateText, tiling, overlay, indexById),
+    [coloringStore.rules, predicateText, tiling, overlay, indexById],
+  )
 
   const selected = selectedId ? nodeById(tiling, selectedId) ?? null : null
 
@@ -140,11 +166,12 @@ export function Workspace() {
         </PaneScaffold>
       </Panel>
 
+      <Panel title="Predicates" side="left" defaultCollapsed>
+        <PredicatePane store={predicateStore} />
+      </Panel>
+
       <Panel title="Coloring" side="left" defaultCollapsed>
-        <PaneScaffold>
-          Coloring rules applied across the whole grid — tile and edge predicates mapping to
-          colours, stacked and blended.
-        </PaneScaffold>
+        <ColoringPane store={coloringStore} customPredicates={predicateStore.predicates} />
       </Panel>
 
       <div className="canvas-pane">
@@ -208,6 +235,7 @@ export function Workspace() {
             displayMode={displayMode}
             selectedId={selectedId}
             overlay={overlay}
+            colorFor={colorFor}
             tileNumber={(id) => indexById.get(id) ?? -1}
             onSelect={setSelectedId}
             onPaint={paint}
@@ -384,15 +412,11 @@ function formatSteps(visits: ReadonlyArray<number>): string {
   return extra > 0 ? `${shown.join(', ')} … (+${extra})` : shown.join(', ')
 }
 
-// Per-tiling stats. Different tilings expose different intrinsic coordinates; the square
-// tiling shows row/column from its lattice. Extend per tiling id as more are added.
+// Per-tiling coordinates. Each tiling names its own lattice dimensions in `meta.latticeLabels`
+// (e.g. square → row/column, triangular → i/j/orientation), so the readout shows the right number
+// of coordinates with meaningful labels for any tiling — including the third coordinate that makes
+// triangle/multi-shape tiles unique. Falls back to `coord N` if a label is ever missing.
 function tileStats(tiling: Tiling, node: TileNode): ReadonlyArray<{ label: string; value: number }> {
-  if (tiling.meta.id === 'square') {
-    const [row, col] = node.lattice
-    return [
-      { label: 'row', value: row },
-      { label: 'column', value: col },
-    ]
-  }
-  return node.lattice.map((value, i) => ({ label: `coord ${i}`, value }))
+  const labels = tiling.meta.latticeLabels
+  return node.lattice.map((value, i) => ({ label: labels[i] ?? `coord ${i}`, value }))
 }

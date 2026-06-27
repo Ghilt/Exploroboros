@@ -32,8 +32,9 @@ describe('Workspace', () => {
     render(<Workspace />)
     expect(screen.getByText('Canvas')).toBeTruthy()
     expect(screen.getByText(/click a tile to inspect/i)).toBeTruthy()
-    // Traversers and Coloring start collapsed — their titles live on the rail.
+    // Traversers, Predicates and Coloring start collapsed — their titles live on the rail.
     expect(screen.getByRole('button', { name: /expand traversers/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /expand predicates/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /expand coloring/i })).toBeTruthy()
   })
 

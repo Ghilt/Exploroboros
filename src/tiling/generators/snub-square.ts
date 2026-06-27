@@ -26,6 +26,9 @@ const META: TilingMeta = {
   vertexConfig: '3.3.4.3.4',
   chiral: true,
   edgeToEdge: true,
+  // Each cell (i, j) holds two squares and four triangles; the role dimension separates them
+  // (0=+15° square, 1=−15° square, 2..5=triangle on the +15° square's edge k).
+  latticeLabels: ['i', 'j', 'role'],
 }
 
 type Cand = { id: string; shape: 'square' | 'triangle'; lattice: number[]; vertices: Vec2[] }
@@ -46,13 +49,13 @@ export function snubSquareTiling(n: number): Tiling {
       // +15 deg square on the lattice point (vertices at 60 + 90k deg).
       const vp = regularPolygonVertices(plus, SQ_R, 4, Math.PI / 3)
       if (inRegion(plus, half)) {
-        kept.push({ id: `sp:${i},${j}`, shape: 'square', lattice: [i, j], vertices: vp })
+        kept.push({ id: `sp:${i},${j}`, shape: 'square', lattice: [i, j, 0], vertices: vp })
       }
       // -15 deg square at the cell centre (vertices at 30 + 90k deg).
       const minus: Vec2 = { x: plus.x + A / 2, y: plus.y + A / 2 }
       if (inRegion(minus, half)) {
         const vm = regularPolygonVertices(minus, SQ_R, 4, Math.PI / 6)
-        kept.push({ id: `sm:${i},${j}`, shape: 'square', lattice: [i, j], vertices: vm })
+        kept.push({ id: `sm:${i},${j}`, shape: 'square', lattice: [i, j, 1], vertices: vm })
       }
       // Outward equilateral triangle on each edge of the +15 square (covers every triangle once).
       for (let k = 0; k < 4; k += 1) {
@@ -63,7 +66,7 @@ export function snubSquareTiling(n: number): Tiling {
         const apex: Vec2 = { x: (a.x + b.x) / 2 + dy * TRI_H, y: (a.y + b.y) / 2 - dx * TRI_H }
         const tri = [a, apex, b]
         if (inRegion(centroid(tri), half)) {
-          kept.push({ id: `t:${i},${j},${k}`, shape: 'triangle', lattice: [i, j], vertices: tri })
+          kept.push({ id: `t:${i},${j},${k}`, shape: 'triangle', lattice: [i, j, 2 + k], vertices: tri })
         }
       }
     }

@@ -73,6 +73,9 @@ type Props = {
   displayMode?: DisplayMode
   selectedId?: string | null
   overlay?: ReadonlyMap<string, TileState>
+  // Precomputed fill per tile id (CSS colour), from the coloring rules. Tiles absent here keep the
+  // base fill. Computed by the colorizer in Workspace, not per frame.
+  colorFor?: ReadonlyMap<string, string>
   tileNumber?: (id: string) => number
   onSelect?: (id: string) => void
   onPaint?: (ids: ReadonlyArray<string>) => void
@@ -85,6 +88,7 @@ export function TilingCanvas({
   displayMode = 'edges',
   selectedId = null,
   overlay,
+  colorFor,
   tileNumber,
   onSelect,
   onPaint,
@@ -373,7 +377,7 @@ export function TilingCanvas({
             <Shape
               listening={false}
               sceneFunc={(ctx) =>
-                drawTiles(ctx, tiling, viewRef.current, size, paletteRef.current, selectedId, overlay, displayMode, tileNumber)
+                drawTiles(ctx, tiling, viewRef.current, size, paletteRef.current, selectedId, overlay, colorFor, displayMode, tileNumber)
               }
             />
           </Layer>
@@ -424,6 +428,7 @@ function drawTiles(
   pal: Palette,
   selectedId: string | null,
   overlay: ReadonlyMap<string, TileState> | undefined,
+  colorFor: ReadonlyMap<string, string> | undefined,
   displayMode: DisplayMode,
   tileNumber: ((id: string) => number) | undefined,
 ): void {
@@ -442,16 +447,15 @@ function drawTiles(
   for (const node of tiling.nodes) {
     if (!onScreen(node.centroid)) continue
     traceTile(ctx, node.vertices, view)
+    // Base fill, then the coloring rules' colour on top (it carries its own alpha, so a translucent
+    // rule blends over the base). The old visit-count shading is gone — colour now comes only from
+    // the coloring rules; painting just records data the rules read.
     ctx.setAttr('fillStyle', pal.tile)
     ctx.fill()
-    const v = visitCount(tileState(ov, node.id))
-    if (v > 0) {
-      // Visited tiles shade accent, deeper with the count, so painted regions read at a glance.
-      ctx.save()
-      ctx.setAttr('globalAlpha', Math.min(0.7, 0.18 + 0.14 * v))
-      ctx.setAttr('fillStyle', pal.accent)
+    const fill = colorFor?.get(node.id)
+    if (fill) {
+      ctx.setAttr('fillStyle', fill)
       ctx.fill()
-      ctx.restore()
     }
     if (node.id === selectedId) {
       ctx.save()

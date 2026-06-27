@@ -1,0 +1,116 @@
+.coloring-pane {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  font-size: 0.85rem;
+}
+
+/* The pane's "?" explainer floats in the top-right corner, not inline with the lead text. */
+.coloring-pane .pane-help {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+/* Shared pane lead / warning styling (kept here so the pane is self-contained). */
+.coloring-pane .pane-lead {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+  padding-right: 1.5rem; /* leave room for the corner "?" */
+}
+.coloring-pane .pane-warn {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--accent-strong, var(--accent));
+  background: var(--motif);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+}
+
+.rule-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 0.4rem 0.5rem 0.5rem;
+}
+
+/* Top bar: a wide thin drag handle (⋯) plus the trash, so neither steals a horizontal column. */
+.rule-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: -0.1rem 0 0.1rem;
+}
+.rule-grip {
+  flex: 1 1 auto;
+  text-align: center;
+  font-size: 1rem;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+  line-height: 1;
+  padding: 0.1rem 0;
+}
+.rule-grip:hover {
+  color: var(--accent);
+}
+
+.rule-sentence {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.rule-pred-select {
+  flex: 1 1 7rem;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--fg);
+  padding: 0.2rem 0.3rem;
+}
+
+.rule-inline {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  padding: 0.25rem 0.35rem;
+}
+.rule-inline:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.rule-inline.is-error {
+  border-color: var(--accent-strong, var(--accent));
+}
+
+.rule-add {
+  align-self: flex-start;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--accent);
+  cursor: pointer;
+}
+.rule-add:hover {
+  border-color: var(--accent);
+}

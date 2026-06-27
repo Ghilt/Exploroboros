@@ -11,6 +11,7 @@ const SQUARE_META: TilingMeta = {
   vertexConfig: '4.4.4.4',
   chiral: false,
   edgeToEdge: true,
+  latticeLabels: ['row', 'column'],
 }
 
 // rows x cols unit squares on the integer lattice (y-up). Tile (r,c) spans

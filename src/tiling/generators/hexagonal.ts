@@ -19,6 +19,7 @@ const META: TilingMeta = {
   vertexConfig: '6.6.6',
   chiral: false,
   edgeToEdge: true,
+  latticeLabels: ['column', 'row'],
 }
 
 type Cand = { c: number; r: number; vertices: Vec2[] }

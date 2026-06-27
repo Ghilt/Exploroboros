@@ -20,6 +20,9 @@ const META: TilingMeta = {
   vertexConfig: '3.6.3.6',
   chiral: false,
   edgeToEdge: true,
+  // Hexagon, up-triangle and down-triangle of cell (i, j) all share [i, j]; the class dimension
+  // (0=hexagon, 1=up-triangle, 2=down-triangle) separates them.
+  latticeLabels: ['i', 'j', 'class'],
 }
 
 // Base triangular lattice with edge length 2, so the medial tiles have edge 1.
@@ -30,7 +33,8 @@ function mid(a: Vec2, b: Vec2): Vec2 {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
 }
 
-type Cand = { id: string; shape: 'hexagon' | 'triangle'; i: number; j: number; vertices: Vec2[] }
+// cls: lattice class dimension — 0=hexagon, 1=up-triangle, 2=down-triangle.
+type Cand = { id: string; shape: 'hexagon' | 'triangle'; i: number; j: number; cls: number; vertices: Vec2[] }
 
 export function trihexagonalTiling(n: number): Tiling {
   const half = Math.max(2, (n / 2) * Math.sqrt(AVG_AREA))
@@ -50,6 +54,7 @@ export function trihexagonalTiling(n: number): Tiling {
           shape: 'hexagon',
           i,
           j,
+          cls: 0,
           vertices: [
             mid(v, vtx(i + 1, j)),
             mid(v, vtx(i, j + 1)),
@@ -62,16 +67,16 @@ export function trihexagonalTiling(n: number): Tiling {
       }
       // Medial triangle of the up-face and the down-face of cell (i, j).
       const up = [mid(v, vtx(i + 1, j)), mid(vtx(i + 1, j), vtx(i, j + 1)), mid(vtx(i, j + 1), v)]
-      if (inRegion(centroid(up))) cands.push({ id: `tu:${i},${j}`, shape: 'triangle', i, j, vertices: up })
+      if (inRegion(centroid(up))) cands.push({ id: `tu:${i},${j}`, shape: 'triangle', i, j, cls: 1, vertices: up })
       const d0 = vtx(i + 1, j)
       const d1 = vtx(i + 1, j + 1)
       const d2 = vtx(i, j + 1)
       const dn = [mid(d0, d1), mid(d1, d2), mid(d2, d0)]
-      if (inRegion(centroid(dn))) cands.push({ id: `td:${i},${j}`, shape: 'triangle', i, j, vertices: dn })
+      if (inRegion(centroid(dn))) cands.push({ id: `td:${i},${j}`, shape: 'triangle', i, j, cls: 2, vertices: dn })
     }
   }
 
   weldVertices(cands, 1e-6)
-  const raws: RawTile[] = cands.map((t) => ({ id: t.id, shape: t.shape, lattice: [t.i, t.j], vertices: t.vertices }))
+  const raws: RawTile[] = cands.map((t) => ({ id: t.id, shape: t.shape, lattice: [t.i, t.j, t.cls], vertices: t.vertices }))
   return stitch(raws, { hexagon: HEXAGON, triangle: TRIANGLE }, META)
 }

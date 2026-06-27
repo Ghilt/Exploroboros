@@ -5,7 +5,14 @@ import { squareTiling } from './generators/square'
 import { across, opposite, isBoundary } from './graph'
 import type { RawTile, TilingMeta } from './types'
 
-const meta = (id: string): TilingMeta => ({ id, name: id, vertexConfig: '-', chiral: false, edgeToEdge: true })
+const meta = (id: string): TilingMeta => ({
+  id,
+  name: id,
+  vertexConfig: '-',
+  chiral: false,
+  edgeToEdge: true,
+  latticeLabels: [],
+})
 
 describe('stitch beyond squares (two triangles sharing an edge)', () => {
   const TRI = makeShapeDef('triangle', 3)

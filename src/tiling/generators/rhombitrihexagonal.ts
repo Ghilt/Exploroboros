@@ -24,6 +24,12 @@ const META: TilingMeta = {
   vertexConfig: '3.4.6.4',
   chiral: false,
   edgeToEdge: true,
+  // Coordinates are keyed to the producing hexagon cell (i, j) plus a class: 0=hexagon,
+  // 1..6=the bridging square on hexagon edge k (class = 1 + k), 7..12=the corner triangle at
+  // hexagon vertex k (class = 7 + k). Squares/triangles are shared between hexagons but recorded
+  // once, by whichever hexagon emits them first — so (i, j, class) stays unique. (Previously the
+  // deduped tiles used a rounded centroid, which was opaque and not provably collision-free.)
+  latticeLabels: ['i', 'j', 'class'],
 }
 
 // Unit outward normal of hexagon edge k (vertex k -> k+1); its midpoint is at angle 60k + 30 deg.
@@ -55,7 +61,7 @@ export function rhombitrihexagonalTiling(n: number): Tiling {
       if (!inRegion(center, half + margin)) continue
       const v = regularPolygonVertices(center, 1, 6, 0)
       if (inRegion(center, half)) {
-        kept.push({ id: `hex:${i},${j}`, shape: 'hexagon', lattice: [i, j], vertices: v })
+        kept.push({ id: `hex:${i},${j}`, shape: 'hexagon', lattice: [i, j, 0], vertices: v })
       }
       for (let k = 0; k < 6; k += 1) {
         const nk = edgeNormal(k)
@@ -66,7 +72,7 @@ export function rhombitrihexagonalTiling(n: number): Tiling {
         const sc = centroid(sq)
         const sk = key(sc)
         if (!squares.has(sk)) {
-          squares.set(sk, { id: `sq:${sk}`, shape: 'square', lattice: [Math.round(sc.x), Math.round(sc.y)], vertices: sq })
+          squares.set(sk, { id: `sq:${sk}`, shape: 'square', lattice: [i, j, 1 + k], vertices: sq })
         }
         // Triangle filling the corner at vertex a, between edges k-1 and k.
         const np = edgeNormal((k + 5) % 6)
@@ -74,7 +80,7 @@ export function rhombitrihexagonalTiling(n: number): Tiling {
         const tc = centroid(tri)
         const tk = key(tc)
         if (!tris.has(tk)) {
-          tris.set(tk, { id: `tri:${tk}`, shape: 'triangle', lattice: [Math.round(tc.x), Math.round(tc.y)], vertices: tri })
+          tris.set(tk, { id: `tri:${tk}`, shape: 'triangle', lattice: [i, j, 7 + k], vertices: tri })
         }
       }
     }

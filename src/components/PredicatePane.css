@@ -1,0 +1,182 @@
+.predicate-pane {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  font-size: 0.85rem;
+}
+
+/* The pane's "?" explainer floats in the top-right corner, not inline with the lead text. */
+.pane-help {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.pane-lead {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+  padding-right: 1.5rem; /* leave room for the corner "?" */
+}
+
+.pane-warn {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--accent-strong, var(--accent));
+  background: var(--motif);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+}
+
+.pred-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.pred-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.pred-add {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--accent);
+  cursor: pointer;
+}
+.pred-add:hover {
+  border-color: var(--accent);
+}
+
+.pred-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.pred-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 0.3rem 0.4rem;
+}
+.pred-list li.is-expanded {
+  border-color: var(--accent);
+}
+
+/* A row is just the name (+ delete for custom). Detail/editor expands below it. */
+.pred-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.pred-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  border: none;
+  background: none;
+  color: var(--fg);
+  font-size: 0.85rem;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pred-name:hover {
+  color: var(--accent);
+}
+
+/* Bundled expanded detail: read-only DSL + description. */
+.pred-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.pred-dsl {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--fg);
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.4rem;
+  word-break: break-word;
+}
+.pred-desc {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+/* Custom editor, expanded under the row. */
+.pred-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem;
+}
+.pred-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.pred-field-label {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.pred-name-input,
+.pred-text {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  padding: 0.35rem 0.45rem;
+  font-size: 0.85rem;
+}
+.pred-text {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  resize: vertical;
+}
+.pred-name-input:focus,
+.pred-text:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.pred-status {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  line-height: 1.35;
+  word-break: break-word;
+}
+.pred-status--ok {
+  color: var(--muted);
+}
+.pred-status--err {
+  color: var(--accent-strong, var(--accent));
+}

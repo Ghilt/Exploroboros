@@ -21,9 +21,13 @@ const META: TilingMeta = {
   vertexConfig: '3.3.3.4.4',
   chiral: false,
   edgeToEdge: true,
+  // Each (super-row, column) cell holds a square and two triangles; the class dimension
+  // (0=square, 1=up-triangle, 2=down-triangle) separates them.
+  latticeLabels: ['super-row', 'column', 'class'],
 }
 
-type Cand = { id: string; shape: 'square' | 'triangle'; s: number; i: number; vertices: Vec2[] }
+// cls: lattice class dimension — 0=square, 1=up-triangle, 2=down-triangle.
+type Cand = { id: string; shape: 'square' | 'triangle'; s: number; i: number; cls: number; vertices: Vec2[] }
 
 export function elongatedTriangularTiling(n: number): Tiling {
   const half = Math.max(2, (n / 2) * Math.sqrt(AVG_AREA))
@@ -45,25 +49,25 @@ export function elongatedTriangularTiling(n: number): Tiling {
         { x: x + 1, y: yt },
         { x, y: yt },
       ]
-      if (inRegion(centroid(sq))) cands.push({ id: `sq:${s},${i}`, shape: 'square', s, i, vertices: sq })
+      if (inRegion(centroid(sq))) cands.push({ id: `sq:${s},${i}`, shape: 'square', s, i, cls: 0, vertices: sq })
       // up-triangle: base on the square tops, apex into the strip
       const up = [
         { x, y: yt },
         { x: x + 1, y: yt },
         { x: x + 0.5, y: yt + H },
       ]
-      if (inRegion(centroid(up))) cands.push({ id: `tu:${s},${i}`, shape: 'triangle', s, i, vertices: up })
+      if (inRegion(centroid(up))) cands.push({ id: `tu:${s},${i}`, shape: 'triangle', s, i, cls: 1, vertices: up })
       // down-triangle: apex on the square tops, base on the next row's bottoms (shifted +0.5)
       const dn = [
         { x: x + 1, y: yt },
         { x: x + 1.5, y: yt + H },
         { x: x + 0.5, y: yt + H },
       ]
-      if (inRegion(centroid(dn))) cands.push({ id: `td:${s},${i}`, shape: 'triangle', s, i, vertices: dn })
+      if (inRegion(centroid(dn))) cands.push({ id: `td:${s},${i}`, shape: 'triangle', s, i, cls: 2, vertices: dn })
     }
   }
 
   weldVertices(cands, 1e-6)
-  const raws: RawTile[] = cands.map((t) => ({ id: t.id, shape: t.shape, lattice: [t.s, t.i], vertices: t.vertices }))
+  const raws: RawTile[] = cands.map((t) => ({ id: t.id, shape: t.shape, lattice: [t.s, t.i, t.cls], vertices: t.vertices }))
   return stitch(raws, { square: SQUARE, triangle: TRIANGLE }, META)
 }

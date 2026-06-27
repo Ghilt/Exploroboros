@@ -19,6 +19,9 @@ const META: TilingMeta = {
   vertexConfig: '3.3.3.3.3.3',
   chiral: false,
   edgeToEdge: true,
+  // Each rhombus (i, j) holds an up- and a down-triangle, so row+column alone collide; the
+  // orientation dimension (0=up, 1=down) makes the coordinate unique.
+  latticeLabels: ['i', 'j', 'orientation'],
 }
 
 // Triangular lattice point (i, j): rows are sheared right by half a step each.
@@ -52,7 +55,7 @@ export function triangularTiling(n: number): Tiling {
   const raws: RawTile[] = kept.map((t) => ({
     id: `tri:${t.kind}:${t.i},${t.j}`,
     shape: 'triangle',
-    lattice: [t.i, t.j],
+    lattice: [t.i, t.j, t.kind === 'u' ? 0 : 1],
     vertices: t.vertices,
   }))
   return stitch(raws, { triangle: TRIANGLE }, META)

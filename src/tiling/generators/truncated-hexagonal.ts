@@ -25,6 +25,12 @@ const META: TilingMeta = {
   vertexConfig: '3.12.12',
   chiral: false,
   edgeToEdge: true,
+  // Coordinates are keyed to the producing lattice cell (i, j) plus a class: 0=dodecagon,
+  // 1..6=the gap-triangle on the dodecagon's even edge e (class = 1 + e/2). A triangle is shared by
+  // three dodecagons but recorded once, by whichever cell emits it first — so (i, j, class) stays
+  // unique. (Previously the deduped triangles used a rounded centroid, which was opaque and not
+  // provably collision-free.)
+  latticeLabels: ['i', 'j', 'class'],
 }
 
 type Cand = { id: string; shape: 'dodecagon' | 'triangle'; lattice: number[]; vertices: Vec2[] }
@@ -47,7 +53,7 @@ export function truncatedHexagonalTiling(n: number): Tiling {
       if (!inRegion(center, half + margin)) continue
       const verts = regularPolygonVertices(center, R12, 12, Math.PI / 12)
       if (inRegion(center, half)) {
-        kept.push({ id: `dod:${i},${j}`, shape: 'dodecagon', lattice: [i, j], vertices: verts })
+        kept.push({ id: `dod:${i},${j}`, shape: 'dodecagon', lattice: [i, j, 0], vertices: verts })
       }
       // Even edges face triangle gaps; build the outward equilateral triangle on each.
       for (let e = 0; e < 12; e += 2) {
@@ -58,7 +64,7 @@ export function truncatedHexagonalTiling(n: number): Tiling {
         const c = centroid(tri)
         const key = `${Math.round(c.x / 0.2)},${Math.round(c.y / 0.2)}`
         if (!tris.has(key)) {
-          tris.set(key, { id: `tri:${key}`, shape: 'triangle', lattice: [Math.round(c.x), Math.round(c.y)], vertices: tri })
+          tris.set(key, { id: `tri:${key}`, shape: 'triangle', lattice: [i, j, 1 + e / 2], vertices: tri })
         }
       }
     }

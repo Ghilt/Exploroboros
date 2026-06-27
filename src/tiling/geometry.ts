@@ -36,6 +36,16 @@ export function edgeMidpoint(a: Vec2, b: Vec2): Vec2 {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
 }
 
+// A tile's orientation in whole degrees [0, 360): the direction from its centroid to its first
+// vertex. This distinguishes rotated copies of the same shape — up vs down triangles, the four wedge
+// rotations, the ±15° snub squares — which is what the DSL `rotation` attribute exposes. Rough by
+// design; a friendlier per-shape rotation labelling is a later task.
+export function tileRotationDeg(vertices: ReadonlyArray<Vec2>, c: Vec2): number {
+  const v0 = vertices[0]
+  const deg = (Math.atan2(v0.y - c.y, v0.x - c.x) * 180) / Math.PI
+  return Math.round(((deg % 360) + 360) % 360)
+}
+
 // Shoelace signed area: positive for CCW winding, negative for CW. Generators must wind CCW
 // (the outward-normal and side-order semantics depend on it); stitch asserts this.
 export function signedArea(vertices: ReadonlyArray<Vec2>): number {

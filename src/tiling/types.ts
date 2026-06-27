@@ -66,6 +66,11 @@ export type TilingMeta = {
   vertexConfig: string // e.g. '4.4.4.4'
   chiral: boolean
   edgeToEdge: boolean
+  // Names for each lattice dimension, in order — `latticeLabels[k]` names `TileNode.lattice[k]`.
+  // Length === every node's lattice length. Multi-shape tilings append a discriminator dimension
+  // (orientation / class / slot) so `lattice` uniquely identifies each tile; the Inspect window and
+  // the predicate DSL's `coordinate[n]` read these. Single-shape tilings keep their two coords.
+  latticeLabels: ReadonlyArray<string>
 }
 
 // A whole tiling — an immutable substrate: plain objects, arrays, string ids, and a plain

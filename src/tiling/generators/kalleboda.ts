@@ -69,6 +69,9 @@ const META: TilingMeta = {
   vertexConfig: 'octagon + wedge',
   chiral: false,
   edgeToEdge: false,
+  // Each repeating cell (cell-u, cell-v) holds 6 octagons and 4 wedges; the slot dimension is the
+  // within-cell index (octagons 0..5, wedges 6..9) so [cell-u, cell-v, slot] is unique.
+  latticeLabels: ['cell-u', 'cell-v', 'slot'],
 }
 
 const SNAP_SEARCH = 0.55 // how far to look for a matching octagon edge when seating a wedge
@@ -222,7 +225,7 @@ export function kallebodaTiling(n: number): Tiling {
   const raws: RawTile[] = kept.map((t) => ({
     id: `${t.kind === 'octagon' ? 'oct' : 'wdg'}:${t.m},${t.n},${t.i}`,
     shape: t.kind,
-    lattice: [t.m, t.n],
+    lattice: [t.m, t.n, t.kind === 'octagon' ? t.i : 6 + t.i],
     vertices: t.vertices,
   }))
   return stitch(raws, { octagon: OCTAGON_SHAPE, wedge: WEDGE_SHAPE }, META, { tolerance: WELD_EPS })

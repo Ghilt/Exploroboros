@@ -23,6 +23,9 @@ const META: TilingMeta = {
   vertexConfig: '4.8.8',
   chiral: false,
   edgeToEdge: true,
+  // Each cell (i, j) holds one octagon and one square; the class dimension (0=octagon, 1=square)
+  // separates them.
+  latticeLabels: ['i', 'j', 'class'],
 }
 
 type Cand = { kind: 'octagon' | 'square'; i: number; j: number; vertices: Vec2[] }
@@ -51,7 +54,7 @@ export function truncatedSquareTiling(n: number): Tiling {
   const raws: RawTile[] = cands.map((t) => ({
     id: `${t.kind === 'octagon' ? 'oct' : 'sq'}:${t.i},${t.j}`,
     shape: t.kind,
-    lattice: [t.i, t.j],
+    lattice: [t.i, t.j, t.kind === 'octagon' ? 0 : 1],
     vertices: t.vertices,
   }))
   return stitch(raws, { octagon: OCTAGON, square: SQUARE }, META)

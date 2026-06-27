@@ -19,6 +19,7 @@ export {
   regularPolygonVertices,
   centroid,
   edgeMidpoint,
+  tileRotationDeg,
   normalAngle,
   signedArea,
   scaleAround,

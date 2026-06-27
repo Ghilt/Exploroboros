@@ -26,6 +26,9 @@ const META: TilingMeta = {
   vertexConfig: '3.3.3.3.6',
   chiral: true,
   edgeToEdge: true,
+  // Each cell (i, j) holds a hexagon, six edge-triangles and two gap-triangles; the role dimension
+  // separates them (0=hexagon, 1..6=edge-triangle on hexagon edge k, 7=up-gap, 8=down-gap).
+  latticeLabels: ['i', 'j', 'role'],
 }
 
 // Outward equilateral apex of edge a->b of a CCW polygon (rotate the edge -90 deg, step out by the
@@ -85,7 +88,7 @@ export function snubHexagonalTiling(n: number): Tiling {
       if (!inRegion(c, lim)) continue
       const v = hexVertices(c)
       if (inRegion(c, half)) {
-        kept.push({ id: `h:${i},${j}`, shape: 'hexagon', lattice: [i, j], vertices: v })
+        kept.push({ id: `h:${i},${j}`, shape: 'hexagon', lattice: [i, j, 0], vertices: v })
       }
       // Edge-triangle on each hexagon edge.
       for (let k = 0; k < 6; k += 1) {
@@ -93,7 +96,7 @@ export function snubHexagonalTiling(n: number): Tiling {
         const b = v[(k + 1) % 6]
         const tri = [a, apexOf(a, b), b]
         if (inRegion(centroid(tri), half)) {
-          kept.push({ id: `et:${i},${j},${k}`, shape: 'triangle', lattice: [i, j], vertices: tri })
+          kept.push({ id: `et:${i},${j},${k}`, shape: 'triangle', lattice: [i, j, 1 + k], vertices: tri })
         }
       }
       // Two gap triangles per cell, at its up- and down-triangle centroids.
@@ -103,10 +106,10 @@ export function snubHexagonalTiling(n: number): Tiling {
       const gUp: Vec2 = { x: (c.x + cE.x + cN.x) / 3, y: (c.y + cE.y + cN.y) / 3 }
       const gDn: Vec2 = { x: (cE.x + cN.x + cNE.x) / 3, y: (cE.y + cN.y + cNE.y) / 3 }
       if (inRegion(gUp, half)) {
-        kept.push({ id: `gu:${i},${j}`, shape: 'triangle', lattice: [i, j], vertices: gapTriangle(gUp, [c, cE, cN]) })
+        kept.push({ id: `gu:${i},${j}`, shape: 'triangle', lattice: [i, j, 7], vertices: gapTriangle(gUp, [c, cE, cN]) })
       }
       if (inRegion(gDn, half)) {
-        kept.push({ id: `gd:${i},${j}`, shape: 'triangle', lattice: [i, j], vertices: gapTriangle(gDn, [cE, cN, cNE]) })
+        kept.push({ id: `gd:${i},${j}`, shape: 'triangle', lattice: [i, j, 8], vertices: gapTriangle(gDn, [cE, cN, cNE]) })
       }
     }
   }

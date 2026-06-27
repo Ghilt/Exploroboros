@@ -26,6 +26,12 @@ const META: TilingMeta = {
   vertexConfig: '4.6.12',
   chiral: false,
   edgeToEdge: true,
+  // Coordinates are keyed to the producing lattice cell (i, j) plus a class: 0=dodecagon,
+  // 1=up-hexagon, 2=down-hexagon, 3..8=the bridging square on the dodecagon's odd edge e
+  // (class = 3 + (e−1)/2). Squares are shared between dodecagons but recorded once, by whichever
+  // cell emits them first — so (i, j, class) stays unique. (Previously the deduped squares used a
+  // rounded centroid, and the two hexagons collided at [i, j].)
+  latticeLabels: ['i', 'j', 'class'],
 }
 
 type Cand = { id: string; shape: 'dodecagon' | 'hexagon' | 'square'; lattice: number[]; vertices: Vec2[] }
@@ -48,7 +54,7 @@ export function truncatedTrihexagonalTiling(n: number): Tiling {
       if (!inRegion(center, half + margin)) continue
       const verts = regularPolygonVertices(center, R12, 12, Math.PI / 12)
       if (inRegion(center, half)) {
-        kept.push({ id: `dod:${i},${j}`, shape: 'dodecagon', lattice: [i, j], vertices: verts })
+        kept.push({ id: `dod:${i},${j}`, shape: 'dodecagon', lattice: [i, j, 0], vertices: verts })
       }
       // Odd edges bridge to the neighbouring dodecagon via a square.
       for (let e = 1; e < 12; e += 2) {
@@ -61,7 +67,7 @@ export function truncatedTrihexagonalTiling(n: number): Tiling {
         const sc = centroid(sq)
         const sk = key(sc)
         if (!squares.has(sk)) {
-          squares.set(sk, { id: `sq:${sk}`, shape: 'square', lattice: [Math.round(sc.x), Math.round(sc.y)], vertices: sq })
+          squares.set(sk, { id: `sq:${sk}`, shape: 'square', lattice: [i, j, 3 + (e - 1) / 2], vertices: sq })
         }
       }
       // Two regular hexagons at the up- and down-triangle centres of this lattice cell. The triangle
@@ -71,10 +77,10 @@ export function truncatedTrihexagonalTiling(n: number): Tiling {
       const hup: Vec2 = { x: center.x + sumx / 3, y: center.y + sumy / 3 }
       const hdn: Vec2 = { x: center.x + (2 * sumx) / 3, y: center.y + (2 * sumy) / 3 }
       if (inRegion(hup, half)) {
-        kept.push({ id: `hu:${i},${j}`, shape: 'hexagon', lattice: [i, j], vertices: regularPolygonVertices(hup, 1, 6, 0) })
+        kept.push({ id: `hu:${i},${j}`, shape: 'hexagon', lattice: [i, j, 1], vertices: regularPolygonVertices(hup, 1, 6, 0) })
       }
       if (inRegion(hdn, half)) {
-        kept.push({ id: `hd:${i},${j}`, shape: 'hexagon', lattice: [i, j], vertices: regularPolygonVertices(hdn, 1, 6, 0) })
+        kept.push({ id: `hd:${i},${j}`, shape: 'hexagon', lattice: [i, j, 2], vertices: regularPolygonVertices(hdn, 1, 6, 0) })
       }
     }
   }
