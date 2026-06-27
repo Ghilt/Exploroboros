@@ -32,6 +32,10 @@ const HIGHLIGHT_SCALE = 1.2 // matches the SVG selection overlay
 // Stats labels need at least this many screen px to be worth drawing; below it they'd be an
 // unreadable smear (and slow at 10k+ tiles), so on very large grids you zoom in to reveal them.
 const MIN_LABEL_PX = 3
+// ...and stop growing past this many screen px. Labels track the zoom (so they appear as you zoom
+// in) up to a comfortable reading size, then hold steady while the tile keeps growing around them —
+// so the deeper you zoom, the more room the number has to breathe instead of swelling to fill the tile.
+const MAX_LABEL_PX = 15
 
 type Palette = {
   tile: string
@@ -458,38 +462,59 @@ function drawTiles(
   }
 
   // Stats mode only: print the tile number + visited count inside each tile. Labels need a few
-  // screen px to be legible (and cheap), so on very large grids at fit they hide until you zoom
-  // in. Drawn in two single-font passes (number, then vN) so the font is set once, not per tile.
+  // screen px to be legible (and cheap), so on very large grids at fit they hide until you zoom in.
+  // Drawn in two passes (numbers, then vN); within each, the font only changes when a tile's
+  // per-shape size differs, so it's set about once per shape rather than once per tile.
   if (displayMode !== 'stats') return
-  const numPx = 0.3 * view.scale
-  const visPx = 0.26 * view.scale
+  // Labels track zoom up to MAX_LABEL_PX, then hold — capping the scale keeps the number/vN ratio
+  // and the vertical offsets (below) consistent whether or not the cap is in effect.
+  const labelScale = Math.min(view.scale, MAX_LABEL_PX / 0.3)
+  // Triangles get a smaller share of the tile (20% vs 30%): their centroid sits much closer to the
+  // edges than a square/hexagon's, so an equal fraction reads as cramped.
+  const numPxFor = (shape: string) => (shape === 'triangle' ? 0.2 : 0.3) * labelScale
+  const visPxFor = (shape: string) => numPxFor(shape) * (0.26 / 0.3)
   const anyVisited = visited ? [...visited.values()].some((n) => n > 0) : false
-  const showNums = numPx >= MIN_LABEL_PX
-  const showVisited = anyVisited && visPx >= MIN_LABEL_PX
-  if (!showNums && !showVisited) return
+  // Quick out if even the roomiest shape's label would fall below the legibility floor.
+  if (0.3 * labelScale < MIN_LABEL_PX && !(anyVisited && 0.26 * labelScale >= MIN_LABEL_PX)) return
   ctx.setAttr('textAlign', 'center')
   ctx.setAttr('textBaseline', 'middle')
 
-  if (showNums) {
-    ctx.setAttr('font', `${numPx}px ${pal.mono}`)
-    ctx.setAttr('fillStyle', pal.num)
-    for (const node of tiling.nodes) {
-      if (!onScreen(node.centroid)) continue
-      const c = worldToScreen(node.centroid, view)
-      // nudge the number up a touch when a vN sits below it
-      const dy = showVisited && (visited?.get(node.id) ?? 0) > 0 ? -numPx * 0.5 : 0
-      ctx.fillText(tileNumber ? String(tileNumber(node.id)) : '', c.x, c.y + dy)
+  // Number pass.
+  ctx.setAttr('fillStyle', pal.num)
+  let lastFont = ''
+  for (const node of tiling.nodes) {
+    if (!onScreen(node.centroid)) continue
+    const numPx = numPxFor(node.shape)
+    if (numPx < MIN_LABEL_PX) continue
+    const font = `${numPx}px ${pal.mono}`
+    if (font !== lastFont) {
+      ctx.setAttr('font', font)
+      lastFont = font
     }
+    const c = worldToScreen(node.centroid, view)
+    // nudge the number up a touch when a vN sits below it
+    const hasV = anyVisited && (visited?.get(node.id) ?? 0) > 0
+    ctx.fillText(tileNumber ? String(tileNumber(node.id)) : '', c.x, hasV ? c.y - numPx * 0.5 : c.y)
   }
-  if (showVisited) {
-    ctx.setAttr('font', `700 ${visPx}px ${pal.mono}`)
+
+  // Visited pass.
+  if (anyVisited) {
     ctx.setAttr('fillStyle', pal.visited)
+    lastFont = ''
     for (const node of tiling.nodes) {
       if (!onScreen(node.centroid)) continue
       const v = visited?.get(node.id) ?? 0
       if (v <= 0) continue
+      const visPx = visPxFor(node.shape)
+      if (visPx < MIN_LABEL_PX) continue
+      const font = `700 ${visPx}px ${pal.mono}`
+      if (font !== lastFont) {
+        ctx.setAttr('font', font)
+        lastFont = font
+      }
       const c = worldToScreen(node.centroid, view)
-      ctx.fillText(`v${v}`, c.x, c.y + (showNums ? numPx * 0.7 : 0))
+      const numPx = numPxFor(node.shape)
+      ctx.fillText(`v${v}`, c.x, numPx >= MIN_LABEL_PX ? c.y + numPx * 0.7 : c.y)
     }
   }
 }
