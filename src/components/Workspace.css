@@ -2,8 +2,16 @@
   display: flex;
   gap: 0.6rem;
   align-items: stretch;
-  /* A generous work area; the canvas grows to fill whatever the docks don't use. */
+  /* Fallback height; desktop fills the full-height canvas page, mobile stacks (see below). */
   height: clamp(24rem, 68vh, 52rem);
+}
+
+/* Desktop: fill the full-height canvas page (App.css .app-canvas) so the canvas is always fully
+   visible. */
+@media (min-width: 64rem) {
+  .workspace {
+    height: 100%;
+  }
 }
 
 .canvas-pane {

@@ -251,6 +251,11 @@ Hard-won; read before fighting the tooling again.
   owns selection, the per-tile **visited** overlay, and the copy/paste clipboard (all kept off the
   immutable `Tiling`, keyed by tile id).
 - `src/components/Panel.tsx` — reusable collapsible dock panel (collapses to a thin rail).
+- **Canvas page layout:** full-height on **desktop** — `App.tsx` adds an `app-canvas` class so `.app`
+  becomes a fixed-height, non-scrolling viewport (`App.css`, `@media min-width: 64rem`); the workspace
+  fills it and only the canvas (pan/zoom) and docks (own overflow) scroll. There's **no page header**
+  (the nav's Canvas tab covers it). **Mobile** keeps the normal stacked, scrolling layout — don't
+  re-add a header or a fixed page height there.
 - Edge numbering has **two layers**: internal **local CCW side index** (geometry/winding) vs the
   user-facing **clockwise-from-top** number (`clockwiseEdgeOrder`). Don't conflate them.
 

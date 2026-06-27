@@ -11,3 +11,18 @@
   margin-inline: auto;
   padding: clamp(1.5rem, 5vw, 3.5rem) clamp(1rem, 4vw, 2.5rem) clamp(3rem, 7vw, 5rem);
 }
+
+/* The Canvas page fills the viewport on desktop, so the workspace is always fully visible and the
+   page itself doesn't scroll (the canvas pans/zooms internally; docks scroll within themselves).
+   Mobile keeps the normal stacked, scrolling layout. */
+@media (min-width: 64rem) {
+  .app-canvas {
+    height: 100svh;
+    overflow: hidden;
+  }
+  .app-canvas .app-main {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding-block: clamp(0.75rem, 2vh, 1.25rem);
+  }
+}

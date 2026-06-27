@@ -17,7 +17,7 @@ function App() {
   const Page = PAGES[route]
 
   return (
-    <div className="app">
+    <div className={route === 'canvas' ? 'app app-canvas' : 'app'}>
       <Nav route={route} />
       <main className="app-main">
         <Page />
