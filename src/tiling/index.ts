@@ -38,3 +38,4 @@ export {
   clockwiseEdgeOrder,
 } from './graph'
 export { squareTiling } from './generators/square'
+export { kallebodaTiling } from './generators/kalleboda'

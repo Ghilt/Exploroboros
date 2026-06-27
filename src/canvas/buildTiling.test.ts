@@ -8,6 +8,13 @@ describe('buildTiling', () => {
     expect(t.nodes.length).toBe(400)
   })
 
+  it('builds the kalleboda octagon+wedge tiling', () => {
+    const t = buildTiling('kalleboda', 20)
+    expect(t.meta.id).toBe('kalleboda')
+    expect(t.nodes.length).toBeGreaterThan(50)
+    expect(t.nodes.some((n) => n.shape === 'wedge')).toBe(true)
+  })
+
   it('falls back to the square for an unknown id', () => {
     const t = buildTiling('not-a-tiling', 5)
     expect(t.meta.id).toBe('square')

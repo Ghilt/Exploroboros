@@ -15,7 +15,7 @@ describe('TilingPicker', () => {
     render(<TilingPicker value="square" onChange={() => {}} />)
     fireEvent.click(screen.getByRole('button'))
     const dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByText('Octagon + Wedge')).toBeTruthy()
+    expect(within(dialog).getByText('Kalleboda')).toBeTruthy()
     expect(within(dialog).getByText('Triangular')).toBeTruthy()
   })
 
@@ -30,12 +30,20 @@ describe('TilingPicker', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('the octagon-wedge option is present but disabled (no generator yet)', () => {
+  it('choosing Kalleboda (now a real generator) reports it', () => {
+    const onChange = vi.fn()
+    render(<TilingPicker value="square" onChange={onChange} />)
+    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(within(screen.getByRole('dialog')).getByText('Kalleboda'))
+    expect(onChange).toHaveBeenCalledWith('kalleboda')
+  })
+
+  it('a not-yet-built tiling is present but disabled', () => {
     render(<TilingPicker value="square" onChange={() => {}} />)
     fireEvent.click(screen.getByRole('button'))
-    const dialog = screen.getByRole('dialog')
-    const card = within(dialog).getByRole('button', { name: /octagon \+ wedge/i })
-    expect((card as HTMLButtonElement).disabled).toBe(true)
+    // exact text avoids matching "Elongated Triangular"
+    const card = within(screen.getByRole('dialog')).getByText('Triangular').closest('button')
+    expect(card?.disabled).toBe(true)
   })
 
   it('closes on Escape and on backdrop click', () => {

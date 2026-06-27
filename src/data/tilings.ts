@@ -16,7 +16,7 @@ export type TilingEntry = {
 // Target set = the 11 convex uniform Euclidean tilings + the prototype's octagon+wedge.
 export const TILINGS: ReadonlyArray<TilingEntry> = [
   { id: 'square', name: 'Square', vertexConfig: '4.4.4.4', status: 'ready' },
-  { id: 'octagon-wedge', name: 'Octagon + Wedge', vertexConfig: 'non-uniform', status: 'preview' },
+  { id: 'kalleboda', name: 'Kalleboda', vertexConfig: 'octagon + wedge', status: 'ready' },
   { id: 'triangular', name: 'Triangular', vertexConfig: '3.3.3.3.3.3', status: 'planned' },
   { id: 'hexagonal', name: 'Hexagonal', vertexConfig: '6.6.6', status: 'planned' },
   { id: 'trihexagonal', name: 'Trihexagonal', vertexConfig: '3.6.3.6', status: 'planned' },

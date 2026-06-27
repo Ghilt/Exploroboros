@@ -8,9 +8,11 @@ describe('tiling catalog', () => {
     expect(TILINGS.length).toBeGreaterThanOrEqual(9)
   })
 
-  it('square is the only ready tiling and octagon-wedge is a preview', () => {
-    expect(TILINGS.filter((t) => t.status === 'ready').map((t) => t.id)).toEqual(['square'])
-    expect(getTiling('octagon-wedge')?.status).toBe('preview')
+  it('square and kalleboda are ready, with planned tilings still listed', () => {
+    const ready = TILINGS.filter((t) => t.status === 'ready').map((t) => t.id)
+    expect(ready).toContain('square')
+    expect(ready).toContain('kalleboda')
+    expect(TILINGS.some((t) => t.status === 'planned')).toBe(true)
   })
 
   it('looks up entries by id', () => {

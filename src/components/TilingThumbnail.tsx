@@ -4,11 +4,12 @@ import { squareTiling } from '../tiling'
 import { TilingDebugView } from './TilingDebugView'
 
 // Small preview drawings for the tiling-picker gallery. `square` reuses the engine's own debug
-// view (so the thumbnail matches the real render); `octagon-wedge` is a faithful static drawing
-// of the prototype geometry (no engine generator yet); everything else is a placeholder.
+// view (so the thumbnail matches the real render); `kalleboda` is a faithful static drawing of
+// the octagon+wedge geometry (the real tiling renders on the canvas); everything else is a
+// placeholder.
 export function TilingThumbnail({ entry }: { entry: TilingEntry }) {
   if (entry.id === 'square') return <SquareThumb />
-  if (entry.id === 'octagon-wedge') return <OctagonWedgeThumb />
+  if (entry.id === 'kalleboda') return <KallebodaThumb />
   return <PlaceholderThumb />
 }
 
@@ -27,8 +28,8 @@ function PlaceholderThumb() {
 
 // --- octagon + wedge geometry (from the prototype) ----------------------------------------
 // Regular flat-top octagons on a 22.5°-rotated square lattice; concave wedges fill the gaps.
-// Rendered statically for the gallery — the engine generator is a later backlog item. Wedge
-// seating skips the prototype's edge-snap (a sub-pixel correction, invisible at this scale).
+// A static preview for the gallery — the live tiling comes from kallebodaTiling(). Wedge seating
+// here skips the engine's edge-snap (a sub-pixel correction, invisible at this scale).
 
 type Pt = { x: number; y: number }
 
@@ -126,7 +127,7 @@ const VIEW = 11
 const VIEW_CX = 3.6
 const VIEW_CY = 1.49 // = -(central cell centroid y), already in SVG (y-down) space
 
-function OctagonWedgeThumb() {
+function KallebodaThumb() {
   const viewBox = `${VIEW_CX - VIEW / 2} ${VIEW_CY - VIEW / 2} ${VIEW} ${VIEW}`
   return (
     <svg className="ow-thumb" viewBox={viewBox} preserveAspectRatio="xMidYMid meet">
