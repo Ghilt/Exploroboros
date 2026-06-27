@@ -119,9 +119,13 @@ class Parser {
         if (depth === 0) return false
       } else if (t.kind === 'eof') {
         break
-      } else if (depth === 1) {
-        if (t.kind === 'cmp') return true
-        if (t.kind === 'ident' && (t.text === 'and' || t.text === 'or' || t.text === 'not')) return true
+      } else if (t.kind === 'cmp') {
+        // A comparison/boolean anywhere inside this paren (any nesting depth) means it's a predicate
+        // group — so redundant wrapping like ((visited == 1)) is still recognised. The matching ")"
+        // above returns false first for the (expr) == x case, where the operator sits outside.
+        return true
+      } else if (t.kind === 'ident' && (t.text === 'and' || t.text === 'or' || t.text === 'not')) {
+        return true
       }
     }
     return false

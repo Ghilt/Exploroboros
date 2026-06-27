@@ -29,7 +29,6 @@ export type { EvalContext, AttrSpec } from './attributes'
 export { ATTRIBUTES, attrSpec } from './attributes'
 
 export { parsePredicate, parseExpr } from './parse'
-export { serialize, serializeExpr } from './serialize'
+export { serialize } from './serialize'
 export { evalNumber, evalPredicate } from './eval'
-export { referencedShapes } from './analyze'
 export { replaceAt, type Path } from './edit'

@@ -98,9 +98,9 @@ export function PredicatePane({ store }: { store: PredicateStore }) {
   )
 }
 
-// Phase-1 editor: a name field and a DSL text box, compiled live with an inline error. (The visual
-// chip editor lands in a later phase and will share this same predicate.) Fully controlled by the
-// store so the auto-name follows the text until the user types their own name.
+// The custom-predicate editor: a name field plus a Text/Visual toggle over the same predicate — the
+// DSL text box, or the chip editor (PredicateVisualEditor), both compiled live with an inline error.
+// Fully controlled by the store so the auto-name follows the text until the user types their own name.
 function PredicateEditor({
   predicate,
   onSetText,

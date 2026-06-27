@@ -448,8 +448,7 @@ function drawTiles(
     if (!onScreen(node.centroid)) continue
     traceTile(ctx, node.vertices, view)
     // Base fill, then the coloring rules' colour on top (it carries its own alpha, so a translucent
-    // rule blends over the base). The old visit-count shading is gone — colour now comes only from
-    // the coloring rules; painting just records data the rules read.
+    // rule blends over the base). Painting only records visited/registry data — the rules decide colour.
     ctx.setAttr('fillStyle', pal.tile)
     ctx.fill()
     const fill = colorFor?.get(node.id)

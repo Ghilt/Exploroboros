@@ -63,6 +63,16 @@ describe('parse — precedence & structure', () => {
     expect(p.left.kind).toBe('pgroup')
   })
 
+  it('accepts redundant / nested parentheses around a predicate', () => {
+    expect(ok('((visited == 1))')).toEqual({
+      kind: 'pgroup',
+      inner: { kind: 'pgroup', inner: { kind: 'compare', op: '==', left: { kind: 'attr', name: 'visited', scope: 'tile' }, right: { kind: 'number', value: 1 } } },
+    })
+    expect(ok('((visited == 1)) and visited == 2').kind).toBe('bool')
+    // an expression group is still distinguished from a predicate group
+    expect(ok('(1 + 2) == 3').kind).toBe('compare')
+  })
+
   it('normalizes a bare = to ==', () => {
     const p = ok('visited = 4')
     expect(p).toMatchObject({ kind: 'compare', op: '==' })

@@ -309,8 +309,9 @@ Hard-won; read before fighting the tooling again.
   holds its pure, tested helpers — `view.ts` (world↔screen transform), `pick.ts` (hit-testing),
   `stroke.ts` (paint gap-fill), `overlay.ts` (per-tile run state — the visit step-list + A/B/C
   registries, plus its updaters), `clipboard.ts`, `buildTiling.ts` — imported via `src/canvas/index.ts`.
-- `src/components/TilingDebugView.tsx` — the original SVG renderer, now a dependency-free **tested
-  reference** (not mounted in the app). Safe to delete once the Konva canvas is owner-verified.
+- `src/components/TilingDebugView.tsx` — the original dependency-free SVG renderer. Still **live**: it
+  draws the tiling-picker gallery thumbnails (`TilingThumbnail.tsx` → `TilingPicker.tsx`). Not used for
+  the main canvas (that's the Konva `TilingCanvas`), but don't delete it — the picker needs it.
 - `src/components/Workspace.tsx` — the Canvas-page multi-pane workspace (canvas + Inspect /
   Traversers / Coloring docks); **builds the `Tiling`** from the picker `tilingId` + grid-size, and
   owns selection, the per-tile **state overlay** (`TileState` — a visit step-list + the A/B/C
@@ -326,8 +327,8 @@ Hard-won; read before fighting the tooling again.
   `types.ts` (AST: numeric `Expr` + boolean `Pred`, incl. the `shape`/`tile-type` leaf), `lex.ts`,
   `parse.ts` (recursive descent), `serialize.ts` (canonical text = the auto-name), `eval.ts`
   (`evalNumber`/`evalPredicate`; ÷/% by zero → 0; missing attr → its `default`), `attributes.ts` (the
-  keyword→compute registry + `EvalContext`), `analyze.ts` (`referencedShapes`). Reused by the future
-  visual editor + traversers, so keep it pure.
+  keyword→compute registry + `EvalContext`), `edit.ts` (`replaceAt` for the visual editor). Reused by
+  the visual editor + future traversers, so keep it pure.
 - `src/colorizer/` — pure `colorize(rules, predicateText, tiling, overlay, indexById) → Map<id, rgba>`:
   evaluates each rule's predicate once, alpha-composites matching rules top→bottom (per-rule opacity =
   blend), resolves flat/ramp (modulo + optional breakpoints). Memoized in Workspace, **not** per frame.

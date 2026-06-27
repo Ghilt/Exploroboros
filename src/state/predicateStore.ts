@@ -61,7 +61,6 @@ export type PredicateStore = {
   predicates: ReadonlyArray<StoredPredicate>
   persistOk: boolean
   add: () => string
-  copyFrom: (source: { name: string; text: string }) => string
   setText: (id: string, text: string) => void
   rename: (id: string, name: string) => void
   remove: (id: string) => void
@@ -81,15 +80,9 @@ export function usePredicateStore(): PredicateStore {
     return pred.id
   }, [])
 
-  const copyFrom = useCallback((source: { name: string; text: string }) => {
-    const pred = makePredicate(source.text, `${source.name} copy`)
-    setPredicates((list) => withAdded(list, pred))
-    return pred.id
-  }, [])
-
   const setText = useCallback((id: string, text: string) => setPredicates((list) => withSetText(list, id, text)), [])
   const rename = useCallback((id: string, name: string) => setPredicates((list) => withRenamed(list, id, name)), [])
   const remove = useCallback((id: string) => setPredicates((list) => withRemoved(list, id)), [])
 
-  return { predicates, persistOk, add, copyFrom, setText, rename, remove }
+  return { predicates, persistOk, add, setText, rename, remove }
 }

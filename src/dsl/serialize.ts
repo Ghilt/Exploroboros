@@ -77,7 +77,3 @@ function wrapPredRight(p: Pred, parentPrec: number): string {
 export function serialize(node: Pred): string {
   return predText(node).s
 }
-
-export function serializeExpr(node: Expr): string {
-  return exprText(node).s
-}
