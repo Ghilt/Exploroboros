@@ -72,9 +72,10 @@ const NO_OVERLAY: ReadonlyMap<string, TileState> = new Map()
 // tile number + visited count printed inside). Cycled by the display chip.
 export type DisplayMode = 'edges' | 'none' | 'stats'
 
-// What a one-pointer drag does: paint the current target, box-select tiles, or nothing (so a
-// touch drag scrolls the mobile page). Tap always inspects; two-finger / wheel always pan+zoom.
-export type DragMode = 'paint' | 'select' | 'off'
+// What a one-pointer drag does: paint the current target, box-select tiles, freehand "paint" a
+// selection by dragging over tiles, or nothing (so a touch drag scrolls the mobile page). Tap
+// always inspects; two-finger / wheel always pan+zoom.
+export type DragMode = 'paint' | 'select' | 'paintselect' | 'off'
 
 const NO_SELECTION: ReadonlyArray<string> = []
 
@@ -92,6 +93,9 @@ type Props = {
   tileNumber?: (id: string) => number
   onSelect?: (id: string) => void
   onSelectTiles?: (ids: string[]) => void
+  // Called when a non-selecting gesture (pan / zoom / paint / empty tap) happens, so the workspace
+  // can drop the current selection.
+  onDeselect?: () => void
   onPaint?: (ids: ReadonlyArray<string>) => void
   // Bumping this counter (e.g. a Fit button) re-frames the whole tiling.
   fitSignal?: number
@@ -108,6 +112,7 @@ export function TilingCanvas({
   tileNumber,
   onSelect,
   onSelectTiles,
+  onDeselect,
   onPaint,
   fitSignal,
 }: Props) {
@@ -131,10 +136,19 @@ export function TilingCanvas({
   onSelectRef.current = onSelect
   const onSelectTilesRef = useRef(onSelectTiles)
   onSelectTilesRef.current = onSelectTiles
+  const onDeselectRef = useRef(onDeselect)
+  onDeselectRef.current = onDeselect
   const onPaintRef = useRef(onPaint)
   onPaintRef.current = onPaint
+  // Ephemeral outline on the tiles of the current/just-finished paint stroke; alpha fades to 0 after
+  // release. Canvas-local visual feedback only — never touches the overlay.
+  const paintFlashRef = useRef<{ ids: Set<string>; alpha: number } | null>(null)
+  const fadeRafRef = useRef(0)
   const dragModeRef = useRef(dragMode)
   dragModeRef.current = dragMode
+  // Current selection, mirrored so a Shift-drag can add to it (read at gesture time).
+  const selectedIdsRef = useRef(selectedIds)
+  selectedIdsRef.current = selectedIds
 
   // Highlighted tiles as a Set (built once per selection change, not per redraw — a box-select can
   // be large and the draw functions run on every pan/zoom frame).
@@ -250,7 +264,9 @@ export function TilingCanvas({
     let moved = false // crossed the slop -> a paint drag, not a tap
     let pinched = false // became two-finger -> never a tap
     let middlePan = false // middle-mouse drag -> pan, never a tap/paint
+    let additive = false // Shift held at gesture start -> box/paint-select ADDS to the selection
     let strokePainted: Set<string> | null = null // tiles painted this stroke (dedupe)
+    let strokeSelected: Set<string> | null = null // tiles gathered this freehand-select stroke
     let lastPaintWorld: Vec2 | null = null
 
     const local = (e: PointerEvent | WheelEvent): Vec2 => {
@@ -275,7 +291,23 @@ export function TilingCanvas({
     const hideMarquee = () => {
       if (marqueeRef.current) marqueeRef.current.style.display = 'none'
     }
-    // Paint every tile from the last paint point to `toWorld`, deduped within the stroke.
+    // Fade the just-painted outline out over ~600ms after the stroke releases.
+    const startFlashFade = () => {
+      cancelAnimationFrame(fadeRafRef.current)
+      const DURATION = 600
+      const start = performance.now()
+      const stepFade = (now: number) => {
+        const flash = paintFlashRef.current
+        if (!flash) return
+        flash.alpha = Math.max(0, 1 - (now - start) / DURATION)
+        uiLayerRef.current?.batchDraw()
+        if (flash.alpha > 0) fadeRafRef.current = requestAnimationFrame(stepFade)
+        else paintFlashRef.current = null
+      }
+      fadeRafRef.current = requestAnimationFrame(stepFade)
+    }
+    // Paint every tile from the last paint point to `toWorld`, deduped within the stroke. Also keep
+    // the ephemeral outline (paintFlashRef) in sync at full opacity while the stroke is live.
     const paintTo = (toWorld: Vec2) => {
       if (!strokePainted) return
       const ids = lastPaintWorld
@@ -285,12 +317,32 @@ export function TilingCanvas({
       if (fresh.length) {
         for (const id of fresh) strokePainted.add(id)
         onPaintRef.current?.(fresh)
+        cancelAnimationFrame(fadeRafRef.current)
+        paintFlashRef.current = { ids: strokePainted, alpha: 1 }
+        uiLayerRef.current?.batchDraw()
       }
+      lastPaintWorld = toWorld
+    }
+    // Freehand select: gather every tile the stroke passes over and push the growing set up live,
+    // so the highlight builds as you drag (same gap-filling as paint, but it selects, not paints).
+    const selectTo = (toWorld: Vec2) => {
+      if (!strokeSelected) return
+      const ids = lastPaintWorld
+        ? tilesAlongSegment(tilingRef.current, lastPaintWorld, toWorld)
+        : ([pickTile(tilingRef.current, toWorld)].filter(Boolean) as string[])
+      let changed = false
+      for (const id of ids)
+        if (!strokeSelected.has(id)) {
+          strokeSelected.add(id)
+          changed = true
+        }
+      if (changed) onSelectTilesRef.current?.([...strokeSelected])
       lastPaintWorld = toWorld
     }
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
+      onDeselectRef.current?.() // zooming is "interacting some other way" — drop the selection
       const { minScale, maxScale } = scaleLimits(tilingRef.current, sizeRef.current)
       apply(zoomAt(viewRef.current, local(e), Math.exp(-e.deltaY * 0.0015), minScale, maxScale))
     }
@@ -309,7 +361,9 @@ export function TilingCanvas({
         // a second finger ends any stroke and starts a pinch + pan (every mode)
         e.preventDefault()
         capture(e.pointerId)
+        onDeselectRef.current?.()
         strokePainted = null
+        strokeSelected = null
         lastPaintWorld = null
         downAt = null
         moved = false
@@ -325,6 +379,7 @@ export function TilingCanvas({
         // middle-mouse drag pans (every mode)
         e.preventDefault()
         capture(e.pointerId)
+        onDeselectRef.current?.()
         middlePan = true
         panLast = local(e)
         host.style.cursor = 'grabbing'
@@ -335,6 +390,7 @@ export function TilingCanvas({
       moved = false
       pinched = false
       middlePan = false
+      additive = e.shiftKey // Shift+box / Shift+paint-select adds to the current selection
       strokePainted = null
       lastPaintWorld = null
       // "off" mode doesn't capture or preventDefault, so a touch drag scrolls the page; a tap (no
@@ -381,10 +437,25 @@ export function TilingCanvas({
         if (moved) setMarquee(downAt, p)
         return
       }
+      if (mode === 'paintselect') {
+        if (!moved) {
+          if (dist(p, downAt) > slop) {
+            moved = true
+            strokeSelected = new Set(additive ? selectedIdsRef.current : []) // Shift adds to the selection
+            lastPaintWorld = null
+            selectTo(screenToWorld(downAt, viewRef.current))
+            selectTo(screenToWorld(p, viewRef.current))
+          }
+          return
+        }
+        selectTo(screenToWorld(p, viewRef.current))
+        return
+      }
       // paint
       if (!moved) {
         if (dist(p, downAt) > slop) {
           moved = true
+          onDeselectRef.current?.() // painting is "interacting some other way" — drop the selection
           strokePainted = new Set()
           lastPaintWorld = null
           paintTo(screenToWorld(downAt, viewRef.current)) // the tile the drag started on
@@ -399,14 +470,19 @@ export function TilingCanvas({
       const vals = [...pointers.values()]
       if (vals.length === 0) {
         if (!pinched && !middlePan && !moved && downAt) {
-          // a tap selects the single tile under the press (every mode)
+          // a tap selects the tile under the press, or clears the selection if it hit empty space
           const id = pickTile(tilingRef.current, screenToWorld(downAt, viewRef.current))
           if (id) onSelectRef.current?.(id)
+          else onDeselectRef.current?.()
         } else if (dragModeRef.current === 'select' && moved && downAt) {
-          // a box drag selects every tile whose centre is inside it
+          // a box drag selects every tile whose centre is inside it; Shift adds to the current set
           const a = screenToWorld(downAt, viewRef.current)
           const b = screenToWorld(local(e), viewRef.current)
-          onSelectTilesRef.current?.(tilesInRect(tilingRef.current, a, b))
+          const rectTiles = tilesInRect(tilingRef.current, a, b)
+          onSelectTilesRef.current?.(additive ? [...new Set([...selectedIdsRef.current, ...rectTiles])] : rectTiles)
+        } else if (moved && strokePainted && strokePainted.size > 0) {
+          // a paint stroke just ended — fade its outline out
+          startFlashFade()
         }
         hideMarquee()
         panLast = null
@@ -417,6 +493,7 @@ export function TilingCanvas({
         pinched = false
         middlePan = false
         strokePainted = null
+        strokeSelected = null
         lastPaintWorld = null
         host.style.cursor = 'crosshair'
       } else if (vals.length === 1) {
@@ -441,6 +518,7 @@ export function TilingCanvas({
       host.removeEventListener('pointermove', onMove)
       host.removeEventListener('pointerup', onUp)
       host.removeEventListener('pointercancel', onUp)
+      cancelAnimationFrame(fadeRafRef.current)
     }
   }, [])
 
@@ -468,6 +546,10 @@ export function TilingCanvas({
                   drawTraverserHeads(ctx, tiling, viewRef.current, paletteRef.current, traverserHeads)
                 }
               }}
+            />
+            <Shape
+              listening={false}
+              sceneFunc={(ctx) => drawPaintFlash(ctx, tiling, viewRef.current, paletteRef.current, paintFlashRef.current)}
             />
           </Layer>
         </Stage>
@@ -705,6 +787,30 @@ function drawTraverserHeads(
     ctx.lineTo(tip.x - headLen * Math.cos(ang + barb), tip.y - headLen * Math.sin(ang + barb))
     ctx.closePath()
     ctx.fill()
+  }
+  ctx.restore()
+}
+
+// Ephemeral outline on the tiles of a paint stroke — full opacity while painting, fading to 0 after
+// release (the alpha is driven by the fade rAF). A stroke is a handful of tiles, so no culling needed.
+function drawPaintFlash(
+  ctx: Konva.Context,
+  tiling: Tiling,
+  view: View,
+  pal: Palette,
+  flash: { ids: Set<string>; alpha: number } | null,
+): void {
+  if (!flash || flash.alpha <= 0) return
+  ctx.save()
+  ctx.setAttr('globalAlpha', flash.alpha)
+  ctx.setAttr('strokeStyle', pal.accentStrong)
+  ctx.setAttr('lineWidth', 2)
+  ctx.setAttr('lineJoin', 'round')
+  for (const id of flash.ids) {
+    const node = nodeById(tiling, id)
+    if (!node) continue
+    traceTile(ctx, node.vertices, view)
+    ctx.stroke()
   }
   ctx.restore()
 }

@@ -323,8 +323,14 @@ Hard-won; read before fighting the tooling again.
   imports `konva`/`react-konva`. **Interaction:** tap = inspect a tile (always), two-finger (touch) /
   middle-mouse drag = pan, pinch / wheel = zoom. A one-finger **drag** depends on the `dragMode` prop
   (the Workspace "drag" popup): **off** (default — no capture; `touch-action: pan-y` lets the mobile page
-  scroll), **paint** (writes the chosen target — visited / A / B / C), or **select** (a marquee box →
-  `onSelectTiles` with every tile whose centre is inside). A **display chip** (Workspace) cycles tile rendering —
+  scroll), **paint** (writes the chosen target — visited / A / B / C), **select** ("box select" — a
+  marquee box → every tile whose centre is inside), or **paintselect** ("paint select" — freehand: drag
+  over tiles to gather a non-box selection, pushed up live). Both selecting modes call `onSelectTiles`;
+  holding **Shift** at the start of a box / paint-select drag **adds** to the current selection (union)
+  instead of replacing it. Any **non-selecting** gesture (pan / zoom /
+  paint / a tap on empty space) fires `onDeselect` so the selection clears — only a tap-on-tile or a box
+  keeps it. A paint stroke flashes an **outline** on its tiles (`paintFlashRef` → `drawPaintFlash`) that
+  fades to 0 over ~600ms (rAF) after release. A **display chip** (Workspace) cycles tile rendering —
   `edges` / `none` / `stats`; in `stats` the tile number, visited `vN`, and any non-zero registries
   (`A# B# C#`) print inside each tile, but only once tiles are a few screen px (`MIN_LABEL_PX`), so on
   dense grids you zoom in to read them (you can't fit thousands of readable labels at fit). In `stats` a

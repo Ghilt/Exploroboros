@@ -443,15 +443,30 @@ export function Workspace() {
                 title="What a one-finger drag does"
                 onClick={() => setDragMenuOpen((o) => !o)}
               >
-                {dragMode === 'off' ? 'drag: off' : dragMode === 'select' ? 'drag: select' : `paint: ${paintLabel(paintTarget)}`}
+                {dragMode === 'paint'
+                  ? `paint: ${paintLabel(paintTarget)}`
+                  : dragMode === 'select'
+                    ? 'drag: box select'
+                    : dragMode === 'paintselect'
+                      ? 'drag: paint select'
+                      : 'drag: off'}
               </button>
               {dragMenuOpen && (
                 <div className="drag-menu" role="menu">
-                  <button type="button" role="menuitem" className="drag-item" onClick={() => chooseDrag('off')}>
-                    Off — scroll / pan
+                  <button type="button" role="menuitem" className="drag-item" aria-current={dragMode === 'off'} onClick={() => chooseDrag('off')}>
+                    off
                   </button>
-                  <button type="button" role="menuitem" className="drag-item" onClick={() => chooseDrag('select')}>
-                    Select tiles
+                  <button type="button" role="menuitem" className="drag-item" aria-current={dragMode === 'select'} onClick={() => chooseDrag('select')}>
+                    box select
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="drag-item"
+                    aria-current={dragMode === 'paintselect'}
+                    onClick={() => chooseDrag('paintselect')}
+                  >
+                    paint select
                   </button>
                   <div className="drag-menu-label">Paint</div>
                   {PAINT_TARGETS.map((t) => (
@@ -536,6 +551,7 @@ export function Workspace() {
             tileNumber={(id) => indexById.get(id) ?? -1}
             onSelect={(id) => setSelectedIds([id])}
             onSelectTiles={setSelectedIds}
+            onDeselect={() => setSelectedIds((cur) => (cur.length ? [] : cur))}
             onPaint={paint}
             fitSignal={fitNonce}
           />

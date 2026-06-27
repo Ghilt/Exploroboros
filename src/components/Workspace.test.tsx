@@ -11,10 +11,12 @@ vi.mock('./TilingCanvas', () => ({
     tiling,
     onSelect,
     onSelectTiles,
+    onDeselect,
   }: {
     tiling: { nodes: ReadonlyArray<{ id: string }> }
     onSelect?: (id: string) => void
     onSelectTiles?: (ids: string[]) => void
+    onDeselect?: () => void
   }) => (
     <div data-testid="mock-canvas">
       {tiling.nodes.map((n) => (
@@ -25,6 +27,10 @@ vi.mock('./TilingCanvas', () => ({
       {/* Stand in for a select-mode box drag selecting the first three tiles. */}
       <button type="button" data-testid="mock-box" onClick={() => onSelectTiles?.(tiling.nodes.slice(0, 3).map((n) => n.id))}>
         box-select
+      </button>
+      {/* Stand in for a non-selecting gesture (pan / paint / empty tap). */}
+      <button type="button" data-testid="mock-deselect" onClick={() => onDeselect?.()}>
+        deselect
       </button>
     </div>
   ),
@@ -57,20 +63,25 @@ describe('Workspace', () => {
     expect(screen.getByRole('slider', { name: /grid size/i })).toBeTruthy()
   })
 
-  it('the drag popup picks a paint target (which switches to paint mode), or select / off', () => {
+  it('the drag popup picks a paint target (switches to paint mode), or box / paint select / off', () => {
     render(<Workspace />)
     const chip = screen.getByRole('button', { name: /drag mode/i })
     expect(chip.textContent).toMatch(/off/i)
-    // Open the popup and choose Paint → B.
+    // Open the popup — it offers the modes and the paint targets.
     fireEvent.click(chip)
-    expect(screen.getByRole('menuitem', { name: /select tiles/i })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: /box select/i })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: /paint select/i })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: /^visited$/i })).toBeTruthy()
     fireEvent.click(screen.getByRole('menuitem', { name: /^B$/ }))
     expect(chip.textContent).toMatch(/paint:\s*B/i) // now paint mode, target B
-    // Reopen and switch to Select.
+    // Reopen → box select.
     fireEvent.click(chip)
-    fireEvent.click(screen.getByRole('menuitem', { name: /select tiles/i }))
-    expect(chip.textContent).toMatch(/select/i)
+    fireEvent.click(screen.getByRole('menuitem', { name: /box select/i }))
+    expect(chip.textContent).toMatch(/box select/i)
+    // Reopen → paint select.
+    fireEvent.click(chip)
+    fireEvent.click(screen.getByRole('menuitem', { name: /paint select/i }))
+    expect(chip.textContent).toMatch(/paint select/i)
   })
 
   it('the display chip cycles edges -> none -> stats -> edges', () => {
@@ -117,6 +128,14 @@ describe('Workspace', () => {
     expect(more.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(more)
     expect(more.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('clears the selection on a non-selecting interaction (pan / paint / empty tap)', () => {
+    render(<Workspace />)
+    fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
+    expect(screen.getByText('Tile #0')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('mock-deselect'))
+    expect(screen.getByText(/click a tile to inspect/i)).toBeTruthy() // back to the empty hint
   })
 
   it('box-select shows a multi-tile bulk view and places traversers on all at once', () => {
