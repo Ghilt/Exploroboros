@@ -203,6 +203,8 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-27 | Triangular + Hexagonal tilings (+ auto gallery thumbnails) | ✅ yes | owner reviewed both running tilings (select Triangular / Hexagonal → gapless, ~400 tiles, select + paint work) and the gallery thumbnails; approved | `f4a6b92` |
 | 2026-06-27 | Truncated Square (4.8.8) + Trihexagonal (3.6.3.6) tilings | ✅ yes | owner reviewed both running tilings (octagons+squares; kagome hexagons+triangles) — gapless, ~400 tiles; approved | `1eab3c4` |
 | 2026-06-27 | Elongated Triangular (3.3.3.4.4) + Truncated Hexagonal (3.12.12) tilings | ✅ yes | owner reviewed both running tilings (square/triangle bands; dodecagons + triangle gaps) — gapless, ~388 tiles; approved | `3559ec0` |
+| 2026-06-27 | Rhombitrihexagonal (3.4.6.4) + Truncated Trihexagonal (4.6.12) tilings | ✅ yes | owner reviewed both running tilings (hexagon rosettes ringed by squares+triangles; dodecagons + hexagons + squares) — gapless, ~399 tiles; approved | `bcd901a` |
+| 2026-06-27 | Fix — visited overlay + selection cleared on tiling-type switch (no cross-tiling paint bleed; grid-size resize still keeps paint) | ✅ yes | owner reproduced the carry-over (paint Truncated Trihexagonal → switch to Rhombitrihexagonal), confirmed the new tiling now comes up blank and a resize still preserves paint | `8d241a8` |
 
 ## 8. Todo list (working backlog)
 
@@ -233,9 +235,14 @@ in-session task tracker.
     auto-render each ready tiling's real generator *(verified 2026-06-27, `f4a6b92`)*
   - [x] Semiregular batch 1 — truncated square (4.8.8) + trihexagonal (3.6.3.6) *(verified 2026-06-27, `1eab3c4`)*
   - [x] Semiregular batch 2 — elongated triangular (3.3.3.4.4) + truncated hexagonal (3.12.12) *(verified 2026-06-27, `3559ec0`)*
-  - [ ] More tilings — the 4 remaining semiregular uniform Euclidean tilings (the hardest: 2 chiral, 2 with
-    three shapes): snub square (3.3.4.3.4), snub hexagonal (3.3.3.3.6), rhombitrihexagonal (3.4.6.4),
-    truncated trihexagonal (4.6.12) (added in small batches, verified between)
+  - [x] Semiregular batch 3 — rhombitrihexagonal (3.4.6.4) + truncated trihexagonal (4.6.12) *(verified 2026-06-27, `bcd901a`)*
+  - [ ] More tilings — the 2 remaining (chiral, "pinwheel") semiregular uniform Euclidean tilings: snub
+    square (3.3.4.3.4), snub hexagonal (3.3.3.3.6) — these have a left/right handedness, a different
+    construction from the rest (verified between)
+  - [ ] Investigate the **expanded** uniform-tiling list
+    (https://en.wikipedia.org/wiki/Uniform_tiling#Expanded_lists_of_uniform_tilings) for cool tilings to add
+    beyond the 11 convex uniform + kalleboda (k-uniform, non-edge-to-edge, star/zero-angle forms, etc.) —
+    pick favourites with the owner before building
   - [ ] Tile numbering as a canvas control — user-selectable scheme/origin (debug view currently numbers by generation order)
   - [ ] Visualise edge numbering + opposite edges for the user — show each tile's clockwise-from-top edge numbers and which edges are opposite (engine support exists: `clockwiseEdgeOrder`, `opposite`)
 - [ ] **Port the static coloring DSL** *(§5)*
