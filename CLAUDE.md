@@ -351,6 +351,18 @@ every command: `$env:Path = 'C:\Program Files\nodejs;' + $env:Path; npx.cmd vite
 Vite through `node.exe` directly on **port 5174**, dodging the npm-shim policy. Don't launch the dev
 server through Bash.
 
+**Phone tunnel (develop on the go).** This network **blocks `trycloudflare.com`** — `cloudflared
+tunnel --url …` fails with `context deadline exceeded` because TCP 443 to `api.trycloudflare.com` is
+dropped (ping/DNS resolve fine, so it *looks* like it should work; it won't). Don't retry cloudflared
+here. **`loca.lt` and `ngrok` endpoints ARE reachable** — use **localtunnel**: in a terminal *the owner
+keeps open* (with the dev server up on 5173), `npx.cmd localtunnel --port 5173 --subdomain exploroboros`
+→ `https://exploroboros.loca.lt` (drop `--subdomain` for a random URL if it's taken). The loca.lt
+reminder page's password is the dev machine's **public IPv4**. Two gotchas: (1) `vite.config.ts` needs
+`server: { allowedHosts: true }` or Vite returns "Blocked request" for the tunnel's Host header (added
+2026-06-27); (2) **never launch the tunnel as a tool background process** — it prints its URL then exits
+0 on stdio EOF within seconds; it must run in a real, persistent terminal. ngrok (free signup + authtoken)
+is the sturdier backup if loca.lt gets flaky.
+
 **After deleting/renaming a component:** Vite keeps the old module in its HMR graph and spams
 `[vite] Failed to reload <file>` errors (the page may error too). Hard-reload the page; if it
 persists, **stop + start the dev server** to clear the module graph and console buffer. The
