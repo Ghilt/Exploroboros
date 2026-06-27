@@ -14,6 +14,8 @@ import {
   truncatedHexagonalTiling,
   rhombitrihexagonalTiling,
   truncatedTrihexagonalTiling,
+  snubSquareTiling,
+  snubHexagonalTiling,
 } from '../tiling'
 
 export function buildTiling(tilingId: string, n: number): Tiling {
@@ -37,6 +39,10 @@ export function buildTiling(tilingId: string, n: number): Tiling {
       return rhombitrihexagonalTiling(count)
     case 'truncated-trihexagonal':
       return truncatedTrihexagonalTiling(count)
+    case 'snub-square':
+      return snubSquareTiling(count)
+    case 'snub-hexagonal':
+      return snubHexagonalTiling(count)
     case 'square':
     default:
       return squareTiling(count, count)

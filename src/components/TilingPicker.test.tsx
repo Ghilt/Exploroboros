@@ -38,12 +38,20 @@ describe('TilingPicker', () => {
     expect(onChange).toHaveBeenCalledWith('kalleboda')
   })
 
-  it('a not-yet-built tiling is present but disabled', () => {
-    render(<TilingPicker value="square" onChange={() => {}} />)
+  it('every tiling is selectable — the snubs (last to be built) are enabled and report', () => {
+    const onChange = vi.fn()
+    render(<TilingPicker value="square" onChange={onChange} />)
     fireEvent.click(screen.getByRole('button'))
+    const dialog = screen.getByRole('dialog')
+    // No card is left disabled now that the whole target set has generators.
+    const cards = within(dialog)
+      .getAllByRole('button')
+      .filter((b) => b.className.includes('tiling-card'))
+    expect(cards.length).toBeGreaterThan(0)
+    expect(cards.every((b) => !(b as HTMLButtonElement).disabled)).toBe(true)
     // exact text avoids matching "Snub Hexagonal"
-    const card = within(screen.getByRole('dialog')).getByText('Snub Square').closest('button')
-    expect(card?.disabled).toBe(true)
+    fireEvent.click(within(dialog).getByText('Snub Square'))
+    expect(onChange).toHaveBeenCalledWith('snub-square')
   })
 
   it('closes on Escape and on backdrop click', () => {

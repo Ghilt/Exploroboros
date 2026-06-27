@@ -8,19 +8,26 @@ describe('tiling catalog', () => {
     expect(TILINGS.length).toBeGreaterThanOrEqual(9)
   })
 
-  it('square and kalleboda are ready, with planned tilings still listed', () => {
+  it('every catalog tiling is ready — all 11 uniform tilings + kalleboda have generators', () => {
     const ready = TILINGS.filter((t) => t.status === 'ready').map((t) => t.id)
-    expect(ready).toContain('square')
-    expect(ready).toContain('kalleboda')
-    expect(ready).toContain('triangular')
-    expect(ready).toContain('hexagonal')
-    expect(ready).toContain('truncated-square')
-    expect(ready).toContain('trihexagonal')
-    expect(ready).toContain('elongated-triangular')
-    expect(ready).toContain('truncated-hexagonal')
-    expect(ready).toContain('rhombitrihexagonal')
-    expect(ready).toContain('truncated-trihexagonal')
-    expect(TILINGS.some((t) => t.status === 'planned')).toBe(true)
+    for (const id of [
+      'square',
+      'kalleboda',
+      'triangular',
+      'hexagonal',
+      'truncated-square',
+      'trihexagonal',
+      'elongated-triangular',
+      'truncated-hexagonal',
+      'rhombitrihexagonal',
+      'truncated-trihexagonal',
+      'snub-square',
+      'snub-hexagonal',
+    ]) {
+      expect(ready).toContain(id)
+    }
+    // The whole target set is built — nothing left as a planned/preview placeholder.
+    expect(ready.length).toBe(TILINGS.length)
   })
 
   it('looks up entries by id', () => {
