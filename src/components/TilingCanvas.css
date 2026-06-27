@@ -3,7 +3,8 @@
   width: 100%;
   height: 100%;
   display: block;
-  cursor: grab;
+  /* Drag paints; tap inspects. Pan is two-finger (touch) / middle-drag (mouse). */
+  cursor: crosshair;
   /* The browser must not steal one-finger drags / pinch for scroll+zoom, or pan/paint
      won't work on touch. Also stop long-press text selection on the stage. */
   touch-action: none;

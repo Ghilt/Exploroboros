@@ -37,11 +37,10 @@ describe('Workspace', () => {
     expect(screen.getByRole('button', { name: /expand coloring/i })).toBeTruthy()
   })
 
-  it('offers the tiling picker, mode toggle, and grid-size control', () => {
+  it('offers the tiling picker, the paint chip, and the grid-size control', () => {
     render(<Workspace />)
     expect(screen.getByRole('button', { name: /square/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Inspect' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Paint' })).toBeTruthy()
+    expect(screen.getByText(/paint: visited/i)).toBeTruthy()
     expect(screen.getByRole('slider', { name: /grid size/i })).toBeTruthy()
   })
 

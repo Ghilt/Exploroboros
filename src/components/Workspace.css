@@ -30,28 +30,16 @@
   row-gap: 0.4rem;
 }
 
-/* Inspect | Paint segmented toggle */
-.mode-toggle {
-  display: inline-flex;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-.mode-toggle button {
+/* Passive chip naming what a drag paints (other attributes come later) */
+.canvas-chip {
   font-family: var(--mono);
-  font-size: 0.75rem;
-  padding: 0.25rem 0.6rem;
-  border: none;
-  background: var(--surface);
+  font-size: 0.72rem;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
   color: var(--muted);
-  cursor: pointer;
-}
-.mode-toggle button + button {
-  border-left: 1px solid var(--line);
-}
-.mode-toggle button.is-active {
-  background: var(--accent);
-  color: #fff;
+  white-space: nowrap;
 }
 
 /* Grid-size slider with an N×N label */

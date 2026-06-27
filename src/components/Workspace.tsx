@@ -8,8 +8,6 @@ import { TilingCanvas } from './TilingCanvas'
 import { TilingPicker } from './TilingPicker'
 import { Panel } from './Panel'
 
-type Mode = 'inspect' | 'paint'
-
 const GRID_MIN = 10
 const GRID_MAX = 140
 
@@ -21,7 +19,6 @@ export function Workspace() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [visited, setVisited] = useState<ReadonlyMap<string, number>>(() => new Map())
   const [showNumbers, setShowNumbers] = useState(false)
-  const [mode, setMode] = useState<Mode>('inspect')
   // Copied tile attributes (today: the visited count), pasteable onto a same-shape tile.
   const [clip, setClip] = useState<TileClip | null>(null)
   // Bumped to ask the canvas to re-frame the whole tiling (Fit button).
@@ -126,24 +123,9 @@ export function Workspace() {
           <span className="panel-title">Canvas</span>
           <div className="canvas-tools">
             <TilingPicker value={tilingId} onChange={setTilingId} />
-            <div className="mode-toggle" role="group" aria-label="interaction mode">
-              <button
-                type="button"
-                className={mode === 'inspect' ? 'is-active' : ''}
-                aria-pressed={mode === 'inspect'}
-                onClick={() => setMode('inspect')}
-              >
-                Inspect
-              </button>
-              <button
-                type="button"
-                className={mode === 'paint' ? 'is-active' : ''}
-                aria-pressed={mode === 'paint'}
-                onClick={() => setMode('paint')}
-              >
-                Paint
-              </button>
-            </div>
+            <span className="canvas-chip" title="Drag paints the visited count (other attributes later)">
+              paint: visited
+            </span>
             <label className="canvas-grid" title="Grid size — tiles = N × N">
               <span className="canvas-grid-label">
                 {gridInput}×{gridInput}
@@ -174,7 +156,6 @@ export function Workspace() {
         <div className="canvas-stage">
           <TilingCanvas
             tiling={tiling}
-            mode={mode}
             showNumbers={showNumbers}
             selectedId={selectedId}
             visited={visited}

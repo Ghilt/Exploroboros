@@ -214,6 +214,9 @@ in-session task tracker.
     Ctrl/Cmd+C / +V copy-paste of tile attributes (mobile Copy/Paste buttons + clipboard readout), a Fit
     button, and a grid-size slider with a tile-count + FPS HUD to find the rendering ceiling. Konva renderer
     (§3/§4.1) with pure tested helpers in `src/canvas/` *(verified 2026-06-27, `19c337d`)*
+  - [ ] Paint other attributes — a drag currently paints the **visited count** (shown by a passive
+    "paint: visited" chip); let the user choose what a drag paints (e.g. colours, traverser seeds) once
+    those land. Turn the chip into a picker then.
   - [ ] More tilings — the 11 uniform Euclidean tilings + the octagon+wedge (needs a collinear-overlap matcher)
   - [ ] Tile numbering as a canvas control — user-selectable scheme/origin (debug view currently numbers by generation order)
   - [ ] Visualise edge numbering + opposite edges for the user — show each tile's clockwise-from-top edge numbers and which edges are opposite (engine support exists: `clockwiseEdgeOrder`, `opposite`)
@@ -231,16 +234,17 @@ Hard-won; read before fighting the tooling again.
 - `src/tiling/` — the pure, isomorphic engine (no React/DOM/canvas, no pixels). `types.ts`,
   `geometry.ts`, `shapes.ts`, `stitch.ts` (the shared edge-detection step), `graph.ts` (queries),
   `generators/` (one per tiling). Public API via `src/tiling/index.ts` — import from there.
-- `src/components/TilingCanvas.tsx` — the **live** interactive Konva renderer (zoom/pan/paint/
-  select); the ONLY file that imports `konva`/`react-konva`. `src/canvas/` holds its pure, tested
-  helpers — `view.ts` (world↔screen transform), `pick.ts` (hit-testing), `stroke.ts` (paint
-  gap-fill), `clipboard.ts`, `buildTiling.ts` — imported via `src/canvas/index.ts`.
+- `src/components/TilingCanvas.tsx` — the **live** interactive Konva renderer; the ONLY file that
+  imports `konva`/`react-konva`. **Interaction (no modes):** tap = inspect a tile, drag = paint the
+  visited overlay, two-finger (touch) / middle-mouse drag = pan, pinch / wheel = zoom. `src/canvas/`
+  holds its pure, tested helpers — `view.ts` (world↔screen transform), `pick.ts` (hit-testing),
+  `stroke.ts` (paint gap-fill), `clipboard.ts`, `buildTiling.ts` — imported via `src/canvas/index.ts`.
 - `src/components/TilingDebugView.tsx` — the original SVG renderer, now a dependency-free **tested
   reference** (not mounted in the app). Safe to delete once the Konva canvas is owner-verified.
 - `src/components/Workspace.tsx` — the Canvas-page multi-pane workspace (canvas + Inspect /
   Traversers / Coloring docks); **builds the `Tiling`** from the picker `tilingId` + grid-size, and
-  owns selection, mode (inspect/paint), the per-tile **visited** overlay, and the copy/paste
-  clipboard (all kept off the immutable `Tiling`, keyed by tile id).
+  owns selection, the per-tile **visited** overlay, and the copy/paste clipboard (all kept off the
+  immutable `Tiling`, keyed by tile id).
 - `src/components/Panel.tsx` — reusable collapsible dock panel (collapses to a thin rail).
 - Edge numbering has **two layers**: internal **local CCW side index** (geometry/winding) vs the
   user-facing **clockwise-from-top** number (`clockwiseEdgeOrder`). Don't conflate them.

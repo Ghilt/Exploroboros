@@ -54,7 +54,6 @@ const FALLBACK: Palette = {
 
 type Props = {
   tiling: Tiling
-  mode?: 'inspect' | 'paint'
   showNumbers?: boolean
   selectedId?: string | null
   visited?: ReadonlyMap<string, number>
@@ -67,7 +66,6 @@ type Props = {
 
 export function TilingCanvas({
   tiling,
-  mode = 'inspect',
   showNumbers = false,
   selectedId = null,
   visited,
@@ -95,8 +93,6 @@ export function TilingCanvas({
   onSelectRef.current = onSelect
   const onPaintRef = useRef(onPaint)
   onPaintRef.current = onPaint
-  const modeRef = useRef(mode)
-  modeRef.current = mode
 
   const redraw = () => {
     tilesLayerRef.current?.batchDraw()
@@ -170,11 +166,6 @@ export function TilingCanvas({
     redraw()
   }, [size, tiling, fitSignal])
 
-  // Cursor reflects the mode: crosshair to paint, grab to pan/select.
-  useEffect(() => {
-    if (hostRef.current) hostRef.current.style.cursor = mode === 'paint' ? 'crosshair' : 'grab'
-  }, [mode])
-
   // Lightweight FPS meter for the grid-size lag probe — frame cadence dips when redraws get heavy.
   useEffect(() => {
     let raf = 0
@@ -193,9 +184,9 @@ export function TilingCanvas({
     return () => cancelAnimationFrame(raf)
   }, [])
 
-  // Pointer interaction. Inspect mode: tap selects, one-finger drag pans. Paint mode: tap/drag
-  // paints the visited overlay. Both: two-finger pinch+pan, wheel zoom-to-cursor. Attached once;
-  // reads mirrored refs; torn down on unmount (StrictMode-safe).
+  // Pointer interaction (no modes): tap a tile to inspect it, drag to paint the visited overlay,
+  // two-finger drag (touch) or middle-mouse drag (desktop) to pan, pinch / wheel to zoom. Attached
+  // once; reads mirrored refs; torn down on unmount (StrictMode-safe).
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
@@ -204,8 +195,9 @@ export function TilingCanvas({
     let pinchLast: number | null = null
     let centerLast: Vec2 | null = null
     let downAt: Vec2 | null = null // start of the current single-pointer gesture
-    let moved = false // crossed the slop -> a drag, not a tap
+    let moved = false // crossed the slop -> a paint drag, not a tap
     let pinched = false // became two-finger -> never a tap
+    let middlePan = false // middle-mouse drag -> pan, never a tap/paint
     let strokePainted: Set<string> | null = null // tiles painted this stroke (dedupe)
     let lastPaintWorld: Vec2 | null = null
 
@@ -218,7 +210,6 @@ export function TilingCanvas({
       userMovedRef.current = true
       redraw()
     }
-    const restCursor = () => (modeRef.current === 'paint' ? 'crosshair' : 'grab')
     // Paint every tile from the last paint point to `toWorld`, deduped within the stroke.
     const paintTo = (toWorld: Vec2) => {
       if (!strokePainted) return
@@ -248,27 +239,33 @@ export function TilingCanvas({
       }
       pointers.set(e.pointerId, local(e))
       const vals = [...pointers.values()]
-      if (vals.length === 1) {
-        panLast = vals[0]
-        pinchLast = null
-        downAt = vals[0]
-        moved = false
-        pinched = false
-        if (modeRef.current === 'paint') {
-          strokePainted = new Set()
-          lastPaintWorld = null
-          paintTo(screenToWorld(vals[0], viewRef.current))
-        }
-      } else if (vals.length === 2) {
-        // a second finger ends any paint stroke and starts a pinch+pan
+      if (vals.length === 2) {
+        // a second finger ends any paint stroke and starts a pinch + pan
         strokePainted = null
         lastPaintWorld = null
+        downAt = null
+        moved = false
         panLast = null
         pinched = true
         pinchLast = dist(vals[0], vals[1])
         centerLast = { x: (vals[0].x + vals[1].x) / 2, y: (vals[0].y + vals[1].y) / 2 }
+        host.style.cursor = 'grabbing'
+        return
       }
-      host.style.cursor = modeRef.current === 'paint' ? 'crosshair' : 'grabbing'
+      if (e.button === 1) {
+        // middle-mouse drag pans (left-drag is reserved for painting)
+        middlePan = true
+        panLast = local(e)
+        host.style.cursor = 'grabbing'
+        return
+      }
+      // left button / single touch — tap vs paint decided on move/up
+      downAt = local(e)
+      moved = false
+      pinched = false
+      middlePan = false
+      strokePainted = null
+      lastPaintWorld = null
     }
     const onMove = (e: PointerEvent) => {
       if (!pointers.has(e.pointerId)) return
@@ -288,31 +285,32 @@ export function TilingCanvas({
         centerLast = center
         return
       }
-      if (modeRef.current === 'paint') {
-        if (strokePainted) {
-          moved = true
-          paintTo(screenToWorld(p, viewRef.current))
-        }
+      if (middlePan && panLast) {
+        apply(panBy(viewRef.current, p.x - panLast.x, p.y - panLast.y))
+        panLast = p
         return
       }
-      // inspect: a one-finger drag pans once it crosses the slop
-      if (!panLast) return
+      // single pointer: a drag past the slop becomes a paint stroke (a tap stays a select)
+      if (!downAt) return
       const slop = e.pointerType === 'touch' ? 12 : 6
       if (!moved) {
-        if (downAt && dist(p, downAt) > slop) {
+        if (dist(p, downAt) > slop) {
           moved = true
-          panLast = p // begin panning from here so there's no jump
+          strokePainted = new Set()
+          lastPaintWorld = null
+          paintTo(screenToWorld(downAt, viewRef.current)) // the tile the drag started on
+          paintTo(screenToWorld(p, viewRef.current)) // fill the gap to here
         }
         return
       }
-      apply(panBy(viewRef.current, p.x - panLast.x, p.y - panLast.y))
-      panLast = p
+      paintTo(screenToWorld(p, viewRef.current))
     }
     const onUp = (e: PointerEvent) => {
       pointers.delete(e.pointerId)
       const vals = [...pointers.values()]
       if (vals.length === 0) {
-        if (modeRef.current === 'inspect' && !pinched && !moved && downAt) {
+        if (!pinched && !middlePan && !moved && downAt) {
+          // a tap selects the tile under the press
           const id = pickTile(tilingRef.current, screenToWorld(downAt, viewRef.current))
           if (id) onSelectRef.current?.(id)
         }
@@ -322,9 +320,10 @@ export function TilingCanvas({
         downAt = null
         moved = false
         pinched = false
+        middlePan = false
         strokePainted = null
         lastPaintWorld = null
-        host.style.cursor = restCursor()
+        host.style.cursor = 'crosshair'
       } else if (vals.length === 1) {
         // dropped from a pinch to one finger: keep navigating, never a tap or paint
         panLast = vals[0]
