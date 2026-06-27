@@ -199,6 +199,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-27 | Display chip (edges / none / stats); stats labels engage across grid sizes (zoom to read on dense grids) | ✅ yes | owner reviewed the three display modes + the stats-label fix and approved | `ea86122` |
 | 2026-06-27 | Full-height desktop canvas page — intro header removed, canvas fills the viewport, no page scroll | ✅ yes | owner viewed the canvas filling the desktop viewport with no page-scroll and approved | `3b18e69` |
 | 2026-06-27 | Kalleboda (octagon + wedge) tiling — second selectable tiling | ✅ yes | owner approved the running tiling (select Kalleboda → gapless octagons + wedges; tap-select + drag-paint work on the concave tiles; light + dark desktop preview) | `6fd812e` |
+| 2026-06-27 | Reset button (clears the visited overlay; disabled when blank) | ✅ yes | owner painted, hit Reset, saw it clear and the button grey out; approved | `b51e1ae` |
 
 ## 8. Todo list (working backlog)
 
