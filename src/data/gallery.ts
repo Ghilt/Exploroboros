@@ -1,12 +1,12 @@
 import type { Recipe } from '../export'
-import { FAKE_RECIPES } from './galleryRecipes'
+import { GALLERY_RECIPES } from './galleryRecipes'
 
 export type GalleryItem = {
   id: string
   src: string
   title: string
-  // The setup that "opening" this image loads into the canvas. Fake placeholders for now (see
-  // galleryRecipes.ts); real saved creations will carry their recipe in the PNG metadata.
+  // The real generation recipe for this image, keyed by filename in galleryRecipes.ts. Undefined for
+  // images not yet ported (they show as thumbnails but can't be opened until their recipe lands).
   recipe?: Recipe
 }
 
@@ -20,9 +20,12 @@ const modules = import.meta.glob('../assets/gallery/*.{png,jpg,jpeg,webp,gif,avi
   import: 'default',
 }) as Record<string, string>
 
+function fileOf(path: string): string {
+  return path.split('/').pop() ?? path
+}
+
 function labelFromPath(path: string): string {
-  const file = path.split('/').pop() ?? path
-  return file
+  return fileOf(path)
     .replace(/\.[^.]+$/, '')
     .replace(/[-_]+/g, ' ')
     .replace(/\b\w/g, (ch) => ch.toUpperCase())
@@ -31,12 +34,11 @@ function labelFromPath(path: string): string {
 
 export const GALLERY: ReadonlyArray<GalleryItem> = Object.entries(modules)
   .sort(([a], [b]) => a.localeCompare(b))
-  .map(([path, src], i) => ({
+  .map(([path, src]) => ({
     id: path,
     src,
     title: labelFromPath(path),
-    // Cycle the placeholder recipes across however many images are present.
-    recipe: FAKE_RECIPES.length > 0 ? FAKE_RECIPES[i % FAKE_RECIPES.length] : undefined,
+    recipe: GALLERY_RECIPES[fileOf(path)],
   }))
 
 // Fisher-Yates sample, used for the landing teaser's random pick.
