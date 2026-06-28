@@ -53,6 +53,8 @@ export type ColoringStore = {
   replace: (id: string, next: ColoringRule) => void
   remove: (id: string) => void
   reorder: (from: number, to: number) => void
+  // Replace the whole list — used when opening a saved creation (reopen-from-PNG / gallery).
+  setAll: (list: ReadonlyArray<ColoringRule>) => void
 }
 
 export function useColoringStore(): ColoringStore {
@@ -71,6 +73,7 @@ export function useColoringStore(): ColoringStore {
   const replace = useCallback((id: string, next: ColoringRule) => setRules((list) => withReplacedRule(list, id, next)), [])
   const remove = useCallback((id: string) => setRules((list) => withRemovedRule(list, id)), [])
   const reorder = useCallback((from: number, to: number) => setRules((list) => withReordered(list, from, to)), [])
+  const setAll = useCallback((list: ReadonlyArray<ColoringRule>) => setRules([...list]), [])
 
-  return { rules, persistOk, add, replace, remove, reorder }
+  return { rules, persistOk, add, replace, remove, reorder, setAll }
 }

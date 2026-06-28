@@ -3,6 +3,16 @@
 }
 .thumb-link {
   display: block;
+  width: 100%;
+  /* Reset so a <button> variant matches the <a> variant exactly. */
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
 }
 
 .thumb-media {

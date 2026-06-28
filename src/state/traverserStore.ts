@@ -59,6 +59,8 @@ export type TraverserStore = {
   setText: (id: string, text: string) => void
   rename: (id: string, name: string) => void
   remove: (id: string) => void
+  // Replace the whole list — used when opening a saved creation (reopen-from-PNG / gallery).
+  setAll: (list: ReadonlyArray<StoredTraverser>) => void
 }
 
 export function useTraverserStore(): TraverserStore {
@@ -78,6 +80,7 @@ export function useTraverserStore(): TraverserStore {
   const setText = useCallback((id: string, text: string) => setTraversers((list) => withSetText(list, id, text)), [])
   const rename = useCallback((id: string, name: string) => setTraversers((list) => withRenamed(list, id, name)), [])
   const remove = useCallback((id: string) => setTraversers((list) => withRemoved(list, id)), [])
+  const setAll = useCallback((list: ReadonlyArray<StoredTraverser>) => setTraversers([...list]), [])
 
-  return { traversers, persistOk, add, setText, rename, remove }
+  return { traversers, persistOk, add, setText, rename, remove, setAll }
 }

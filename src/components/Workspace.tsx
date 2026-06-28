@@ -1,5 +1,5 @@
 import './Workspace.css'
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import type { Tiling, TileNode } from '../tiling'
 import { nodeById, neighborEdges, uniqueNeighbors } from '../tiling'
 import {
@@ -37,7 +37,8 @@ import { useColoringStore } from '../state/coloringStore'
 import { colorize } from '../colorizer'
 import { downloadBlob, exportFilename } from '../export/download'
 import type { ExportOutcome } from '../export/exportImage'
-import type { Recipe } from '../export'
+import { remapSeeds, remapPaint, parseRecipe, decodeRecipeFromPng, type Recipe } from '../export'
+import { takePendingRecipe } from '../state/pendingRecipe'
 import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
 
 const GRID_MIN = 10
@@ -132,6 +133,9 @@ export function Workspace() {
   const [exports, setExports] = useState<ExportItem[]>([])
   const [viewingId, setViewingId] = useState<string | null>(null)
   const exportSeq = useRef(0)
+  // Drag-and-drop of an exported PNG onto the canvas to reopen it; `dropNote` is a transient result toast.
+  const [dropActive, setDropActive] = useState(false)
+  const [dropNote, setDropNote] = useState<string | null>(null)
 
   // Built here from the picker choice + grid size (CLAUDE.md §4.3). Only the square has a
   // generator today; buildTiling falls back to it for any other id.
@@ -248,6 +252,77 @@ export function Workspace() {
       }
     }
   }, [])
+
+  // ---- reopen a saved creation (gallery click / dropped PNG) ----
+  // REPLACES the current canvas setup with the recipe's: tiling, grid, walkers, hand-paint, and the
+  // predicate/traverser/coloring library. The recipe's (possibly huge) export grid is clamped to an
+  // explorable size for editing — re-pick the big grid at export time. Walkers + paint are placed by
+  // their portable centre-offsets (remap.ts), so they land analogously on this grid.
+  const loadRecipe = (recipe: Recipe) => {
+    setRunning(false)
+    setRunLive(null)
+    setStep(0)
+    setSelectedIds([])
+    setViewingId(null)
+    const editGrid = Math.max(GRID_MIN, Math.min(GRID_MAX, Math.round(recipe.gridN)))
+    setTilingId(recipe.tilingId)
+    setGridInput(editGrid)
+    setGridN(editGrid)
+    const t = buildTiling(recipe.tilingId, editGrid)
+    setSeeds(remapSeeds(recipe.seeds, t))
+    setOverlay(remapPaint(recipe.paint, t))
+    predicateStore.setAll(recipe.predicates)
+    traverserStore.setAll(recipe.traversers)
+    coloringStore.setAll(recipe.coloringRules)
+    setFitNonce((n) => n + 1)
+  }
+  // A ref keeps the mount effect + drop handler calling the latest loadRecipe without re-subscribing.
+  const loadRecipeRef = useRef(loadRecipe)
+  loadRecipeRef.current = loadRecipe
+
+  // On mount, apply a recipe handed off from the gallery ("open in canvas"). One-shot.
+  useEffect(() => {
+    const r = takePendingRecipe()
+    if (r) loadRecipeRef.current(r)
+  }, [])
+
+  // Drag an exported PNG onto the canvas to reopen it (the real reopen-from-PNG path; the gallery uses
+  // in-memory recipes). Reads the embedded recipe, validates/migrates it, and loads it.
+  const onCanvasDragOver = (e: DragEvent<HTMLDivElement>) => {
+    if (e.dataTransfer.types.includes('Files')) {
+      e.preventDefault()
+      if (!dropActive) setDropActive(true)
+    }
+  }
+  const onCanvasDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    if (e.currentTarget === e.target) setDropActive(false)
+  }
+  const onCanvasDrop = async (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setDropActive(false)
+    const file = e.dataTransfer.files?.[0]
+    if (!file) return
+    let note: string
+    try {
+      const buf = new Uint8Array(await file.arrayBuffer())
+      const json = decodeRecipeFromPng(buf)
+      if (!json) {
+        note = 'No Exploroboros data in that image.'
+      } else {
+        const res = parseRecipe(json)
+        if (res.ok) {
+          loadRecipeRef.current(res.recipe)
+          note = `Opened — ${res.recipe.tilingId}, grid ${res.recipe.gridN}`
+        } else {
+          note = res.reason === 'too-new' ? 'Made with a newer version — update to open.' : 'That image’s data could not be read.'
+        }
+      }
+    } catch {
+      note = 'Could not read that file.'
+    }
+    setDropNote(note)
+    window.setTimeout(() => setDropNote(null), 4000)
+  }
 
   // The clock. A reassigned ref keeps the interval calling the LATEST state each tick (the
   // copyRef/pasteRef pattern below), so listeners attach once yet never read stale state. The tick
@@ -573,7 +648,7 @@ export function Workspace() {
       </Panel>
 
       <div className="canvas-pane">
-        <div className="canvas-stage">
+        <div className="canvas-stage" onDragOver={onCanvasDragOver} onDragLeave={onCanvasDragLeave} onDrop={onCanvasDrop}>
           {viewing ? (
             <ImageViewer src={viewing.fullUrl} />
           ) : (
@@ -601,6 +676,8 @@ export function Workspace() {
             onDownload={(item) => downloadBlob(item.full, item.filename)}
             onRemove={removeExport}
           />
+          {dropActive && <div className="canvas-drop-overlay">Drop an exported PNG to open it</div>}
+          {dropNote && <div className="canvas-drop-note">{dropNote}</div>}
         </div>
       </div>
 

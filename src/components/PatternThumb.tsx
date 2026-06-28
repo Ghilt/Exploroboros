@@ -7,9 +7,11 @@ type Props = {
   blurb?: string
   /** When set, the whole thumbnail becomes a link (e.g. into the gallery). */
   href?: string
+  /** When set, the thumbnail becomes a button that runs this (e.g. open the creation in the canvas). */
+  onOpen?: () => void
 }
 
-export function PatternThumb({ src, title, blurb, href }: Props) {
+export function PatternThumb({ src, title, blurb, href, onOpen }: Props) {
   const [failed, setFailed] = useState(false)
 
   const media = failed ? (
@@ -39,7 +41,11 @@ export function PatternThumb({ src, title, blurb, href }: Props) {
 
   return (
     <figure className="thumb">
-      {href ? (
+      {onOpen ? (
+        <button type="button" className="thumb-link" onClick={onOpen} title={`Open “${title}” in the canvas`}>
+          {inner}
+        </button>
+      ) : href ? (
         <a className="thumb-link" href={href}>
           {inner}
         </a>

@@ -219,9 +219,16 @@ still needed into this doc **before** then; do not rely on the path persisting.
   migration chain** so a future build can still read today's images (and refuses an image from a *newer* build
   rather than misreading it) — see §9. Pure core + tests in `src/export/`; no new deps (§3/§4.2). Also fixed:
   tiles render **flush** when edges are off (the white anti-alias seam), in both the export and the live canvas.
+- **Reopen from PNG (built 2026-06-28, pending owner verification):** a saved creation's recipe loads back
+  into the canvas. Two entry points: **click a gallery image** (the gallery carries placeholder recipes for
+  now — `src/data/galleryRecipes.ts`), or **drag an exported PNG onto the canvas** (decodes the embedded
+  recipe). `Workspace.loadRecipe` REPLACES the setup — tiling, grid (the big export grid clamped to an
+  explorable size for editing), walkers + hand-paint (placed by their portable centre-offsets), and the
+  predicate/traverser/coloring library (the stores gained `setAll`). The gallery hands off via
+  `src/state/pendingRecipe.ts`; the Workspace consumes it on mount. *Known follow-up:* the original export
+  resolution isn't preserved into the export menu after reopen (re-pick it).
 - **Next up:** **DSL-driven traversers** (custom rules in the Traversers pane — paint/move/visit/split/guards/
-  state, §5; reuses the predicate DSL) → **reopen from PNG** (drag a saved image in / click a gallery image →
-  parse the embedded recipe → restore the canvas; the export side already embeds it) → **deploy** to Vercel.
+  state, §5; reuses the predicate DSL) → **persist user exports across reloads** (IndexedDB) → **deploy** to Vercel.
 
 ## 7. Verifying on a phone + verification log
 
@@ -343,10 +350,19 @@ in-session task tracker.
   recipe (migration chain; refuses newer-than-this-build images). Flush no-edge tiles in export + live canvas.
   - [ ] **Paint traverser seeds** — once **named traversers** can be placed by drag, add them (and colours)
     to the export menu / drag popup if useful (carried over from the paint-target item above).
-- [ ] **Reopen from PNG** *(fast-follow of image export)* — drag a saved PNG onto the canvas / click a gallery
-  image → `parseRecipe(decodeRecipeFromPng(...))` → restore tiling / grid / seeds / predicates / traversers /
-  coloring and continue. The export side already embeds the recipe (`src/export/recipe.ts`, `parseRecipe` +
-  `decodeRecipeFromPng` exist + tested); this is the import/restore UI.
+- [ ] **Reopen from PNG** *(built 2026-06-28, pending owner verification)* — `Workspace.loadRecipe(recipe)`
+  REPLACES the canvas setup from a recipe: tiling, grid (export grid clamped to ≤ `GRID_MAX` for editing),
+  walkers + hand-paint (via `remapSeeds`/`remapPaint` centre-offsets), and the three stores (new `setAll`).
+  Entry points: **gallery click** (placeholder recipes in `src/data/galleryRecipes.ts`, handed off via
+  `src/state/pendingRecipe.ts`, consumed by the Workspace mount effect) and **drag an exported PNG onto the
+  canvas** (`decodeRecipeFromPng` → `parseRecipe` → `loadRecipe`, with a result toast). Verified in-browser
+  (gallery open switches tiling + loads seeds/stores; PNG drop round-trips an export). Build / lint / 397
+  src tests pass.
+  - [ ] **Preserve the export resolution on reopen** — a reopened recipe's original export grid isn't fed
+    back into the export menu (its `gridN` seeds from the live/edit grid). Carry `recipe.gridN` as an export-
+    grid hint so re-exporting matches the original size without re-typing it.
+  - [ ] **Real gallery** — replace the placeholder recipes with actual saved exports (their recipes ride in
+    the PNG metadata); persist across reloads (IndexedDB) + a "watch it grow" replay.
 - [ ] **Deploy to Vercel**
 
 ## 9. Dev loop & operational notes (gotchas)
@@ -451,8 +467,14 @@ Hard-won; read before fighting the tooling again.
     with `reason: 'too-new'` (the reopen UI should say "update the app") — never strict-equality-reject an old
     image. Today's exports are `schemaVersion: 1`; the migration list is empty until the first bump.
 - `src/state/` — localStorage-backed stores: `predicateStore.ts` (custom predicates as DSL text +
-  name), `coloringStore.ts` (the ordered rules, key `…:coloring:v2`), `persist.ts` (SSR/quota-safe
-  load/save + `newId`). Pure list updaters are unit-tested; the hooks wire them to persistence.
+  name), `coloringStore.ts` (the ordered rules, key `…:coloring:v2`), `traverserStore.ts`, `persist.ts`
+  (SSR/quota-safe load/save + `newId`). Pure list updaters are unit-tested; the hooks wire them to
+  persistence. Each store has a **`setAll`** (replace the whole list — used by reopen). `pendingRecipe.ts`
+  is the one-shot gallery→canvas handoff: the gallery stashes a `Recipe`, the Workspace consumes it on mount.
+- `src/data/galleryRecipes.ts` — placeholder `Recipe`s attached to the gallery images so clicking one opens a
+  ready setup (fake for now; real saved creations will carry their recipe in the PNG). `Workspace.loadRecipe`
+  applies a recipe (tiling/grid/seeds/paint + the three stores' `setAll`); the canvas-stage also accepts a
+  dragged exported PNG (`decodeRecipeFromPng` → `parseRecipe` → `loadRecipe`).
 - `src/components/{PredicatePane,ColoringPane,ColorField,ColorPicker,ReorderableList,TrashButton}.tsx`
   — the panes + their pieces. `ReorderableList` is a dependency-free pointer drag-reorder (touch+mouse);
   `ColorField` writes a coloring rule's colour as a readable sentence (a `+` turns one colour into a
@@ -507,6 +529,12 @@ overflow that does NOT happen on real phones (overlay scrollbars). Verify by lis
 **Tests:** no global test setup file, so `@testing-library/react` renders accumulate within a file;
 `screen.getBy*` then throws "multiple elements". Add `afterEach(cleanup)` in component tests that use
 `screen` (or scope queries to each render's `container`).
+
+**Hooks order under HMR.** Editing a hook-bearing module live (the `src/state` stores, or `Workspace.tsx`)
+can make React log "a change in the order of Hooks called by Workspace" — the HMR boundary compares a render
+under the old hook shape against one under the new shape. It's a dev-HMR artifact, not a real bug (the
+`build` compiles and a fresh load is silent): **stop + start the dev server** and reload to clear it. Only
+treat it as real if it survives a clean restart.
 
 **Konva + HMR ("Several Konva instances detected").** Editing the Konva-importing module
 (`TilingCanvas.tsx`) under Vite HMR reloads it repeatedly, so the page accumulates several Konva

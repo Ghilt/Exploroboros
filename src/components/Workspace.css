@@ -70,6 +70,39 @@
   overflow: hidden;
   background-image: repeating-linear-gradient(45deg, var(--motif) 0 2px, transparent 2px 24px);
 }
+/* Drag-an-exported-PNG-to-open affordance + result toast. */
+.canvas-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  pointer-events: none;
+}
+.canvas-drop-note {
+  position: absolute;
+  top: 0.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  max-width: calc(100% - 1.2rem);
+  padding: 0.35rem 0.7rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
 .canvas-tools {
   display: flex;
   align-items: center;

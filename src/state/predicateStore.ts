@@ -64,6 +64,8 @@ export type PredicateStore = {
   setText: (id: string, text: string) => void
   rename: (id: string, name: string) => void
   remove: (id: string) => void
+  // Replace the whole list — used when opening a saved creation (reopen-from-PNG / gallery).
+  setAll: (list: ReadonlyArray<StoredPredicate>) => void
 }
 
 export function usePredicateStore(): PredicateStore {
@@ -83,6 +85,7 @@ export function usePredicateStore(): PredicateStore {
   const setText = useCallback((id: string, text: string) => setPredicates((list) => withSetText(list, id, text)), [])
   const rename = useCallback((id: string, name: string) => setPredicates((list) => withRenamed(list, id, name)), [])
   const remove = useCallback((id: string) => setPredicates((list) => withRemoved(list, id)), [])
+  const setAll = useCallback((list: ReadonlyArray<StoredPredicate>) => setPredicates([...list]), [])
 
-  return { predicates, persistOk, add, setText, rename, remove }
+  return { predicates, persistOk, add, setText, rename, remove, setAll }
 }
