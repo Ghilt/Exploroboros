@@ -25,6 +25,7 @@ export {
   scaleAround,
   clockwiseFromTopKey,
 } from './geometry'
+export { tileOrientation, orientationMap } from './orientation'
 export { oppositeSides, interiorAngleDeg, makeShapeDef, SQUARE } from './shapes'
 export { stitch } from './stitch'
 export type { StitchOptions } from './stitch'

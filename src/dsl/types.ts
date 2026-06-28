@@ -30,6 +30,7 @@ export type AttrName =
   | 'edge-count'
   | 'tile-number'
   | 'rotation'
+  | 'orientation' // tiling-agnostic 0-based index of a tile's rotational variant within its shape
   | 'coordinate'
   | 'first-step'
   | 'latest-step'

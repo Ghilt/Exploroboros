@@ -1,7 +1,7 @@
 import './Workspace.css'
 import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import type { Tiling, TileNode } from '../tiling'
-import { nodeById, neighborEdges, uniqueNeighbors } from '../tiling'
+import { nodeById, neighborEdges, uniqueNeighbors, tileOrientation } from '../tiling'
 import {
   buildTiling,
   canPaste,
@@ -913,6 +913,8 @@ function InspectContent({
       <dl>
         <dt>tile type</dt>
         <dd className="tile-type-value">{node.shape}</dd>
+        <dt title="which rotational variant of its shape this tile is — the same index on any tiling, so traversers route on this rather than the per-tiling coordinates">orientation</dt>
+        <dd>{tileOrientation(tiling, node.id)}</dd>
         {tileStats(tiling, node).map((stat) => (
           <Fragment key={stat.label}>
             <dt>{stat.label}</dt>

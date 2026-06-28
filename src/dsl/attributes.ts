@@ -3,7 +3,7 @@
 // it to compute a tile's value. Adding an attribute is one AttrName union member + one row here.
 
 import type { Tiling, TileNode } from '../tiling'
-import { neighborEdges, tileRotationDeg, uniqueNeighbors } from '../tiling'
+import { neighborEdges, tileOrientation, tileRotationDeg, uniqueNeighbors } from '../tiling'
 import type { TileState } from '../canvas'
 import { tileState, visitCount } from '../canvas'
 import type { AttrName, AttrScope } from './types'
@@ -155,6 +155,16 @@ export const ATTRIBUTES: ReadonlyArray<AttrSpec> = [
     needsDefault: false,
     scopes: ['tile'],
     compute: (ctx) => tileRotationDeg(ctx.node.vertices, ctx.node.centroid),
+  },
+  {
+    // Tiling-agnostic rotational-variant index (wedges 0..3, up/down triangles 0/1, …) — the portable
+    // way to route by orientation without the tiling-specific `coordinate[slot]`. See src/tiling/orientation.ts.
+    name: 'orientation',
+    label: 'orientation',
+    indexed: false,
+    needsDefault: false,
+    scopes: ['tile'],
+    compute: (ctx) => tileOrientation(ctx.tiling, ctx.node.id),
   },
   {
     name: 'coordinate',
