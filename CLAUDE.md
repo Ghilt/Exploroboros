@@ -279,6 +279,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-28 | Inspect/canvas UX polish — tile type in Inspect; registries under an "advanced" collapsible; compact −0+ steppers; Copy/Paste above advanced; traverser subheading on its own line; wider panes (1:1:1:2); traverser head always drawn (any display mode), hides that tile's labels, now a solid black pointy triangle | ✅ yes | owner reviewed on this worktree's own preview (port 5175) across iterations and said "this is good, commit"; backed by build / lint / 402 tests + an injected-DOM measurement (no horizontal overflow in the 17rem Inspect dock) | `7c97c54` |
 | 2026-06-28 | Gallery — 23 prototype fractals ported to real recipes (traverser + colour ramps rescaled so they ring at our grid's tick scale; clicking an image reopens the real setup to regenerate in-tool and compare to the thumbnail); all gallery images slimmed to WebP (~174 → 21 MB) | ✅ yes | owner reopened a ported fractal + exported it on black and compared to the prototype thumbnail ("it looks good") — backed by build / lint / 402 tests incl. a headless run-to-completion grow check per recipe | `0d939f7` |
 | 2026-06-28 | Export background is the whole plane — unpainted tiles take the chosen background (transparent leaves them clear), instead of fixed-white tiles with the background showing only as a border | ✅ yes | owner exported on a black background, saw the fractal on solid black matching the prototype renders, said "it looks good" | `ac23bb9` |
+| 2026-06-28 | Visual language + component system — `docs/VISUAL-LANGUAGE.md`; reusable **SegmentedControl** (sliding indicator measured to the selected segment) / **Stepper** (single-digit −value+) / **Toggle** primitives; canvas top bar unified into ONE transport (play/pause/stop + speed segmented); speed & display are segmented controls (state shown, not cycling chips); tiling/drag/export menu triggers unified to one rounded-rect dropdown look (buttons no longer pills) with **Export moved rightmost**; Inspect steppers + placed-traverser controls + predicate Text/Visual + export edges toggle rebuilt on the primitives; design tokens (spacing, `--control-h`, radius ladder, elevation, state roles); fixed over-rounded "+ add rule"/"+ New" | ✅ yes | owner reviewed on this worktree's preview (port 5494) across iterations — flagged the segmented fill not aligning with the dividers (fixed: indicator measured to the selected segment's geometry) and the pill-shaped triggers (fixed: unified rounded-rect), then asked to move Export rightmost — and said "commit to master"; backed by build / lint / 411 tests (9 new primitive tests) + in-browser checks (uniform 1.9rem control heights, segments tile cleanly with the indicator matching the selection, the three triggers render identically) | `3147f4e` |
 
 ## 8. Todo list (working backlog)
 
@@ -340,6 +341,11 @@ in-session task tracker.
   dropdown w/ key accelerators; click an attribute → swap; inline number/shape edits), kept in sync with the
   text editor via serialize/parse. Structural add/group still done in Text mode — a possible follow-up
   *(verified 2026-06-27, `50f1aa0`)*
+- [x] **Visual language + component system** — `docs/VISUAL-LANGUAGE.md` (philosophy, tokens, shape/roundedness
+  rules, component library, good/bad) + reusable `SegmentedControl` / `Stepper` / `Toggle` primitives applied
+  across the app; canvas top bar unified into one transport, speed/display as segmented controls, menu triggers
+  unified (no pill buttons), Export moved rightmost; design tokens added to `index.css`
+  *(verified 2026-06-28, `3147f4e`)*
 - [ ] **Port the traverse engine** *(§5)* — reuses the predicate DSL
   - [x] Basic traverser + tick/run structure — pure `src/traverse/` engine (synchronous tick; a walker steps
     to the least-turn adjacent **unvisited** tile, re-aims, coalesces, auto-stops when trapped), Play/Pause/Stop
