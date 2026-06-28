@@ -77,3 +77,9 @@ function wrapPredRight(p: Pred, parentPrec: number): string {
 export function serialize(node: Pred): string {
   return predText(node).s
 }
+
+// Canonical text of a numeric expression — used by the traverser DSL to serialize `put`/`increase`
+// values. Same precedence rules as predicates so it round-trips through parseExpr.
+export function serializeExpr(node: Expr): string {
+  return exprText(node).s
+}

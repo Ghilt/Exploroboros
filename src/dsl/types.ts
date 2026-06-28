@@ -13,6 +13,11 @@ export type BoolOp = 'and' | 'or'
 // a tile; the parser validates names against it. `coordinate` and `step` are indexed (`coordinate[0]`,
 // `step[3]`); `coordinate`, `step`, `first-step`, `latest-step` may not exist for a tile and so
 // require a `default`.
+//
+// The last group is the TRAVERSER attributes — a walker's own state, read inside the traverser DSL's
+// formulas/guards (`steps`, `splits`, `heading` in degrees, and its registries `P`/`Q`/`R`). They
+// only have a value when a traverser is in the EvalContext; in a tile-only context (coloring) they
+// compute to 0, and the UI filters them out of the coloring/predicate menus (scope: 'traverser').
 export type AttrName =
   | 'visited'
   | 'adjacent-visited'
@@ -27,10 +32,18 @@ export type AttrName =
   | 'first-step'
   | 'latest-step'
   | 'step'
+  | 'steps'
+  | 'splits'
+  | 'heading'
+  | 'P'
+  | 'Q'
+  | 'R'
 
-// Where an attribute is read from. Only the current tile today; `neighbor`/`traverser` may join later
-// (the owner's canonical example is `<attribute> of tile == 4`), so the scope lives on the node now.
-export type AttrScope = 'tile'
+// Where an attribute is read from. Tile attributes read the tile under evaluation; `traverser`
+// attributes read the walker in the EvalContext (the traverser DSL). (`neighbor` reads are done by
+// the traverser DSL's `@ edge` decoration — by pointing the context's tile at the neighbour — not a
+// scope here.)
+export type AttrScope = 'tile' | 'traverser'
 
 // ---- numeric expressions ----
 export type NumberLit = { kind: 'number'; value: number }

@@ -18,7 +18,9 @@ export type TokenKind =
 export type Token = { kind: TokenKind; text: string; span: Span }
 
 const isDigit = (c: string) => c >= '0' && c <= '9'
-const isAlpha = (c: string) => c >= 'a' && c <= 'z'
+// Letters that may start/continue an identifier. Uppercase is allowed so the traverser registries
+// P/Q/R lex as identifiers (attribute names); tile attributes and shape names stay lowercase.
+const isAlpha = (c: string) => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 
 function fail(message: string, span: Span): Result<Token[]> {
   return { ok: false, error: { message, span } }

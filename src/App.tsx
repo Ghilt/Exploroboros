@@ -5,11 +5,13 @@ import { Footer } from './components/Footer'
 import { Landing } from './pages/Landing'
 import { Canvas } from './pages/Canvas'
 import { Gallery } from './pages/Gallery'
+import { Guide } from './pages/Guide'
 
 const PAGES = {
   landing: Landing,
   canvas: Canvas,
   gallery: Gallery,
+  guide: Guide,
 } as const
 
 function App() {

@@ -113,7 +113,7 @@ describe('Workspace', () => {
     const slider = () => screen.getByRole('slider', { name: /grid size/i }) as HTMLInputElement
     expect(slider().disabled).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
-    fireEvent.click(screen.getByRole('button', { name: /place traverser/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Place' }))
     fireEvent.click(screen.getByRole('button', { name: /^play/i }))
     expect(slider().disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: /^pause/i }))
@@ -241,18 +241,18 @@ describe('Workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
     // No walker yet -> the Place button is offered and Play is disabled.
     expect((screen.getByRole('button', { name: /^play/i }) as HTMLButtonElement).disabled).toBe(true)
-    fireEvent.click(screen.getByRole('button', { name: /place traverser/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Place' }))
     // Placement records no visit (the walk records visits); Play is enabled and aim controls replace Place.
     expect(container.querySelector('.visited-value')?.textContent).toBe('0')
     expect((screen.getByRole('button', { name: /^play/i }) as HTMLButtonElement).disabled).toBe(false)
     expect(screen.getByRole('button', { name: /rotate heading right/i })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: /place traverser/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Place' })).toBeNull()
   })
 
   it('Play marks the start tile; Stop restores the authored placement; only Reset removes it', () => {
     const { container } = render(<Workspace />)
     fireEvent.click(screen.getByRole('button', { name: 'sq:1,1' }))
-    fireEvent.click(screen.getByRole('button', { name: /place traverser/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Place' }))
     expect(container.querySelector('.visited-value')?.textContent).toBe('0')
 
     // Play seeds the start tile (step 0) and hands the walkers to the run (Inspect shows the note).
@@ -269,7 +269,7 @@ describe('Workspace', () => {
 
     // Only Reset removes the walker.
     fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
-    expect(screen.getByRole('button', { name: /place traverser/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Place' })).toBeTruthy()
     expect((screen.getByRole('button', { name: /^play/i }) as HTMLButtonElement).disabled).toBe(true)
   })
 

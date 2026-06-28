@@ -4,12 +4,13 @@ import { useSyncExternalStore } from 'react'
 // fragment like #/canvas, so static hosting (Vercel) needs no SPA rewrite.
 // Swap for a real router (e.g. react-router) if we later need nested routes,
 // the history API, or data loaders.
-export type Route = 'landing' | 'canvas' | 'gallery'
+export type Route = 'landing' | 'canvas' | 'gallery' | 'guide'
 
 const PATHS: Record<Route, string> = {
   landing: '#/',
   canvas: '#/canvas',
   gallery: '#/gallery',
+  guide: '#/guide',
 }
 
 export function hrefFor(route: Route): string {
@@ -20,6 +21,7 @@ function parse(hash: string): Route {
   const path = hash.replace(/^#\/?/, '').toLowerCase()
   if (path.startsWith('canvas')) return 'canvas'
   if (path.startsWith('gallery')) return 'gallery'
+  if (path.startsWith('guide')) return 'guide'
   return 'landing'
 }
 

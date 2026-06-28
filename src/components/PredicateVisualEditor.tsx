@@ -1,7 +1,7 @@
 import './PredicateVisualEditor.css'
 import { useMemo, useState, type ReactNode } from 'react'
 import {
-  ATTRIBUTES,
+  TILE_ATTRIBUTES,
   attrSpec,
   parsePredicate,
   replaceAt,
@@ -40,7 +40,7 @@ const SHAPE_OPS: ChipOption[] = [
   { id: '==', label: 'is', accel: '=' },
   { id: '!=', label: 'is not', accel: '!' },
 ]
-const ATTR_OPTIONS: ChipOption[] = ATTRIBUTES.map((a) => ({ id: a.name, label: a.label }))
+const ATTR_OPTIONS: ChipOption[] = TILE_ATTRIBUTES.map((a) => ({ id: a.name, label: a.label }))
 
 const OP_SYMBOL: Record<string, string> = {
   '+': '+',

@@ -1,7 +1,7 @@
 // Data model for coloring rules. Pure (no React/DOM) so the colorizer can live beside src/tiling and
 // run under Vitest/SSR; the React store in src/state imports these types.
 
-import { ATTRIBUTES, type AttrName } from '../dsl'
+import { TILE_ATTRIBUTES, type AttrName } from '../dsl'
 
 // A ramp fades across up to 5 colours, driven by a numeric tile attribute. Any attribute the DSL
 // exposes can drive it — including the step ones (first-step / latest-step / step[n]) and coordinates.
@@ -9,7 +9,7 @@ import { ATTRIBUTES, type AttrName } from '../dsl'
 // as 0. Modulo (the normal usage) wraps the value into a repeating cycle.
 export type RampAttr = AttrName
 
-export const RAMP_ATTRS: ReadonlyArray<RampAttr> = ATTRIBUTES.map((a) => a.name)
+export const RAMP_ATTRS: ReadonlyArray<RampAttr> = TILE_ATTRIBUTES.map((a) => a.name)
 
 export const MAX_RAMP_STOPS = 5
 

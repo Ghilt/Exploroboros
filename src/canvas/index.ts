@@ -5,7 +5,7 @@ export type { View, Size } from './view'
 export { worldToScreen, screenToWorld, clampScale, zoomAt, panBy, fitToView, clampView } from './view'
 export { pointInPolygon, representativeTileSize, SpatialHash, pickTile, tilesInRect } from './pick'
 export { tilesAlongSegment } from './stroke'
-export type { TileState, Registry, PaintTarget } from './overlay'
+export type { TileState, Registry, PaintTarget, RegWrite } from './overlay'
 export {
   EMPTY_TILE_STATE,
   MANUAL_STEP,
@@ -16,6 +16,7 @@ export {
   removeManualVisit,
   bumpRegistry,
   applyPaint,
+  applyRegistryWrites,
   addVisits,
   clearTraverserVisits,
   hasTraverserVisits,

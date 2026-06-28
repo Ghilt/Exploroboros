@@ -293,6 +293,23 @@
   text-transform: uppercase;
   color: var(--muted);
 }
+/* The definition picker + Place button sit on one row (wraps on a narrow dock). */
+.trav-place-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.trav-def {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--fg);
+  max-width: 9rem;
+}
 .trav-place {
   font-family: var(--mono);
   font-size: 0.78rem;

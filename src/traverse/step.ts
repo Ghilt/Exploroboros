@@ -1,14 +1,13 @@
-// The basic traverser + the synchronous tick. One hardcoded behaviour for now: a walker steps to
-// the adjacent UNVISITED tile that best continues its heading (least turn), then re-aims along the
-// edge it crossed. The custom-rule (DSL) engine slots in later behind this same step() shape.
-//
-// A tick is synchronous (CLAUDE.md §5): read the frozen overlay, compute every walker's move off
-// it, then apply all the visits at once and rebuild the walker set. So no walker sees another's
-// move mid-tick, and two walkers landing on the same tile coalesce to one (the anti-blowup rule).
+// The synchronous tick, now DSL-driven: each walker runs its definition's compiled program against
+// the FROZEN overlay (read all, then write all), producing branches + tile-registry writes. Branches
+// are coalesced (identical state merges — the anti-blowup rule), tile writes + visits are applied,
+// over-age walkers (max-steps) are dropped, and the step counter advances. chooseMove/headingOptions/
+// rotateHeading remain for the Inspect aim controls and the built-in `unvisited` move.
 
 import type { Tiling } from '../tiling'
 import { nodeById, across, clockwiseEdgeOrder } from '../tiling'
-import { tileState, visitCount, addVisits, type TileState } from '../canvas'
+import { tileState, visitCount, addVisits, applyRegistryWrites, type TileState, type RegWrite } from '../canvas'
+import { runProgram, type TileWrite, type WalkerState } from './lang'
 import type { Traverser, TraverseState, TickResult } from './types'
 
 const TWO_PI = Math.PI * 2
@@ -66,19 +65,67 @@ export function chooseMove(
   return best ? { tile: best.tile, heading: best.heading } : null
 }
 
-// Advance one tick. Trapped walkers drop; walkers targeting the same tile coalesce to the first
-// (in array order); one visit per distinct target is stamped with the new step number.
+// Advance one tick. Each walker runs its program off the frozen overlay; a walker that produces no
+// move/morph is dropped (it only persists by moving). Branches inherit the parent's registers/steps
+// (branch 0 keeps the id, extras get fresh ids; splits++ on a real split). Identical branches —
+// same def, tile, heading and P/Q/R — coalesce to bound branching. Then tile-registry writes apply
+// (in order), one visit per destination tile is stamped at the new step, and over-age walkers drop.
 export function stepTraversers(state: TraverseState): TickResult {
-  const { tiling, overlay, traversers, step } = state
+  const { tiling, overlay, traversers, step, defs, indexById } = state
   const nextStep = step + 1
-  const claimed = new Set<string>()
-  const next: Traverser[] = []
+  const tileByIndex = tiling.nodes.map((n) => n.id)
+
+  const spawned: Traverser[] = []
+  const tileWrites: RegWrite[] = []
   for (const tr of traversers) {
-    const move = chooseMove(tiling, overlay, tr.tile, tr.heading)
-    if (!move) continue // trapped -> drop
-    if (claimed.has(move.tile)) continue // another walker already took this tile -> coalesce
-    claimed.add(move.tile)
-    next.push({ ...tr, tile: move.tile, heading: move.heading })
+    const program = defs.get(tr.def)
+    if (!program) continue // unknown definition -> can't act -> drop
+    const walker: WalkerState = {
+      tile: tr.tile,
+      heading: tr.heading,
+      steps: tr.steps,
+      splits: tr.splits,
+      maxSplit: tr.maxSplit,
+      maxSteps: tr.maxSteps,
+      movement: tr.movement,
+      p: tr.p,
+      q: tr.q,
+      r: tr.r,
+    }
+    const res = runProgram({ tiling, overlay, indexById, tileByIndex, walker, program })
+    for (const w of res.tileWrites as TileWrite[]) tileWrites.push(w)
+    const split = res.branches.length > 1
+    res.branches.forEach((b, i) => {
+      spawned.push({
+        id: i === 0 ? tr.id : `${tr.id}.${i}`,
+        tile: b.tile,
+        heading: b.heading,
+        def: b.morphDef ?? tr.def,
+        steps: tr.steps + 1,
+        splits: tr.splits + (split ? 1 : 0),
+        maxSplit: res.next.maxSplit,
+        maxSteps: res.next.maxSteps,
+        movement: res.next.movement,
+        p: res.next.p,
+        q: res.next.q,
+        r: res.next.r,
+      })
+    })
   }
-  return { overlay: addVisits(overlay, [...claimed], nextStep), traversers: next, step: nextStep }
+
+  // Coalesce identical branches; then drop walkers past their max-steps.
+  const seen = new Set<string>()
+  const next: Traverser[] = []
+  for (const b of spawned) {
+    const key = `${b.def}|${b.tile}|${Math.round(b.heading * 1000)}|${b.p}|${b.q}|${b.r}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    if (b.steps > b.maxSteps) continue
+    next.push(b)
+  }
+
+  let nextOverlay = applyRegistryWrites(overlay, tileWrites)
+  const destinations = [...new Set(next.map((b) => b.tile))]
+  nextOverlay = addVisits(nextOverlay, destinations, nextStep)
+  return { overlay: nextOverlay, traversers: next, step: nextStep }
 }

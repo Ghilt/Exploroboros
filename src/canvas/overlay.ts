@@ -107,6 +107,25 @@ export function applyPaint(
   return next
 }
 
+// A registry write from a traverser rule: set an absolute value, or add a delta. Applied in array
+// order within a tick: `add` (from `increase`) accumulates order-independently, while `set` (from
+// `put`) is last-writer-wins — so co-located walkers combine cleanly with `increase` but a conflicting
+// `put` resolves to the last writer. Unlike the manual stepper (bumpRegistry) these are NOT clamped —
+// a rule may compute any value, including negatives.
+export type RegWrite = { tile: string; reg: Registry; op: 'set' | 'add'; value: number }
+
+export function applyRegistryWrites(
+  overlay: ReadonlyMap<string, TileState>,
+  writes: ReadonlyArray<RegWrite>,
+): Map<string, TileState> {
+  const next = new Map(overlay)
+  for (const w of writes) {
+    const prev = next.get(w.tile) ?? EMPTY_TILE_STATE
+    next.set(w.tile, { ...prev, [w.reg]: w.op === 'set' ? w.value : prev[w.reg] + w.value })
+  }
+  return next
+}
+
 // Append a visit stamped with a real tick `step` to each given tile in one pass — the traverser
 // tick's batch write (mirrors applyPaint's visited stroke, but a real step instead of MANUAL_STEP).
 export function addVisits(

@@ -25,10 +25,10 @@ export type {
 export type { Token, TokenKind } from './lex'
 export { lex } from './lex'
 
-export type { EvalContext, AttrSpec } from './attributes'
-export { ATTRIBUTES, attrSpec } from './attributes'
+export type { EvalContext, AttrSpec, TraverserAttrs } from './attributes'
+export { ATTRIBUTES, TILE_ATTRIBUTES, attrSpec } from './attributes'
 
 export { parsePredicate, parseExpr } from './parse'
-export { serialize } from './serialize'
+export { serialize, serializeExpr } from './serialize'
 export { evalNumber, evalPredicate } from './eval'
 export { replaceAt, type Path } from './edit'

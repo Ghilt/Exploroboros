@@ -182,7 +182,7 @@ class Parser {
     const spec = attrSpec(name)
     if (!spec) throw new ParseFail(`unknown attribute "${name}"`, t.span)
 
-    const node: AttrRef = { kind: 'attr', name: name as AttrName, scope: 'tile' }
+    const node: AttrRef = { kind: 'attr', name: name as AttrName, scope: spec.scopes[0] ?? 'tile' }
 
     // index: name[n]
     if (this.peek().kind === 'lbracket') {

@@ -1,0 +1,203 @@
+/* The traverser-language reference page. Leans on the global page-head / btn / container classes
+   (index.css); everything here is doc-specific (prose, code blocks, table, and the inline diagrams). */
+
+.guide {
+  padding-block: 2rem 4rem;
+}
+
+.guide .page-head {
+  margin-bottom: 1.5rem;
+}
+
+/* Sticky-ish in-page nav. */
+.guide-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.6rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 2rem;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+.guide-toc a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.guide-toc a:hover {
+  text-decoration: underline;
+}
+
+.guide-section {
+  margin-bottom: 2.75rem;
+  max-width: 46rem;
+}
+.guide-section h2 {
+  font-size: 1.4rem;
+  margin-bottom: 0.6rem;
+  scroll-margin-top: 1rem;
+}
+.guide-section h3 {
+  font-size: 1.02rem;
+  margin: 1.4rem 0 0.4rem;
+}
+.guide-section p,
+.guide-section li {
+  line-height: 1.6;
+  color: var(--fg);
+}
+.guide-section ul {
+  padding-left: 1.2rem;
+  margin: 0.6rem 0;
+}
+.guide-section li {
+  margin: 0.3rem 0;
+}
+
+.guide code {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.05em 0.35em;
+}
+
+.guide-code {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.8rem 1rem;
+  margin: 0.8rem 0;
+  overflow-x: auto;
+  white-space: pre;
+  color: var(--fg);
+}
+
+.guide-note {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.9rem;
+  font-size: 0.92rem;
+}
+
+.guide-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.6rem 0;
+  font-size: 0.9rem;
+}
+.guide-table th,
+.guide-table td {
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.guide-table th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* ---- figures / diagrams ---- */
+.guide-figure {
+  margin: 1.1rem 0;
+}
+.guide-figure svg {
+  width: 100%;
+  max-width: 26rem;
+  height: auto;
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem;
+}
+.guide-figure figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.86rem;
+  color: var(--muted);
+  max-width: 30rem;
+}
+
+.guide-back {
+  margin-top: 2rem;
+}
+
+/* diagram primitives (gd = guide diagram) */
+.gd-tile {
+  fill: var(--surface-2);
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+.gd-tile--visited {
+  fill: color-mix(in srgb, var(--accent-2) 24%, var(--surface));
+  stroke: var(--accent-2);
+}
+.gd-tile--asked {
+  fill: color-mix(in srgb, var(--accent) 20%, var(--surface));
+  stroke: var(--accent);
+}
+.gd-tile--passed {
+  fill: var(--surface-2);
+  stroke: var(--muted);
+  stroke-dasharray: 4 3;
+}
+.gd-walker {
+  fill: var(--accent);
+}
+.gd-ray {
+  stroke: var(--muted);
+  stroke-width: 2;
+}
+.gd-ray--dash {
+  stroke-dasharray: 4 3;
+}
+.gd-heading {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+.gd-heading-dot {
+  fill: var(--accent);
+}
+.gd-ray-dot {
+  fill: var(--muted);
+}
+.gd-ok {
+  stroke: var(--accent);
+}
+.gd-no {
+  stroke: var(--muted);
+}
+.gd-label {
+  font-family: var(--mono);
+  font-size: 12px;
+  fill: var(--muted);
+}
+.gd-label--strong {
+  fill: var(--accent);
+  font-weight: 600;
+}
+.gd-mono {
+  font-family: var(--mono);
+  font-size: 12px;
+  fill: var(--fg);
+}
+.gd-caption {
+  font-family: var(--sans);
+  font-size: 11px;
+  fill: var(--muted);
+}
+.gd-ok-text {
+  fill: var(--accent);
+}
+.gd-no-text {
+  fill: var(--muted);
+}

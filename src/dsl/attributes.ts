@@ -8,13 +8,26 @@ import type { TileState } from '../canvas'
 import { tileState, visitCount } from '../canvas'
 import type { AttrName, AttrScope } from './types'
 
-// Everything an attribute needs to compute its value for one tile. A future `neighbor`/`traverser`
-// scope would add optional fields here without touching the AST.
+// A walker's own state, exposed to the traverser DSL's formulas/guards. `heading` is in DEGREES
+// (0 = east, CCW positive — the same frame as a side's normalAngle, converted from radians) for a
+// friendlier surface than the internal radians. Present only while a traverser is being evaluated.
+export type TraverserAttrs = {
+  steps: number
+  splits: number
+  heading: number
+  p: number
+  q: number
+  r: number
+}
+
+// Everything an attribute needs to compute its value for one tile. `traverser` is set only by the
+// traverser DSL (undefined in the coloring/predicate path); its attributes then read as 0 there.
 export type EvalContext = {
   node: TileNode
   tiling: Tiling
   overlay: ReadonlyMap<string, TileState>
   indexById: ReadonlyMap<string, number>
+  traverser?: TraverserAttrs
 }
 
 export type AttrSpec = {
@@ -149,7 +162,60 @@ export const ATTRIBUTES: ReadonlyArray<AttrSpec> = [
       return i >= 0 && i < v.length ? v[i] : undefined
     },
   },
+  // ---- traverser attributes (the walker's own state; see TraverserAttrs) ----
+  {
+    name: 'steps',
+    label: 'steps',
+    indexed: false,
+    needsDefault: false,
+    scopes: ['traverser'],
+    compute: (ctx) => ctx.traverser?.steps,
+  },
+  {
+    name: 'splits',
+    label: 'splits',
+    indexed: false,
+    needsDefault: false,
+    scopes: ['traverser'],
+    compute: (ctx) => ctx.traverser?.splits,
+  },
+  {
+    name: 'heading',
+    label: 'heading',
+    indexed: false,
+    needsDefault: false,
+    scopes: ['traverser'],
+    compute: (ctx) => ctx.traverser?.heading,
+  },
+  {
+    name: 'P',
+    label: 'P',
+    indexed: false,
+    needsDefault: false,
+    scopes: ['traverser'],
+    compute: (ctx) => ctx.traverser?.p,
+  },
+  {
+    name: 'Q',
+    label: 'Q',
+    indexed: false,
+    needsDefault: false,
+    scopes: ['traverser'],
+    compute: (ctx) => ctx.traverser?.q,
+  },
+  {
+    name: 'R',
+    label: 'R',
+    indexed: false,
+    needsDefault: false,
+    scopes: ['traverser'],
+    compute: (ctx) => ctx.traverser?.r,
+  },
 ]
+
+// Tile-scope attributes only — the coloring/predicate UI menus exclude the traverser ones (which
+// have no value outside a run).
+export const TILE_ATTRIBUTES: ReadonlyArray<AttrSpec> = ATTRIBUTES.filter((a) => a.scopes.includes('tile'))
 
 const BY_NAME = new Map(ATTRIBUTES.map((a) => [a.name, a]))
 

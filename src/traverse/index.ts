@@ -3,3 +3,7 @@
 
 export type { Traverser, TraverseState, TickResult } from './types'
 export { stepTraversers, chooseMove, headingOptions, rotateHeading } from './step'
+
+// The traverser-program DSL (parse / serialize / compile / run + AST types).
+export type { Program, Settings, Movement, Stmt, Action } from './lang'
+export { parseProgram, serializeProgram, compileProgram, DEFAULT_SETTINGS } from './lang'

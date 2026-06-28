@@ -1,5 +1,5 @@
 import './Workspace.css'
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { Tiling, TileNode } from '../tiling'
 import { nodeById, neighborEdges, uniqueNeighbors } from '../tiling'
 import {
@@ -20,14 +20,16 @@ import {
   MANUAL_STEP,
 } from '../canvas'
 import type { TileClip, TileState, Registry, PaintTarget } from '../canvas'
-import { stepTraversers, headingOptions, rotateHeading, type Traverser } from '../traverse'
+import { stepTraversers, headingOptions, rotateHeading, compileProgram, DEFAULT_SETTINGS, type Traverser, type Program } from '../traverse'
 import { TilingCanvas, type DisplayMode, type DragMode } from './TilingCanvas'
 import { TilingPicker } from './TilingPicker'
 import { Panel } from './Panel'
 import { HelpButton } from './HelpButton'
 import { PredicatePane } from './PredicatePane'
+import { TraversersPane } from './TraversersPane'
 import { ColoringPane } from './ColoringPane'
 import { usePredicateStore } from '../state/predicateStore'
+import { useTraverserStore } from '../state/traverserStore'
 import { useColoringStore } from '../state/coloringStore'
 import { colorize } from '../colorizer'
 import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
@@ -56,6 +58,11 @@ const PAINT_TARGETS: ReadonlyArray<{ key: PaintTarget; label: string }> = [
   { key: 'c', label: 'C' },
 ]
 const paintLabel = (t: PaintTarget) => (t === 'visited' ? 'visited' : t.toUpperCase())
+
+// The always-available built-in definition: step to the least-turn unvisited neighbour (what the
+// engine used to hardcode). Listed first in the placement picker so a fresh app can place + run.
+const BUILTIN_WALKER = 'Walker'
+const BUILTIN_WALKER_TEXT = 'move nearest-unvisited'
 
 // The Canvas-page workspace: a central canvas flanked by collapsible docks — authoring panes
 // (Traversers, Coloring) on the left, the Inspect pane on the right. It owns per-run state
@@ -106,10 +113,13 @@ export function Workspace() {
     return () => clearTimeout(t)
   }, [gridInput])
 
-  // The user's predicate library (bundled + custom) and coloring rules, persisted in the browser.
-  // Lifted here so the colorizer below can read both.
+  // The user's predicate library (bundled + custom), traverser definitions, and coloring rules,
+  // persisted in the browser. Lifted here so the colorizer + the traverse run can read them.
   const predicateStore = usePredicateStore()
+  const traverserStore = useTraverserStore()
   const coloringStore = useColoringStore()
+  // Which definition the Inspect "Place" buttons instantiate.
+  const [placeDef, setPlaceDef] = useState(BUILTIN_WALKER)
 
   // Built here from the picker choice + grid size (CLAUDE.md §4.3). Only the square has a
   // generator today; buildTiling falls back to it for any other id.
@@ -129,6 +139,32 @@ export function Workspace() {
     for (const p of predicateStore.predicates) map.set(p.id, p.text)
     return map
   }, [predicateStore.predicates])
+
+  // Predicate NAME -> DSL text, so a traverser guard can reference a saved predicate by name.
+  const predicateNames = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const b of BUNDLED_PREDICATES) map.set(b.name, b.text)
+    for (const p of predicateStore.predicates) if (p.name) map.set(p.name, p.text)
+    return map
+  }, [predicateStore.predicates])
+
+  // Definition name -> compiled program. The built-in Walker plus every user definition that
+  // compiles; broken ones are simply absent (so they can't be placed/run). Rebuilt only when the
+  // definitions or referenced predicates change — not per frame.
+  const defs = useMemo(() => {
+    const map = new Map<string, Program>()
+    const walker = compileProgram(BUILTIN_WALKER_TEXT, predicateNames)
+    if (walker.ok) map.set(BUILTIN_WALKER, walker.value)
+    for (const t of traverserStore.traversers) {
+      const c = compileProgram(t.text, predicateNames)
+      if (c.ok) map.set(t.name, c.value)
+    }
+    return map
+  }, [traverserStore.traversers, predicateNames])
+
+  const defOptions = useMemo(() => [...defs.keys()], [defs])
+  // Fall back to the first available definition if the chosen one was deleted/renamed.
+  const effectiveDef = defs.has(placeDef) ? placeDef : defOptions[0] ?? BUILTIN_WALKER
 
   // The tiling's appearance: evaluate the coloring rules per tile, once per input change (not per
   // frame). Tiles with no matching rule are absent and keep the base fill.
@@ -151,7 +187,7 @@ export function Workspace() {
   const tickRef = useRef<() => void>(() => {})
   tickRef.current = () => {
     if (runLive === null) return
-    const result = stepTraversers({ tiling, overlay, traversers: runLive, step })
+    const result = stepTraversers({ tiling, overlay, traversers: runLive, step, defs, indexById })
     setOverlay(result.overlay)
     setRunLive(result.traversers)
     setStep(result.step)
@@ -230,8 +266,12 @@ export function Workspace() {
     if (walkers.length === 0) return
     if (runLive === null) {
       // Start a fresh run from the authored seeds — on a COPY, so the seeds stay intact for Stop to
-      // restore — and mark each walker's starting tile visited at step 0.
-      const live = seeds.map((s) => ({ ...s }))
+      // restore. Refresh each walker's settings/registers from its current definition (so editing a
+      // def before Play takes effect), then mark each starting tile visited at step 0.
+      const live = seeds.map((s) => {
+        const set = defs.get(s.def)?.settings ?? DEFAULT_SETTINGS
+        return { ...s, steps: 0, splits: 0, p: 0, q: 0, r: 0, maxSplit: set.maxSplit, maxSteps: set.maxSteps, movement: set.movement }
+      })
       setRunLive(live)
       setStep(0)
       setOverlay((prev) => addVisits(prev, live.map((t) => t.tile), 0))
@@ -261,11 +301,30 @@ export function Workspace() {
   // Authoring the initial state (only while stopped): place / remove / aim walkers. These edit
   // `seeds`, the savable starting position — never the live run. Placement records no visit; the
   // walk records visits once it runs.
+  // Build a seed walker for a tile from the chosen definition: heading from the def's header (degrees,
+  // 0 = east) or the tile's first edge direction; counters/registers start at zero; the settings
+  // snapshot the def (refreshed at Play so a later edit to the def takes effect).
+  const makeSeed = (tile: string): Traverser => {
+    const set = defs.get(effectiveDef)?.settings ?? DEFAULT_SETTINGS
+    const heading = set.heading !== undefined ? (set.heading * Math.PI) / 180 : headingOptions(tiling, tile)[0] ?? 0
+    return {
+      id: `tr${(traverserSeq.current += 1)}`,
+      tile,
+      heading,
+      def: effectiveDef,
+      steps: 0,
+      splits: 0,
+      maxSplit: set.maxSplit,
+      maxSteps: set.maxSteps,
+      movement: set.movement,
+      p: 0,
+      q: 0,
+      r: 0,
+    }
+  }
   const placeTraverser = (id: string) => {
     if (seeds.some((t) => t.tile === id)) return
-    const heading = headingOptions(tiling, id)[0] ?? 0
-    const tid = `tr${(traverserSeq.current += 1)}`
-    setSeeds((list) => [...list, { id: tid, tile: id, heading }])
+    setSeeds((list) => [...list, makeSeed(id)])
   }
   const removeTraverser = (id: string) => setSeeds((list) => list.filter((t) => t.tile !== id))
   const rotateTraverser = (id: string, dir: 1 | -1) =>
@@ -281,7 +340,7 @@ export function Workspace() {
       for (const id of ids) {
         if (have.has(id)) continue
         have.add(id)
-        adds.push({ id: `tr${(traverserSeq.current += 1)}`, tile: id, heading: headingOptions(tiling, id)[0] ?? 0 })
+        adds.push(makeSeed(id))
       }
       return adds.length ? [...list, ...adds] : list
     })
@@ -375,10 +434,7 @@ export function Workspace() {
   return (
     <div className="workspace">
       <Panel title="Traversers" side="left" defaultCollapsed>
-        <PaneScaffold>
-          A list of traversers — each an agent with DSL code describing how it walks the
-          graph and paints tiles. This is where fractal behaviour will be authored.
-        </PaneScaffold>
+        <TraversersPane store={traverserStore} predicateNames={predicateNames} />
       </Panel>
 
       <Panel title="Predicates" side="left" defaultCollapsed>
@@ -568,6 +624,9 @@ export function Workspace() {
             clip={clip}
             traverserHeading={selectedTraverser ? selectedTraverser.heading : null}
             canEditTraverser={stopped}
+            defOptions={defOptions}
+            placeDef={effectiveDef}
+            onChangeDef={setPlaceDef}
             onVisit={bumpVisit}
             onRegistry={bumpReg}
             onCopy={copyTile}
@@ -580,6 +639,9 @@ export function Workspace() {
           <MultiInspectContent
             count={selectedIds.length}
             canEditTraverser={stopped}
+            defOptions={defOptions}
+            placeDef={effectiveDef}
+            onChangeDef={setPlaceDef}
             onPlaceTraverser={() => placeTraversersMany(selectedIds)}
             onRemoveTraverser={() => removeTraversersMany(selectedIds)}
             onRotateTraverser={(dir) => rotateTraversersMany(selectedIds, dir)}
@@ -594,13 +656,24 @@ export function Workspace() {
   )
 }
 
-function PaneScaffold({ children }: { children: ReactNode }) {
+// The definition picker shown before a Place button — which traverser definition to instantiate.
+function DefSelect({
+  options,
+  value,
+  onChange,
+}: {
+  options: ReadonlyArray<string>
+  value: string
+  onChange: (v: string) => void
+}) {
   return (
-    <div className="pane-scaffold">
-      <p className="pane-scaffold-tag">Scaffold</p>
-      <p>{children}</p>
-      <p className="pane-scaffold-soon">Coming in a later phase.</p>
-    </div>
+    <select className="trav-def" aria-label="traverser to place" value={value} onChange={(e) => onChange(e.target.value)}>
+      {options.map((o) => (
+        <option key={o} value={o}>
+          {o}
+        </option>
+      ))}
+    </select>
   )
 }
 
@@ -612,6 +685,9 @@ function InspectContent({
   clip,
   traverserHeading,
   canEditTraverser,
+  defOptions,
+  placeDef,
+  onChangeDef,
   onVisit,
   onRegistry,
   onCopy,
@@ -629,6 +705,10 @@ function InspectContent({
   traverserHeading: number | null
   // Whether placements can be edited — only while stopped (a run owns the walkers).
   canEditTraverser: boolean
+  // Which definition placement instantiates (the picker), and the available names.
+  defOptions: ReadonlyArray<string>
+  placeDef: string
+  onChangeDef: (name: string) => void
   onVisit: (id: string, delta: number) => void
   onRegistry: (id: string, reg: Registry, delta: number) => void
   onCopy: () => void
@@ -674,9 +754,12 @@ function InspectContent({
         {!canEditTraverser ? (
           <p className="trav-note">Stop the run to edit the walkers.</p>
         ) : traverserHeading === null ? (
-          <button type="button" className="trav-place" onClick={() => onPlaceTraverser(node.id)}>
-            Place traverser
-          </button>
+          <div className="trav-place-row">
+            <DefSelect options={defOptions} value={placeDef} onChange={onChangeDef} />
+            <button type="button" className="trav-place" onClick={() => onPlaceTraverser(node.id)}>
+              Place
+            </button>
+          </div>
         ) : (
           <div className="trav-controls">
             <button
@@ -800,6 +883,9 @@ function InspectContent({
 function MultiInspectContent({
   count,
   canEditTraverser,
+  defOptions,
+  placeDef,
+  onChangeDef,
   onPlaceTraverser,
   onRemoveTraverser,
   onRotateTraverser,
@@ -808,6 +894,9 @@ function MultiInspectContent({
 }: {
   count: number
   canEditTraverser: boolean
+  defOptions: ReadonlyArray<string>
+  placeDef: string
+  onChangeDef: (name: string) => void
   onPlaceTraverser: () => void
   onRemoveTraverser: () => void
   onRotateTraverser: (dir: 1 | -1) => void
@@ -827,6 +916,7 @@ function MultiInspectContent({
           <p className="trav-note">Stop the run to edit the walkers.</p>
         ) : (
           <div className="trav-controls trav-controls--multi">
+            <DefSelect options={defOptions} value={placeDef} onChange={onChangeDef} />
             <button type="button" className="trav-place" onClick={onPlaceTraverser}>
               Place on all
             </button>
