@@ -36,6 +36,13 @@ It grows out of a Python prototype (the "nandeck octagon visualizer"); its hard-
 - **No merge commits — keep history linear.** Always **rebase**, never merge: `git pull --rebase` (the repo
   has `pull.rebase=true` set), and rebase a divergent branch onto its base rather than merging it. Do not
   create merge commits.
+- **Worktree sessions target `main` by default — the owner does NOT want a parked feature branch.** A git
+  worktree can't check out `main` (it's checked out in the main repo), so the harness puts a session on its
+  own `claude/<name>` branch — but treat that as **transient plumbing, not a deliverable**. Land work **on
+  `main`**: commit on the worktree branch, then rebase onto `main` and **fast-forward `main`** to it (linear,
+  per the rule above) so the result is on `main` as if worked there. Don't leave work parked on the branch,
+  and don't open a PR or keep a standalone branch **unless the owner specifically asks for one**.
+  (Per-worktree preview ports + announcing which sessions are running: §9.)
 
 ## 3. Locked technology decisions (approved-tech registry)
 
@@ -280,6 +287,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-28 | Gallery — 23 prototype fractals ported to real recipes (traverser + colour ramps rescaled so they ring at our grid's tick scale; clicking an image reopens the real setup to regenerate in-tool and compare to the thumbnail); all gallery images slimmed to WebP (~174 → 21 MB) | ✅ yes | owner reopened a ported fractal + exported it on black and compared to the prototype thumbnail ("it looks good") — backed by build / lint / 402 tests incl. a headless run-to-completion grow check per recipe | `0d939f7` |
 | 2026-06-28 | Export background is the whole plane — unpainted tiles take the chosen background (transparent leaves them clear), instead of fixed-white tiles with the background showing only as a border | ✅ yes | owner exported on a black background, saw the fractal on solid black matching the prototype renders, said "it looks good" | `ac23bb9` |
 | 2026-06-28 | Visual language + component system — `docs/VISUAL-LANGUAGE.md`; reusable **SegmentedControl** (sliding indicator measured to the selected segment) / **Stepper** (single-digit −value+) / **Toggle** primitives; canvas top bar unified into ONE transport (play/pause/stop + speed segmented); speed & display are segmented controls (state shown, not cycling chips); tiling/drag/export menu triggers unified to one rounded-rect dropdown look (buttons no longer pills) with **Export moved rightmost**; Inspect steppers + placed-traverser controls + predicate Text/Visual + export edges toggle rebuilt on the primitives; design tokens (spacing, `--control-h`, radius ladder, elevation, state roles); fixed over-rounded "+ add rule"/"+ New" | ✅ yes | owner reviewed on this worktree's preview (port 5494) across iterations — flagged the segmented fill not aligning with the dividers (fixed: indicator measured to the selected segment's geometry) and the pill-shaped triggers (fixed: unified rounded-rect), then asked to move Export rightmost — and said "commit to master"; backed by build / lint / 411 tests (9 new primitive tests) + in-browser checks (uniform 1.9rem control heights, segments tile cleanly with the indicator matching the selection, the three triggers render identically) | `3147f4e` |
+| 2026-06-28 | classic-2 fractal ported to the gallery (relative-nav XOR maze onto octagons — it was wrongly grouped with the rotation-routed fractals and deferred; classic itself stays deferred, it IS wedge-rotation-routed) | ✅ yes | owner asked why classic/classic-2 weren't ported; re-checking showed classic-2 has no rotation routing, so ported + verified (grows a maze, 81 ticks ~36% fill, headless grow-check) and owner said "commit"; build / lint / tests green | `41cc510` |
 
 ## 8. Todo list (working backlog)
 
@@ -383,10 +391,11 @@ in-session task tracker.
   - [ ] **Preserve the export resolution on reopen** — a reopened recipe's original export grid isn't fed
     back into the export menu (its `gridN` seeds from the live/edit grid). Carry `recipe.gridN` as an export-
     grid hint so re-exporting matches the original size without re-typing it.
-  - [x] **Gallery — real ported recipes** — the fake placeholder recipes are replaced by **23 prototype
+  - [x] **Gallery — real ported recipes** — the fake placeholder recipes are replaced by **24 prototype
     fractals ported to our DSL** (traverser + colour), each image wired to its recipe by filename and slimmed
-    to WebP. Deferred groups (absolute-nav, missing-feature, etc.) documented in `src/data/galleryRecipes.ts`
-    *(verified 2026-06-28, `0d939f7`)*
+    to WebP. Deferred groups (rotation-routed: sierpinski/classic/ringlare/wedge-seek; missing-feature:
+    move-to-lowest/kill/hunger; etc.) documented in `src/data/galleryRecipes.ts`
+    *(verified 2026-06-28, `0d939f7`; classic-2 `41cc510`)*
   - [ ] **User-saved gallery** — let the user save their own exports into the gallery (recipe rides in the
     PNG metadata); persist across reloads (IndexedDB) + a "watch it grow" replay.
 - [ ] **Deploy to Vercel**
