@@ -289,6 +289,8 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-28 | Visual language + component system — `docs/VISUAL-LANGUAGE.md`; reusable **SegmentedControl** (sliding indicator measured to the selected segment) / **Stepper** (single-digit −value+) / **Toggle** primitives; canvas top bar unified into ONE transport (play/pause/stop + speed segmented); speed & display are segmented controls (state shown, not cycling chips); tiling/drag/export menu triggers unified to one rounded-rect dropdown look (buttons no longer pills) with **Export moved rightmost**; Inspect steppers + placed-traverser controls + predicate Text/Visual + export edges toggle rebuilt on the primitives; design tokens (spacing, `--control-h`, radius ladder, elevation, state roles); fixed over-rounded "+ add rule"/"+ New" | ✅ yes | owner reviewed on this worktree's preview (port 5494) across iterations — flagged the segmented fill not aligning with the dividers (fixed: indicator measured to the selected segment's geometry) and the pill-shaped triggers (fixed: unified rounded-rect), then asked to move Export rightmost — and said "commit to master"; backed by build / lint / 411 tests (9 new primitive tests) + in-browser checks (uniform 1.9rem control heights, segments tile cleanly with the indicator matching the selection, the three triggers render identically) | `3147f4e` |
 | 2026-06-28 | classic-2 fractal ported to the gallery (relative-nav XOR maze onto octagons — it was wrongly grouped with the rotation-routed fractals and deferred; classic itself stays deferred, it IS wedge-rotation-routed) | ✅ yes | owner asked why classic/classic-2 weren't ported; re-checking showed classic-2 has no rotation routing, so ported + verified (grows a maze, 81 ticks ~36% fill, headless grow-check) and owner said "commit"; build / lint / tests green | `41cc510` |
 | 2026-06-28 | Export dialog — "pixels per tile" knob (grid size derived + shown as a hint, e.g. "grid ≈ 85 × 85 tiles") replaces the grid-size field; resolution is an explicit width × height with a **chain-lock** (linked by default — editing one scales the other; toggle to set them apart); the four right-hand controls (px/tile, width, height, background) share one 7rem column, aligned. Recipe schema → **v2** (output stores width × height; v1→v2 migration keeps old PNGs readable); `pickCanvasSize` takes explicit W×H (tiling fit/centred → a non-square size letterboxes onto the background) | ✅ yes | owner reviewed on this worktree's preview (port 5494), asked for px/tile + W×H-with-chain-lock then for the inputs aligned to one width — both done — and said "commit"; backed by build / lint / 412 tests (updated sizing/generate/recipe + a new v1→v2 migration test) + in-browser checks (all four controls 7rem wide; derived readout 85 = round(2048÷24)) | `0b573d4` |
+| 2026-06-28 | Tiling-agnostic `orientation` attribute — a 0-based index of a tile's rotational variant within its shape (kalleboda wedges 0–3 / octagons 0; triangular up/down 0/1), so traversers route by it instead of the per-tiling `coordinate[slot]`; shown in Inspect and in the predicate menu + coloring ramp dropdown | ✅ yes | owner verified on this worktree's preview (5238) — Inspect shows orientation per tile across tilings — and said "this is good"; build / lint / 418 tests incl. new orientation unit tests | `969f04c` |
+| 2026-06-28 | classic / ringlare / wedge-seek ported to the gallery via `orientation` (3 of the 4 rotation-routed fractals; sierpinski still deferred — its absolute-compass wedge routing doesn't map onto our ~22.5°-rotated frame) | ✅ yes | owner reviewed the gallery regenerations on 5238 and approved; each grows to a natural stop in the headless grow-check (classic 36%, ringlare 9% single-walker rings, wedge-seek 53%) | `f4f6b86` |
 
 ## 8. Todo list (working backlog)
 
@@ -334,6 +336,11 @@ in-session task tracker.
     (triangular gains an orientation dim; multi-shape tilings a class/slot dim; the three centroid-keyed
     generators re-keyed to `[i,j,class]`); per-tiling `latticeLabels` on `TilingMeta` drive the Inspect
     coordinate readout. Prefactor for the DSL's `coordinate[n]` *(verified 2026-06-27, `b391faa`)*
+  - [x] Tiling-agnostic **`orientation`** attribute — a 0-based index of a tile's rotational variant,
+    derived from geometry (rank its `tileRotationDeg` among its shape's distinct rotation buckets;
+    `src/tiling/orientation.ts`, memoized per Tiling). The portable substitute for routing by the
+    tiling-specific discriminator coordinate: traversers use `orientation == k` on any tiling. Shown in
+    Inspect; flows to the predicate menu + ramp dropdown automatically *(verified 2026-06-28, `969f04c`)*
   - [ ] Investigate the **expanded** uniform-tiling list
     (https://en.wikipedia.org/wiki/Uniform_tiling#Expanded_lists_of_uniform_tilings) for cool tilings to add
     beyond the 11 convex uniform + kalleboda (k-uniform, non-edge-to-edge, star/zero-angle forms, etc.) —
@@ -398,11 +405,12 @@ in-session task tracker.
   - [ ] **Preserve the export resolution on reopen** — a reopened recipe's original export grid isn't fed
     back into the export menu (its `gridN` seeds from the live/edit grid). Carry `recipe.gridN` as an export-
     grid hint so re-exporting matches the original size without re-typing it.
-  - [x] **Gallery — real ported recipes** — the fake placeholder recipes are replaced by **24 prototype
+  - [x] **Gallery — real ported recipes** — the fake placeholder recipes are replaced by **27 prototype
     fractals ported to our DSL** (traverser + colour), each image wired to its recipe by filename and slimmed
-    to WebP. Deferred groups (rotation-routed: sierpinski/classic/ringlare/wedge-seek; missing-feature:
-    move-to-lowest/kill/hunger; etc.) documented in `src/data/galleryRecipes.ts`
-    *(verified 2026-06-28, `0d939f7`; classic-2 `41cc510`)*
+    to WebP. classic / ringlare / wedge-seek route via the new `orientation` attribute. Deferred: sierpinski
+    (absolute-compass wedge routing doesn't map to our frame), the move-to-lowest / kill / hunger fractals,
+    etc. — documented in `src/data/galleryRecipes.ts`
+    *(verified 2026-06-28, `0d939f7`; classic-2 `41cc510`; classic/ringlare/wedge-seek `f4f6b86`)*
   - [ ] **User-saved gallery** — let the user save their own exports into the gallery (recipe rides in the
     PNG metadata); persist across reloads (IndexedDB) + a "watch it grow" replay.
 - [ ] **Deploy to Vercel**
