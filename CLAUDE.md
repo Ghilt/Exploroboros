@@ -33,6 +33,9 @@ It grows out of a Python prototype (the "nandeck octagon visualizer"); its hard-
   (`HelpButton`, §9) that opens a little info dialog — kept muted so it doesn't clutter. When a new feature
   introduces a non-obvious concept, **ask the owner** whether it wants a "?" explainer there.
 - **Commits:** only on the owner's say-so; to `main` unless told otherwise; the owner pushes.
+- **No merge commits — keep history linear.** Always **rebase**, never merge: `git pull --rebase` (the repo
+  has `pull.rebase=true` set), and rebase a divergent branch onto its base rather than merging it. Do not
+  create merge commits.
 
 ## 3. Locked technology decisions (approved-tech registry)
 
@@ -219,7 +222,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
   migration chain** so a future build can still read today's images (and refuses an image from a *newer* build
   rather than misreading it) — see §9. Pure core + tests in `src/export/`; no new deps (§3/§4.2). Also fixed:
   tiles render **flush** when edges are off (the white anti-alias seam), in both the export and the live canvas.
-- **Reopen from PNG (built 2026-06-28, pending owner verification):** a saved creation's recipe loads back
+- **Reopen from PNG (done 2026-06-28, `a1e6d0b`):** a saved creation's recipe loads back
   into the canvas. Two entry points: **click a gallery image** (the gallery carries placeholder recipes for
   now — `src/data/galleryRecipes.ts`), or **drag an exported PNG onto the canvas** (decodes the embedded
   recipe). `Workspace.loadRecipe` REPLACES the setup — tiling, grid (the big export grid clamped to an
@@ -270,6 +273,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-27 | Drag modes — one drag popup (Off default / Select / Paint→Visited·A·B·C, no separate control); off lets the mobile page scroll; select boxes a group → multi-tile Inspect (no per-tile stats) with Place-on-all / rotate-all / Remove-all / ± | ✅ yes | owner verified the running app (off lets the page scroll, the popup picks a paint target, box-select a row → place + rotate all at once) and said "commit" | `9b3f94b` |
 | 2026-06-27 | Paint-select (freehand drag-to-select) + Shift-additive box/paint select; selection clears on pan/zoom/paint/empty-tap; painted tiles flash a fading outline | ✅ yes | owner verified after a hard-reload (paint-select gathers a non-box group; Shift+box/paint adds to the selection; plain replaces) and said "commit" — note the earlier "paint-select broken" was stale Konva HMR (§9), not a bug | `0957030` |
 | 2026-06-28 | Image export — client-side high-res PNG (Export menu: grid size / resolution / background / edges; Web Worker render; auto-download + thumbnail strip + zoom/pan viewer; versioned recipe in PNG metadata; Abort; flush no-edge tiles in export + live canvas) | ✅ yes | owner reviewed the running export across iterations on desktop + mobile — caught the seam bleed + the off-screen mobile dialog (both fixed), asked for Abort + metadata versioning — then said "commit"; backed by build / lint / 394 tests + in-browser checks (worker render, recipe metadata round-trip, abort mid-run, 0 seam pixels, mobile dialog within viewport) | `97c6251` |
+| 2026-06-28 | Reopen a saved creation — click a gallery image / drag an exported PNG onto the canvas → restores tiling, grid, walkers, hand-paint, and the traverser / predicate / coloring library | ✅ yes | owner opened gallery images into the canvas ("it works!"), flagged that traversers weren't loading into the pane (placeholder recipes had none) — fixed so opening loads traversers + named predicates + coloring — then said "commit"; backed by build / lint / 400 src tests + in-browser checks (gallery open switches tiling + populates all three panes; PNG drop round-trips an export) | `a1e6d0b` |
 
 ## 8. Todo list (working backlog)
 
@@ -350,7 +354,7 @@ in-session task tracker.
   recipe (migration chain; refuses newer-than-this-build images). Flush no-edge tiles in export + live canvas.
   - [ ] **Paint traverser seeds** — once **named traversers** can be placed by drag, add them (and colours)
     to the export menu / drag popup if useful (carried over from the paint-target item above).
-- [ ] **Reopen from PNG** *(built 2026-06-28, pending owner verification)* — `Workspace.loadRecipe(recipe)`
+- [x] **Reopen from PNG** *(verified 2026-06-28, `a1e6d0b`)* — `Workspace.loadRecipe(recipe)`
   REPLACES the canvas setup from a recipe: tiling, grid (export grid clamped to ≤ `GRID_MAX` for editing),
   walkers + hand-paint (via `remapSeeds`/`remapPaint` centre-offsets), and the three stores (new `setAll`).
   Entry points: **gallery click** (placeholder recipes in `src/data/galleryRecipes.ts`, handed off via
