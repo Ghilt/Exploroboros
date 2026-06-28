@@ -14,8 +14,8 @@ export function downloadBlob(blob: Blob, filename: string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }
 
-// A filesystem-safe export filename, e.g. "exploroboros-square-800-3200px.png".
-export function exportFilename(tilingId: string, gridN: number, longEdgePx: number): string {
+// A filesystem-safe export filename, e.g. "exploroboros-square-80-2048x2048.png".
+export function exportFilename(tilingId: string, gridN: number, width: number, height: number): string {
   const safe = tilingId.replace(/[^a-z0-9-]+/gi, '-')
-  return `exploroboros-${safe}-${gridN}-${longEdgePx}px.png`
+  return `exploroboros-${safe}-${gridN}-${width}x${height}.png`
 }

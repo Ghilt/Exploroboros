@@ -222,7 +222,7 @@ export function Workspace() {
   const startExport = (params: ExportParams) => {
     const id = `ex${(exportSeq.current += 1)}`
     const { recipe } = params
-    const filename = exportFilename(recipe.tilingId, recipe.gridN, recipe.output.longEdgePx)
+    const filename = exportFilename(recipe.tilingId, recipe.gridN, recipe.output.width, recipe.output.height)
     const controller = new AbortController()
     jobControllers.current.set(id, controller)
     setExports((list) => {

@@ -28,7 +28,7 @@ function input(): RecipeInput {
     predicates: [{ id: 'p1', name: 'café', text: 'visited > 1', autoName: false }],
     traversers: [{ id: 't1', name: 'spiral', text: 'move turn r1' }],
     coloringRules: [rule],
-    output: { longEdgePx: 3200, edges: false, background: null },
+    output: { width: 3200, height: 3200, edges: false, background: null },
   }
 }
 
@@ -107,5 +107,14 @@ describe('migrateRecipe (the upgrade chain that keeps old images readable)', () 
 
   it('returns null when a step in the path is missing (a chain gap)', () => {
     expect(migrateRecipe({ schemaVersion: 1 }, 3, [{ from: 2, migrate: (r) => r }])).toBeNull()
+  })
+
+  it('the real v1→v2 migration maps output.longEdgePx to width × height', () => {
+    // Uses the built-in MIGRATIONS (default arg) — the actual upgrade an old saved image goes through.
+    const out = migrateRecipe({ schemaVersion: 1, output: { longEdgePx: 1500, edges: true, background: '#000000' } }, RECIPE_SCHEMA_VERSION)
+    expect(out).toMatchObject({
+      schemaVersion: 2,
+      output: { width: 1500, height: 1500, edges: true, background: '#000000' },
+    })
   })
 })

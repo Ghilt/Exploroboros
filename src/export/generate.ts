@@ -38,6 +38,6 @@ export function computeExport(
     onProgress,
   )
   const colorFor = colorize(recipe.coloringRules, prep.predicateText, tiling, run.overlay, prep.indexById)
-  const size = pickCanvasSize(tiling.bounds, recipe.output.longEdgePx, caps)
+  const size = pickCanvasSize(tiling.bounds, recipe.output.width, recipe.output.height, caps)
   return { tiling, colorFor, size, ticks: run.ticks, hitCap: run.hitCap }
 }

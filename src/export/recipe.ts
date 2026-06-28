@@ -23,7 +23,7 @@ import { boundsCenter, tileOffset } from './remap'
 //     this version, and refuses one that's NEWER than this build (with reason 'too-new' → "update the app").
 //   APP_VERSION — a human-readable stamp of the build that made the image, for display + bug tracing
 //     only; never branched on. Bump freely.
-export const RECIPE_SCHEMA_VERSION = 1
+export const RECIPE_SCHEMA_VERSION = 2
 export const APP_VERSION = '0.1.0'
 export const RECIPE_KEYWORD = 'exploroboros:recipe'
 
@@ -44,7 +44,10 @@ export type RecipeSeed = {
 
 export type RecipePaint = { offset: Vec2; visits: number[]; a: number; b: number; c: number }
 
-export type RecipeOutput = { longEdgePx: number; edges: boolean; background: string | null }
+// The output image is an explicit pixel WIDTH × HEIGHT. The tiling (its own aspect) is fit/centred
+// into it, so a mismatched aspect letterboxes onto the background (renderTiling fills the whole canvas
+// with it). The number of tiles (detail) is `gridN`, derived in the UI from a "pixels per tile" knob.
+export type RecipeOutput = { width: number; height: number; edges: boolean; background: string | null }
 
 export type Recipe = {
   schemaVersion: number
@@ -133,7 +136,19 @@ type AnyRecipe = Record<string, unknown>
 // The runner forces schemaVersion forward, so a migration only has to fix the shape/values.
 export type Migration = { from: number; migrate: (r: AnyRecipe) => AnyRecipe }
 
-const MIGRATIONS: ReadonlyArray<Migration> = []
+const MIGRATIONS: ReadonlyArray<Migration> = [
+  // v1 → v2: the output went from a single `longEdgePx` (aspect derived from the tiling) to an
+  // explicit `width` × `height`. Old images were ~square for square-ish tilings, so longEdgePx maps to
+  // both dimensions; the tiling is then fit/centred into that square (close to the original framing).
+  {
+    from: 1,
+    migrate: (r) => {
+      const out = (r.output ?? {}) as { longEdgePx?: number; edges?: boolean; background?: string | null }
+      const edge = typeof out.longEdgePx === 'number' ? out.longEdgePx : 2048
+      return { ...r, output: { width: edge, height: edge, edges: !!out.edges, background: out.background ?? null } }
+    },
+  },
+]
 
 // Upgrade `obj` from its own schemaVersion up to `target` by running the migration chain in order.
 // Pure; returns the upgraded object, or null if a needed step is missing (a gap in the chain). The
@@ -168,7 +183,7 @@ function isCurrentShape(r: AnyRecipe): boolean {
   if (!Array.isArray(r.seeds) || !Array.isArray(r.paint)) return false
   if (!Array.isArray(r.predicates) || !Array.isArray(r.traversers) || !Array.isArray(r.coloringRules)) return false
   const out = r.output as RecipeOutput | undefined
-  if (!out || typeof out.longEdgePx !== 'number') return false
+  if (!out || typeof out.width !== 'number' || typeof out.height !== 'number') return false
   for (const s of r.seeds) if (!isVec2((s as RecipeSeed).offset)) return false
   for (const p of r.paint) if (!isVec2((p as RecipePaint).offset)) return false
   return true

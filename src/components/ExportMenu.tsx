@@ -15,9 +15,10 @@ import { Toggle } from './Toggle'
 // sits on it (white / black / transparent). Only the edge colour (when edges are shown) is fixed here.
 const PALETTE = { edge: '#000000' }
 
-// Resolution presets (long edge, px). The prototype's go-to was 3200. Mobile is capped lower (see
-// MOBILE_CAPS) — bigger presets are hidden there.
-const RES_PRESETS = [1024, 2048, 3200, 4096, 8192] as const
+// Resolution bounds for the width/height inputs (px). Mobile backing stores cap near ~4096² (see
+// MOBILE_CAPS), desktop allows more; the export sizing also enforces the hard caps if exceeded.
+const MIN_RES = 64
+const DESKTOP_MAX_RES = 8192
 const MOBILE_MAX_RES = 4096
 
 type Background = 'white' | 'transparent' | 'black'
@@ -42,14 +43,31 @@ type Props = {
 
 export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, predicates, traversers, coloringRules, onStartExport }: Props) {
   const [open, setOpen] = useState(false)
-  const [gridN, setGridN] = useState(liveGridN)
-  const [longEdge, setLongEdge] = useState<number>(3200)
+  // Detail is set as "pixels per tile"; the grid size (tile count) is derived from it + the resolution.
+  const [pxPerTile, setPxPerTile] = useState(24)
+  const [width, setWidth] = useState(2048)
+  const [height, setHeight] = useState(2048)
+  // Chain lock: when linked, editing one dimension scales the other to keep the aspect ratio.
+  const [linked, setLinked] = useState(true)
   const [background, setBackground] = useState<Background>('white')
   const [edges, setEdges] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
 
   const mobile = isMobile()
-  const resOptions = RES_PRESETS.filter((r) => !mobile || r <= MOBILE_MAX_RES)
+  const maxRes = mobile ? MOBILE_MAX_RES : DESKTOP_MAX_RES
+  // Floor at 1 (not MIN_RES) so a partially-typed number isn't snapped mid-entry; MIN_RES is only the
+  // input's spinner hint. The export sizing caps still apply at render.
+  const clampRes = (n: number) => Math.min(maxRes, Math.max(1, Math.round(n || 0)))
+  const onWidth = (raw: number) => {
+    const w = clampRes(raw)
+    if (linked && width > 0) setHeight(clampRes(w * (height / width)))
+    setWidth(w)
+  }
+  const onHeight = (raw: number) => {
+    const h = clampRes(raw)
+    if (linked && height > 0) setWidth(clampRes(h * (width / height)))
+    setHeight(h)
+  }
 
   // Close on outside tap / Escape.
   useEffect(() => {
@@ -68,11 +86,12 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
     }
   }, [open])
 
-  // Rough planning readout (no full build): tile count scales ~ (gridN/liveGridN)² like the generators,
-  // and the long edge spans ~gridN tiles, so px/tile ≈ longEdge / gridN.
+  // Detail (tile count) is derived from px-per-tile + resolution: the tiling is square-ish and fit/
+  // centred, so the smaller canvas edge sets how many tiles fit across it. Exactness isn't important.
+  const gridN = Math.max(2, Math.round(Math.min(width, height) / Math.max(1, pxPerTile)))
+  // Rough planning readout (no full build): tile count scales ~ (gridN/liveGridN)² like the generators.
   const estTiles = liveGridN > 0 ? Math.round(tiling.nodes.length * (gridN / liveGridN) ** 2) : tiling.nodes.length
-  const pxPerTile = gridN > 0 ? longEdge / gridN : 0
-  const heavy = estTiles > 250_000 || longEdge >= 6144
+  const heavy = estTiles > 250_000 || width * height >= 6144 * 6144
 
   // Fire-and-forget: build the recipe, hand the job to the Workspace (which shows it in the strip as a
   // cancelable thumbnail), and close the dialog immediately.
@@ -86,7 +105,7 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
       predicates,
       traversers,
       coloringRules,
-      output: { longEdgePx: longEdge, edges, background: BG_COLOR[background] },
+      output: { width, height, edges, background: BG_COLOR[background] },
     })
     onStartExport({ recipe, palette: PALETTE, caps: mobile ? MOBILE_CAPS : DESKTOP_CAPS })
     setOpen(false)
@@ -116,10 +135,11 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
                 exploring) and saves the result as a PNG.
               </p>
               <p>
-                <strong>Grid size</strong> is the detail — more tiles means a bigger, finer fractal.{' '}
-                <strong>Resolution</strong> is the pixel size of the image. They’re independent: a big
-                grid at a big resolution gives small, crisp tiles. Your walkers keep their position
-                relative to the centre, so the pattern grows the same — with more room.
+                <strong>Pixels per tile</strong> is the detail — smaller tiles means more of them, so a
+                bigger, finer fractal (the readout shows the rough grid it works out to).{' '}
+                <strong>Resolution</strong> is the image’s pixel width × height; the{' '}
+                <strong>chain</strong> keeps them in proportion (click it to set them apart). Your walkers
+                keep their position relative to the centre, so the pattern grows the same — with more room.
               </p>
               <p>
                 Export runs in the background — a thumbnail appears in the corner with a spinner; the X
@@ -129,20 +149,50 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
           </div>
 
           <label className="export-row">
-            <span>Grid size</span>
-            <input type="number" min={2} step={10} value={gridN} onChange={(e) => setGridN(Math.max(2, Number(e.target.value) || 0))} />
+            <span>Pixels per tile</span>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={pxPerTile}
+              onChange={(e) => setPxPerTile(Math.max(1, Math.round(Number(e.target.value) || 0)))}
+            />
           </label>
 
-          <label className="export-row">
-            <span>Resolution</span>
-            <select value={longEdge} onChange={(e) => setLongEdge(Number(e.target.value))}>
-              {resOptions.map((r) => (
-                <option key={r} value={r}>
-                  {r}px
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="export-res" role="group" aria-label="resolution (pixels)">
+            <span className="export-res-label export-res-w">Width</span>
+            <input
+              type="number"
+              className="export-res-num export-res-num-w"
+              min={MIN_RES}
+              max={maxRes}
+              step={1}
+              value={width}
+              aria-label="export width in pixels"
+              onChange={(e) => onWidth(Number(e.target.value))}
+            />
+            <button
+              type="button"
+              className={`export-lock${linked ? ' is-linked' : ''}`}
+              aria-pressed={linked}
+              aria-label={linked ? 'width and height linked — click to unlink' : 'width and height independent — click to link'}
+              title={linked ? 'Linked: width and height change together' : 'Unlinked: set width and height separately'}
+              onClick={() => setLinked((v) => !v)}
+            >
+              <LinkIcon broken={!linked} />
+            </button>
+            <span className="export-res-label export-res-h">Height</span>
+            <input
+              type="number"
+              className="export-res-num export-res-num-h"
+              min={MIN_RES}
+              max={maxRes}
+              step={1}
+              value={height}
+              aria-label="export height in pixels"
+              onChange={(e) => onHeight(Number(e.target.value))}
+            />
+          </div>
 
           <label className="export-row">
             <span>Background</span>
@@ -159,7 +209,7 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
           </div>
 
           <p className="export-readout">
-            ≈ {pxPerTile.toFixed(pxPerTile < 10 ? 1 : 0)} px/tile · ≈ {estTiles.toLocaleString()} tiles
+            grid ≈ {gridN} × {gridN} tiles · {width.toLocaleString()} × {height.toLocaleString()} px
           </p>
           {heavy && <p className="export-warn">Large export — may take a while and use a lot of memory.</p>}
 
@@ -169,5 +219,24 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
         </div>
       )}
     </div>
+  )
+}
+
+// The chain-lock glyph between the width/height inputs: a closed link when locked, a split (broken)
+// link when the dimensions are independent.
+function LinkIcon({ broken }: { broken: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 17H7A5 5 0 0 1 7 7h2" />
+      <path d="M15 7h2a5 5 0 0 1 0 10h-2" />
+      {broken ? (
+        <>
+          <line x1="8" y1="12" x2="10" y2="12" />
+          <line x1="14" y1="12" x2="16" y2="12" />
+        </>
+      ) : (
+        <line x1="8" y1="12" x2="16" y2="12" />
+      )}
+    </svg>
   )
 }

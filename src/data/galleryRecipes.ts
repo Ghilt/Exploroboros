@@ -101,7 +101,7 @@ const recipe = (background: string, seeds: RecipeSeed[], traverser: StoredTraver
   app: 'exploroboros',
   tilingId: 'kalleboda',
   gridN: GRID,
-  output: { longEdgePx: 2048, edges: false, background },
+  output: { width: 2048, height: 2048, edges: false, background },
   seeds,
   paint: [],
   predicates: [],

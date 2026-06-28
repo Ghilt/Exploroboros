@@ -7,11 +7,11 @@ import type { Recipe } from './recipe'
 // a tile is visited. Exercises the whole pure pipeline (build → remap → run → colorize → size).
 function recipe(overrides: Partial<Recipe> = {}): Recipe {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     app: 'exploroboros',
     tilingId: 'square',
     gridN: 6,
-    output: { longEdgePx: 240, edges: false, background: null },
+    output: { width: 240, height: 240, edges: false, background: null },
     seeds: [
       { offset: { x: 0, y: 0 }, shape: 'square', heading: 0, def: 'Walker', maxSplit: 1, maxSteps: 50000, movement: 'relative', p: 0, q: 0, r: 0 },
     ],
@@ -29,7 +29,7 @@ describe('computeExport', () => {
     expect(out.hitCap).toBe(false)
     expect(out.ticks).toBeGreaterThan(0)
     expect(out.colorFor.size).toBeGreaterThan(1) // the walker visited several tiles, all coloured
-    expect(out.size.width).toBe(240) // square tiling → square canvas at the requested long edge
+    expect(out.size.width).toBe(240) // honours the requested width × height
     expect(out.size.height).toBe(240)
   })
 
