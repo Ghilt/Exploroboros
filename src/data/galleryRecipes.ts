@@ -21,8 +21,8 @@
 // advance (a flat wash). `ring()` keeps each ramp's stop COLOURS and relative spacing but compresses
 // the modulo to RING_MOD, so the palette cycles into concentric rings like the prototype — see §9.
 //
-// DEFERRED — absolute-nav + rotation-routed fractals (sierpinski, classic, classic-2, ringlare,
-// wedge-seek). Not a missing feature: the target-shape filter is expressible (per-edge
+// DEFERRED — rotation-routed fractals (sierpinski, classic, ringlare, wedge-seek). Not a missing
+// feature: the target-shape filter is expressible (per-edge
 // `if tile-type == wedge @ edge K then move edge K`) and the rotation offset is mappable with tolerance
 // bands (the prototype's `rot == 0/90/180/270` are our wedges' ~67.5/157.5/247.5/337.5). What's
 // unsolved is the absolute EDGE-NUMBER frame: the prototype's compass index (0 = N) ≠ our
@@ -139,6 +139,14 @@ const TWO_PHASE = def('two-phase', ['max-split = 2', GATE_UNVISITED, 'directive 
 const FROST = def('frost-wedge', ['max-split = 5', GATE_UNVISITED, GATE_XOR1, ...XOR_5])
 const FERN = def('fern', ['max-split = 9', GATE_UNVISITED, 'directive move always allow if visited-neighbors <= 1', 'move straight', 'if steps % 4 == 0 and tile-type == octagon then move [edge 0, edge 1, edge 2, edge 3, edge 4, edge 5, edge 6, edge 7]'])
 const SPEED_VIS = def('speed-vis', ['max-split = 8', GATE_UNVISITED, 'directive move always allow if visited-neighbors <= 1', 'move [edge 0, edge 1, edge 2, edge 3, edge 4, edge 5, edge 6, edge 7]'])
+// classic-2 — relative-nav XOR maze, four turns, only onto OCTAGONS. No rotation routing, so it ports
+// cleanly (it was wrongly grouped with the absolute-nav fractals).
+const CLASSIC2 = def('classic-2', ['max-split = 2', GATE_UNVISITED, 'directive move always allow if visited-edges == 1', 'directive move always allow if tile-type == octagon', 'move r1', 'move l1', 'move r2', 'move l2'])
+// classic — DEFERRED. Relative-nav (so no absolute-edge issue), but it's routed entirely by WEDGE
+// rotation, and from an octagon it only moves when a wedge is straight ahead — so it's sensitive to
+// both the rotation→our-value correspondence AND the start tile/heading. A first attempt (rotation
+// bands at our ~67.5/157.5/247.5/337.5°, octagon seed) died at tick 1. Needs the correspondence found
+// by observation + the right start; tracked alongside the other rotation-routed fractals.
 
 // Image filename (in src/assets/gallery/) → its recipe.
 export const GALLERY_RECIPES: Readonly<Record<string, Recipe>> = {
@@ -147,6 +155,7 @@ export const GALLERY_RECIPES: Readonly<Record<string, Recipe>> = {
   'carpet.webp': recipe('#0a0408', [seed('carpet', 5)], CARPET, [ring('carpet-c', 380, [stop('#FFE08A', 0), stop('#FF6A3D', 120), stop('#7A1E5A', 260)])]),
   'octa-carpet.webp': recipe('#0a0a04', [seed('octa-carpet', 5, { shape: 'octagon' })], OCTA_CARPET, [ring('octa-carpet-c', 60, [stop('#FFFFC8', 0), stop('#FF6428', 20), stop('#781E5A', 50)])]),
   'labyrinth-2.webp': recipe('#0e0c18', [seed('labyrinth-2', 2)], LABYRINTH, [ring('labyrinth-2-c', 460, [stop('#9AD0FF', 0), stop('#7B5BF2', 220), stop('#E0509A', 460)])]),
+  'classic-2.webp': recipe('#000000', [seed('classic-2', 2, { shape: 'octagon' })], CLASSIC2, [ring('classic-2-c', 350, [stop('#FAE9A0', 0), stop('#0070FA', 39), stop('#FAE9A0', 350)])]),
   'nested-rings.webp': recipe('#060006', [seed('nested-rings', 3)], NESTED, [ring('nested-rings-c', 60, [stop('#FFFFFF', 0), stop('#2A0E4A', 5), stop('#FF4DA0', 40)])]),
   'sierp-shape.webp': recipe('#060406', [seed('sierp-gasket', 3)], SIERP_GASKET, [
     inlineRing('sierp-shape-oct', 'tile-type == octagon', 400, [stop('#FFE08A', 0), stop('#FF6A3D', 200)]),
