@@ -1,0 +1,44 @@
+/* Compact − value + stepper: one connected unit with hairline dividers, sized for a single digit so
+   the dock doesn't waste horizontal space (or reflow as the number changes). */
+.stepper {
+  display: inline-flex;
+  align-items: stretch;
+  height: 1.5rem;
+  border: var(--bw-1) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow: hidden;
+  vertical-align: middle;
+}
+.stepper-btn {
+  width: 1.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: var(--surface-2);
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+.stepper-btn:hover:not(:disabled) {
+  color: var(--accent);
+}
+.stepper-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.stepper-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  padding: 0 0.15rem;
+  border-left: var(--bw-1) solid var(--line);
+  border-right: var(--bw-1) solid var(--line);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 0.82rem;
+}

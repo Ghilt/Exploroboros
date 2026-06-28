@@ -25,6 +25,8 @@ import { TilingCanvas, type DisplayMode, type DragMode } from './TilingCanvas'
 import { TilingPicker } from './TilingPicker'
 import { Panel } from './Panel'
 import { HelpButton } from './HelpButton'
+import { SegmentedControl } from './SegmentedControl'
+import { Stepper } from './Stepper'
 import { PredicatePane } from './PredicatePane'
 import { TraversersPane } from './TraversersPane'
 import { ColoringPane } from './ColoringPane'
@@ -456,7 +458,6 @@ export function Workspace() {
     setRunning(true)
   }
   const pause = () => setRunning(false)
-  const cycleSpeed = () => setSpeed((s) => (s === 'slow' ? 'fast' : s === 'fast' ? 'max' : 'slow'))
   // Stop: discard the live run and clear its trail (step >= 0 visits), restoring the AUTHORED state —
   // the placed walkers (seeds) reappear and only hand-painted tiles (step -1) remain. Only Reset
   // removes the seeds.
@@ -612,17 +613,28 @@ export function Workspace() {
   // place when a pane opens or closes — instead of riding the canvas pane's changing width.
   const canvasControls = (
     <>
-      <div className="canvas-run" role="group" aria-label="traverser run">
-        <button type="button" className="run-btn" onClick={play} disabled={running || walkers.length === 0} aria-label="Play — run the traversers" title="Play — run the traversers">▶</button>
-        <button type="button" className="run-btn" onClick={pause} disabled={!running} aria-label="Pause — stop ticking, keep the walkers" title="Pause — stop ticking, keep the walkers">❚❚</button>
-        <button type="button" className="run-btn" onClick={stopRun} disabled={!running && runLive === null && !hasTraverserVisits(overlay)} aria-label="Stop — end the run and clear its trail (keeps the walkers and your painting)" title="Stop — end the run and clear its trail (keeps the walkers and your painting)">■</button>
-        <button type="button" className="canvas-chip canvas-chip-btn run-speed" onClick={cycleSpeed} title="Run speed — click to cycle: slow, fast, max">speed: {speed}</button>
+      <div className="transport seg-shell" role="group" aria-label="traverser run">
+        <button type="button" className="seg-item seg-item--btn transport-btn" onClick={play} disabled={running || walkers.length === 0} aria-label="Play — run the traversers" title="Play — run the traversers">▶</button>
+        <button type="button" className="seg-item seg-item--btn transport-btn" onClick={pause} disabled={!running} aria-label="Pause — stop ticking, keep the walkers" title="Pause — stop ticking, keep the walkers">❚❚</button>
+        <button type="button" className="seg-item seg-item--btn transport-btn" onClick={stopRun} disabled={!running && runLive === null && !hasTraverserVisits(overlay)} aria-label="Stop — end the run and clear its trail (keeps the walkers and your painting)" title="Stop — end the run and clear its trail (keeps the walkers and your painting)">■</button>
+        <SegmentedControl
+          embedded
+          ariaLabel="run speed"
+          value={speed}
+          onChange={setSpeed}
+          options={[
+            { value: 'slow', label: 'slow', title: 'one tick every 300ms' },
+            { value: 'fast', label: 'fast', title: 'one tick every 90ms' },
+            { value: 'max', label: 'max', title: 'one tick per animation frame' },
+          ]}
+        />
       </div>
       <div className="canvas-tools">
         <TilingPicker value={tilingId} onChange={selectTiling} />
         <div className="canvas-drag" ref={dragMenuRef}>
-          <button type="button" className="canvas-chip canvas-chip-btn" aria-label="drag mode" aria-haspopup="menu" aria-expanded={dragMenuOpen} title="What a one-finger drag does" onClick={() => setDragMenuOpen((o) => !o)}>
+          <button type="button" className="canvas-trigger" aria-label="drag mode" aria-haspopup="menu" aria-expanded={dragMenuOpen} title="What a one-finger drag does" onClick={() => setDragMenuOpen((o) => !o)}>
             {dragMode === 'paint' ? `paint: ${paintLabel(paintTarget)}` : dragMode === 'select' ? 'drag: box select' : dragMode === 'paintselect' ? 'drag: paint select' : 'drag: off'}
+            <span className="canvas-trigger-caret" aria-hidden="true">▾</span>
           </button>
           {dragMenuOpen && (
             <div className="drag-menu" role="menu">
@@ -636,17 +648,15 @@ export function Workspace() {
             </div>
           )}
         </div>
-        <button type="button" className="canvas-chip canvas-chip-btn" onClick={() => setDisplayMode((m) => (m === 'edges' ? 'none' : m === 'none' ? 'stats' : 'edges'))} title="Tile display — click to cycle: edges, none, stats">display: {displayMode}</button>
-        <ExportMenu
-          tilingId={tilingId}
-          tiling={tiling}
-          liveGridN={gridN}
-          seeds={seeds}
-          baseOverlay={exportBase}
-          predicates={predicateStore.predicates}
-          traversers={traverserStore.traversers}
-          coloringRules={coloringStore.rules}
-          onStartExport={startExport}
+        <SegmentedControl
+          ariaLabel="tile display"
+          value={displayMode}
+          onChange={setDisplayMode}
+          options={[
+            { value: 'edges', label: 'edges', title: 'tile edges drawn' },
+            { value: 'none', label: 'none', title: 'flush fills, no edges' },
+            { value: 'stats', label: 'stats', title: 'numbers + heading arrows inside tiles' },
+          ]}
         />
         <div className="canvas-more-wrap" ref={moreRef}>
           <button type="button" className="canvas-btn canvas-more" onClick={() => setToolsOpen((o) => !o)} aria-label="more controls" aria-expanded={toolsOpen} title="More controls">⋯</button>
@@ -659,6 +669,17 @@ export function Workspace() {
             <button type="button" className="canvas-btn" onClick={resetAll} disabled={overlayIsEmpty(overlay) && seeds.length === 0 && runLive === null} title="Reset — clears every visit and counter, and removes the walkers">Reset</button>
           </div>
         </div>
+        <ExportMenu
+          tilingId={tilingId}
+          tiling={tiling}
+          liveGridN={gridN}
+          seeds={seeds}
+          baseOverlay={exportBase}
+          predicates={predicateStore.predicates}
+          traversers={traverserStore.traversers}
+          coloringRules={coloringStore.rules}
+          onStartExport={startExport}
+        />
       </div>
     </>
   )
@@ -769,7 +790,7 @@ function DefSelect({
   onChange: (v: string) => void
 }) {
   return (
-    <select className="trav-def" aria-label="traverser to place" value={value} onChange={(e) => onChange(e.target.value)}>
+    <select className="seg-item trav-def" aria-label="traverser to place" value={value} onChange={(e) => onChange(e.target.value)}>
       {options.map((o) => (
         <option key={o} value={o}>
           {o}
@@ -855,32 +876,34 @@ function InspectContent({
         {!canEditTraverser ? (
           <p className="trav-note">Stop the run to edit the walkers.</p>
         ) : traverserHeading === null ? (
-          <div className="trav-place-row">
+          <div className="trav-place-row seg-shell">
             <DefSelect options={defOptions} value={placeDef} onChange={onChangeDef} />
-            <button type="button" className="trav-place" onClick={() => onPlaceTraverser(node.id)}>
+            <button type="button" className="seg-item seg-item--btn trav-place" onClick={() => onPlaceTraverser(node.id)}>
               Place
             </button>
           </div>
         ) : (
-          <div className="trav-controls">
+          <div className="trav-controls seg-shell">
             <button
               type="button"
-              className="trav-rot"
+              className="seg-item seg-item--btn trav-rot"
               onClick={() => onRotateTraverser(node.id, -1)}
               aria-label="rotate heading left"
             >
               ↺
             </button>
-            <HeadingArrow heading={traverserHeading} />
+            <span className="seg-item trav-arrow">
+              <HeadingArrow heading={traverserHeading} />
+            </span>
             <button
               type="button"
-              className="trav-rot"
+              className="seg-item seg-item--btn trav-rot"
               onClick={() => onRotateTraverser(node.id, 1)}
               aria-label="rotate heading right"
             >
               ↻
             </button>
-            <button type="button" className="trav-remove" onClick={() => onRemoveTraverser(node.id)}>
+            <button type="button" className="seg-item seg-item--btn trav-remove" onClick={() => onRemoveTraverser(node.id)}>
               Remove
             </button>
           </div>
@@ -912,14 +935,8 @@ function InspectContent({
             </p>
           </HelpButton>
         </dt>
-        <dd className="stepper">
-          <button type="button" onClick={() => onVisit(node.id, -1)} aria-label="decrease visited">
-            −
-          </button>
-          <span className="stepper-value visited-value">{own}</span>
-          <button type="button" onClick={() => onVisit(node.id, 1)} aria-label="increase visited">
-            +
-          </button>
+        <dd>
+          <Stepper value={own} onStep={(d) => onVisit(node.id, d)} label="visited" min={0} valueClassName="visited-value" />
         </dd>
         <dt>steps</dt>
         <dd className="steps-readout">{formatSteps(st.visits)}</dd>
@@ -964,14 +981,14 @@ function InspectContent({
           {REGISTRIES.map(({ key, label }) => (
             <Fragment key={key}>
               <dt>{label}</dt>
-              <dd className="stepper">
-                <button type="button" onClick={() => onRegistry(node.id, key, -1)} aria-label={`decrease ${label}`}>
-                  −
-                </button>
-                <span className={`stepper-value reg-value reg-${key}`}>{st[key]}</span>
-                <button type="button" onClick={() => onRegistry(node.id, key, 1)} aria-label={`increase ${label}`}>
-                  +
-                </button>
+              <dd>
+                <Stepper
+                  value={st[key]}
+                  onStep={(d) => onRegistry(node.id, key, d)}
+                  label={label}
+                  min={0}
+                  valueClassName={`reg-value reg-${key}`}
+                />
               </dd>
             </Fragment>
           ))}
@@ -1020,33 +1037,31 @@ function MultiInspectContent({
           <p className="trav-note">Stop the run to edit the walkers.</p>
         ) : (
           <div className="trav-controls trav-controls--multi">
-            <DefSelect options={defOptions} value={placeDef} onChange={onChangeDef} />
-            <button type="button" className="trav-place" onClick={onPlaceTraverser}>
-              Place on all
-            </button>
-            <button type="button" className="trav-rot" onClick={() => onRotateTraverser(-1)} aria-label="rotate all headings left">
-              ↺
-            </button>
-            <button type="button" className="trav-rot" onClick={() => onRotateTraverser(1)} aria-label="rotate all headings right">
-              ↻
-            </button>
-            <button type="button" className="trav-remove" onClick={onRemoveTraverser}>
-              Remove all
-            </button>
+            <div className="trav-place-row seg-shell">
+              <DefSelect options={defOptions} value={placeDef} onChange={onChangeDef} />
+              <button type="button" className="seg-item seg-item--btn trav-place" onClick={onPlaceTraverser}>
+                Place on all
+              </button>
+            </div>
+            <div className="seg-shell">
+              <button type="button" className="seg-item seg-item--btn trav-rot" onClick={() => onRotateTraverser(-1)} aria-label="rotate all headings left">
+                ↺
+              </button>
+              <button type="button" className="seg-item seg-item--btn trav-rot" onClick={() => onRotateTraverser(1)} aria-label="rotate all headings right">
+                ↻
+              </button>
+              <button type="button" className="seg-item seg-item--btn trav-remove" onClick={onRemoveTraverser}>
+                Remove all
+              </button>
+            </div>
           </div>
         )}
       </div>
 
       <dl>
         <dt>visited</dt>
-        <dd className="stepper">
-          <button type="button" onClick={() => onVisit(-1)} aria-label="decrease visited on all">
-            −
-          </button>
-          <span className="stepper-value visited-value">—</span>
-          <button type="button" onClick={() => onVisit(1)} aria-label="increase visited on all">
-            +
-          </button>
+        <dd>
+          <Stepper value={0} display="—" onStep={onVisit} label="visited on all" valueClassName="visited-value" />
         </dd>
       </dl>
 
@@ -1059,14 +1074,14 @@ function MultiInspectContent({
           {REGISTRIES.map(({ key, label }) => (
             <Fragment key={key}>
               <dt>{label}</dt>
-              <dd className="stepper">
-                <button type="button" onClick={() => onRegistry(key, -1)} aria-label={`decrease ${label} on all`}>
-                  −
-                </button>
-                <span className={`stepper-value reg-value reg-${key}`}>—</span>
-                <button type="button" onClick={() => onRegistry(key, 1)} aria-label={`increase ${label} on all`}>
-                  +
-                </button>
+              <dd>
+                <Stepper
+                  value={0}
+                  display="—"
+                  onStep={(d) => onRegistry(key, d)}
+                  label={`${label} on all`}
+                  valueClassName={`reg-value reg-${key}`}
+                />
               </dd>
             </Fragment>
           ))}

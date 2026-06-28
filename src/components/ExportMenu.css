@@ -71,15 +71,6 @@
   background: var(--surface-2);
   color: var(--fg);
 }
-.export-check {
-  justify-content: flex-start;
-  gap: 0.4rem;
-  cursor: pointer;
-}
-.export-check input {
-  margin: 0;
-}
-
 .export-readout {
   margin: 0.1rem 0 0;
   font-family: var(--mono);

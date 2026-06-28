@@ -1,0 +1,38 @@
+/* Binary on/off switch — a small track with a sliding knob. Geometric, not skeuomorphic. */
+.toggle {
+  position: relative;
+  flex: none;
+  width: 2.1rem;
+  height: 1.2rem;
+  padding: 0;
+  border: var(--bw-1) solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.toggle.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.toggle-knob {
+  position: absolute;
+  top: 50%;
+  left: 0.15rem;
+  width: 0.82rem;
+  height: 0.82rem;
+  border-radius: 50%;
+  background: var(--surface);
+  transform: translate(0, -50%);
+  transition: transform 0.16s ease;
+}
+.toggle.is-on .toggle-knob {
+  transform: translate(0.9rem, -50%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggle,
+  .toggle-knob {
+    transition: none;
+  }
+}

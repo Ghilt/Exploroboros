@@ -9,6 +9,7 @@ import type { StoredTraverser } from '../state/traverserStore'
 import { buildRecipe, DESKTOP_CAPS, MOBILE_CAPS } from '../export'
 import type { ExportParams } from '../export/exportImage'
 import { HelpButton } from './HelpButton'
+import { Toggle } from './Toggle'
 
 // The export's plane is the chosen Background — unpainted (unvisited) tiles take it, so the fractal
 // sits on it (white / black / transparent). Only the edge colour (when edges are shown) is fixed here.
@@ -95,13 +96,14 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
     <div className="export-menu" ref={wrapRef}>
       <button
         type="button"
-        className="canvas-chip canvas-chip-btn"
+        className="canvas-trigger"
         aria-haspopup="dialog"
         aria-expanded={open}
         title="Export a high-resolution PNG"
         onClick={() => setOpen((o) => !o)}
       >
-        Export ▾
+        Export
+        <span className="canvas-trigger-caret" aria-hidden="true">▾</span>
       </button>
       {open && (
         <div className="export-pop" role="dialog" aria-label="Export image">
@@ -151,10 +153,10 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
             </select>
           </label>
 
-          <label className="export-row export-check">
-            <input type="checkbox" checked={edges} onChange={(e) => setEdges(e.target.checked)} />
+          <div className="export-row">
             <span>Show tile edges</span>
-          </label>
+            <Toggle checked={edges} onChange={setEdges} label="show tile edges" />
+          </div>
 
           <p className="export-readout">
             ≈ {pxPerTile.toFixed(pxPerTile < 10 ? 1 : 0)} px/tile · ≈ {estTiles.toLocaleString()} tiles

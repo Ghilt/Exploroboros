@@ -6,6 +6,7 @@ import type { PredicateStore, StoredPredicate } from '../state/predicateStore'
 import { HelpButton } from './HelpButton'
 import { TrashButton } from './TrashButton'
 import { PredicateVisualEditor } from './PredicateVisualEditor'
+import { SegmentedControl } from './SegmentedControl'
 
 // The Predicate pane: a library of reusable tile predicates. Rows show just the name; click one to
 // expand it — a bundled predicate reveals its DSL (read-only), a custom one opens its editor. "+ New"
@@ -125,13 +126,16 @@ function PredicateEditor({
         />
       </label>
 
-      <div className="pred-mode" role="group" aria-label="editor mode">
-        <button type="button" aria-pressed={mode === 'text'} onClick={() => setMode('text')}>
-          Text
-        </button>
-        <button type="button" aria-pressed={mode === 'visual'} onClick={() => setMode('visual')}>
-          Visual
-        </button>
+      <div className="pred-mode">
+        <SegmentedControl
+          ariaLabel="editor mode"
+          value={mode}
+          onChange={setMode}
+          options={[
+            { value: 'text', label: 'Text' },
+            { value: 'visual', label: 'Visual' },
+          ]}
+        />
       </div>
 
       {mode === 'text' ? (

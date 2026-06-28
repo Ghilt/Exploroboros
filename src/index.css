@@ -21,7 +21,35 @@
   /* Panes get minimal rounding (just a hair); buttons/chips a touch less than before. */
   --radius: 5px;
   --radius-sm: 8px;
+  /* Pill rounding is for CHIPS / TAGS / STATUS only — never buttons (a labelled button uses
+     --radius-sm). See docs/VISUAL-LANGUAGE.md §5. */
+  --radius-pill: 999px;
   --maxw: 72rem;
+
+  /* Spacing scale — formalises the values the UI already uses, so rhythm stays consistent. */
+  --space-1: 0.25rem;
+  --space-2: 0.4rem;
+  --space-3: 0.6rem;
+  --space-4: 0.9rem;
+  --space-5: 1.4rem;
+  --space-6: 2rem;
+
+  /* Border widths. */
+  --bw-1: 1px;
+  --bw-2: 2px;
+
+  /* Shared height for inline / bar controls (buttons, chips, segmented, dropdowns, steppers) so a
+     row of mixed controls aligns on one baseline. */
+  --control-h: 1.9rem;
+
+  /* Elevation — the three shadow depths used across the app, tokenised. */
+  --elev-1: 0 4px 12px rgba(0, 0, 0, 0.18);
+  --elev-2: 0 8px 24px rgba(0, 0, 0, 0.18);
+  --elev-3: 0 24px 60px rgba(0, 0, 0, 0.4);
+
+  /* State colour roles (aliases of the accents, for readable intent). */
+  --state-selected: var(--accent);
+  --state-warn: var(--accent-strong);
 
   color-scheme: light dark;
 }

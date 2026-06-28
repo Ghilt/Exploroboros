@@ -1,0 +1,87 @@
+/* Connected-segments shell — the shared look for segmented controls AND ad-hoc connected control
+   groups (e.g. the Inspect traverser controls). One bordered, rounded container; children sit flush
+   with hairline dividers between them. */
+.seg-shell {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  height: var(--control-h);
+  border: var(--bw-1) solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow: hidden;
+}
+.seg-shell--md {
+  height: 2.2rem;
+}
+/* Embedded: no own border/background, so it nests inside another bordered shell and fills its height. */
+.seg-shell--embedded {
+  border: none;
+  border-radius: 0;
+  background: none;
+  height: auto;
+  align-self: stretch;
+}
+
+/* A single segment — a button or a static display cell. */
+.seg-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  line-height: 1;
+  color: var(--fg);
+  background: none;
+  border: none;
+  white-space: nowrap;
+}
+/* Hairline divider between adjacent segments (the indicator span is not a .seg-item, so the first
+   real segment gets no left border). */
+.seg-item + .seg-item {
+  border-left: var(--bw-1) solid var(--line);
+}
+.seg-item--btn {
+  cursor: pointer;
+}
+.seg-item--btn:hover:not(:disabled):not(.is-selected) {
+  color: var(--accent);
+}
+.seg-item--btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Radio segments fill equal widths so the sliding indicator aligns under the selected one. */
+.seg-radio {
+  flex: 1 1 0;
+  position: relative;
+  z-index: 1;
+  color: var(--muted);
+}
+.seg-radio.is-selected {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* The sliding selection indicator — a soft fill sized/placed (via inline style) to the selected
+   segment's real geometry, so it lands exactly on the dividers. */
+.seg-indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 0;
+  width: 0;
+  background: var(--surface-2);
+  transition: transform 0.16s ease, width 0.16s ease;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seg-indicator {
+    transition: none;
+  }
+}

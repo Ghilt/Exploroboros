@@ -1,4 +1,4 @@
-import { render, fireEvent, screen, cleanup } from '@testing-library/react'
+import { render, fireEvent, screen, cleanup, within } from '@testing-library/react'
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { Workspace } from './Workspace'
 
@@ -54,12 +54,12 @@ describe('Workspace', () => {
     expect(screen.getByRole('button', { name: /expand coloring/i })).toBeTruthy()
   })
 
-  it('offers the tiling picker, the drag control, the display chip, and the grid-size control', () => {
+  it('offers the tiling picker, the drag control, the display control, and the grid-size control', () => {
     render(<Workspace />)
     expect(screen.getByRole('button', { name: /square/i })).toBeTruthy()
     // Drag defaults to off (a drag doesn't paint by accident).
     expect(screen.getByRole('button', { name: /drag mode/i }).textContent).toMatch(/off/i)
-    expect(screen.getByRole('button', { name: /display:/i })).toBeTruthy()
+    expect(screen.getByRole('radiogroup', { name: /tile display/i })).toBeTruthy()
     expect(screen.getByRole('slider', { name: /grid size/i })).toBeTruthy()
   })
 
@@ -84,28 +84,28 @@ describe('Workspace', () => {
     expect(chip.textContent).toMatch(/paint select/i)
   })
 
-  it('the display chip cycles edges -> none -> stats -> edges', () => {
+  it('the display segmented control selects edges / none / stats', () => {
     render(<Workspace />)
-    const chip = screen.getByRole('button', { name: /display:/i })
-    expect(chip.textContent).toMatch(/edges/i)
-    fireEvent.click(chip)
-    expect(chip.textContent).toMatch(/none/i)
-    fireEvent.click(chip)
-    expect(chip.textContent).toMatch(/stats/i)
-    fireEvent.click(chip)
-    expect(chip.textContent).toMatch(/edges/i)
+    const group = within(screen.getByRole('radiogroup', { name: /tile display/i }))
+    const radio = (name: RegExp) => group.getByRole('radio', { name }) as HTMLButtonElement
+    expect(radio(/edges/i).getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(radio(/none/i))
+    expect(radio(/none/i).getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(radio(/stats/i))
+    expect(radio(/stats/i).getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(radio(/edges/i))
+    expect(radio(/edges/i).getAttribute('aria-checked')).toBe('true')
   })
 
-  it('the speed chip cycles slow -> fast -> max (default fast)', () => {
+  it('the speed segmented control selects slow / fast / max (default fast)', () => {
     render(<Workspace />)
-    const chip = screen.getByRole('button', { name: /speed:/i })
-    expect(chip.textContent).toMatch(/fast/i)
-    fireEvent.click(chip)
-    expect(chip.textContent).toMatch(/max/i)
-    fireEvent.click(chip)
-    expect(chip.textContent).toMatch(/slow/i)
-    fireEvent.click(chip)
-    expect(chip.textContent).toMatch(/fast/i)
+    const group = within(screen.getByRole('radiogroup', { name: /run speed/i }))
+    const radio = (name: RegExp) => group.getByRole('radio', { name }) as HTMLButtonElement
+    expect(radio(/fast/i).getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(radio(/max/i))
+    expect(radio(/max/i).getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(radio(/slow/i))
+    expect(radio(/slow/i).getAttribute('aria-checked')).toBe('true')
   })
 
   it('locks grid resize during an active run (Play + Pause), frees it on Stop', () => {

@@ -111,16 +111,31 @@
   row-gap: 0.4rem;
 }
 
-/* Chip naming a canvas control (display mode, paint target) */
-.canvas-chip {
+/* Dropdown / menu triggers in the canvas bar — tiling picker, drag, export — share ONE look. They
+   open popups, so they're dropdown buttons (rounded-rect), NOT status-chip pills (see
+   docs/VISUAL-LANGUAGE.md §5/§6). Matches .tiling-picker-trigger so all three are identical. */
+.canvas-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: var(--control-h);
   font-family: var(--mono);
-  font-size: 0.72rem;
-  padding: 0.2rem 0.55rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
+  font-size: 0.75rem;
+  padding: 0 0.6rem;
+  border: var(--bw-1) solid var(--line);
+  border-radius: var(--radius-sm);
   background: var(--surface-2);
-  color: var(--muted);
+  color: var(--fg);
+  cursor: pointer;
   white-space: nowrap;
+}
+.canvas-trigger:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.canvas-trigger-caret {
+  font-size: 0.6rem;
+  color: var(--muted);
 }
 
 /* Drag control — a chip that opens a popup: Off / Select / Paint (Visited, A, B, C). */
@@ -193,20 +208,14 @@
   accent-color: var(--accent);
   cursor: pointer;
 }
-/* Clickable variant of .canvas-chip — cycles the tile display mode */
-.canvas-chip-btn {
-  cursor: pointer;
-  color: var(--fg);
-}
-.canvas-chip-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
 .canvas-btn {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-h);
   font-family: var(--mono);
   font-size: 0.75rem;
-  padding: 0.25rem 0.6rem;
-  border: 1px solid var(--line);
+  padding: 0 0.6rem;
+  border: var(--bw-1) solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--fg);
@@ -221,36 +230,18 @@
   cursor: not-allowed;
 }
 
-/* Traverser run controls — Play / Pause / Stop, top-left of the canvas header (where the title was). */
-.canvas-run {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-}
-.run-btn {
-  width: 1.9rem;
-  height: 1.9rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+/* Traverser transport — Play / Pause / Stop + the speed segmented control, all in ONE connected
+   shell (built on .seg-shell) so it reads as a single unit. The embedded speed group sits behind a
+   divider on the right. */
+.transport .transport-btn {
+  width: 2rem;
+  padding: 0;
   font-size: 0.8rem;
-  line-height: 1;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
   color: var(--fg);
-  cursor: pointer;
 }
-.run-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.run-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.run-speed {
-  margin-left: 0.25rem;
+/* Divider between the transport buttons and the embedded speed group. */
+.transport > .seg-shell--embedded {
+  border-left: var(--bw-1) solid var(--line);
 }
 
 /* Fit / Reset / grid-size: a ⋯ dropdown on mobile, inline on desktop. */
@@ -362,63 +353,38 @@
   text-transform: uppercase;
   color: var(--muted);
 }
-/* The definition picker + Place button sit on one row (wraps on a narrow dock). */
-.trav-place-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
+/* The definition picker + Place button are one connected segmented unit (.seg-shell). The select is
+   a flush segment that grows; Place sits behind a divider. */
 .trav-def {
-  font-family: var(--mono);
-  font-size: 0.76rem;
-  padding: 0.25rem 0.4rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  color: var(--fg);
-  max-width: 9rem;
-}
-.trav-place {
-  font-family: var(--mono);
-  font-size: 0.78rem;
-  padding: 0.3rem 0.7rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 11rem;
+  justify-content: flex-start;
+  background: var(--surface);
   color: var(--fg);
   cursor: pointer;
+  /* Native selects ignore most box styling but honour height via the stretched seg-shell. */
+  appearance: none;
 }
-.trav-place:hover {
-  border-color: var(--accent);
+.trav-place {
   color: var(--accent);
 }
-.trav-controls {
-  display: inline-flex;
+/* Bulk view shows two connected groups (place + actions); let them wrap on a narrow dock. */
+.trav-controls--multi {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
 }
-/* Bulk view packs four buttons — let them wrap on a narrow dock. */
-.trav-controls--multi {
-  flex-wrap: wrap;
-}
+/* Square icon segments (rotate). */
 .trav-rot {
-  width: 1.7rem;
-  height: 1.7rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  width: 2rem;
+  padding: 0;
   font-size: 1rem;
-  line-height: 1;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  color: var(--fg);
-  cursor: pointer;
 }
-.trav-rot:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+/* Non-interactive heading-arrow display segment between the rotate buttons. */
+.trav-arrow {
+  padding: 0 0.4rem;
 }
 .heading-arrow {
   /* Mirrors the canvas traverser arrow (now black). Uses --fg, not pure black, so it stays visible
@@ -427,19 +393,7 @@
   flex: none;
 }
 .trav-remove {
-  margin-left: 0.3rem;
-  font-family: var(--mono);
-  font-size: 0.7rem;
-  padding: 0.2rem 0.5rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
   color: var(--muted);
-  cursor: pointer;
-}
-.trav-remove:hover {
-  border-color: var(--accent);
-  color: var(--accent);
 }
 .trav-note {
   margin: 0;
@@ -469,38 +423,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Compact −0+ stepper: tight buttons flanking the value, kept narrow so the dock doesn't waste
-   horizontal space (or need a scrollbar). */
-.stepper {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-.stepper button {
-  width: 1.25rem;
-  height: 1.25rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
-  background: var(--surface-2);
-  color: var(--fg);
-  cursor: pointer;
-  font-size: 0.85rem;
-  line-height: 1;
-  padding: 0;
-}
-.stepper button:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.stepper-value {
-  min-width: 1.1rem;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-}
+/* The −value+ stepper now lives in the shared Stepper component (Stepper.css). */
 
 /* "advanced" collapsible — tucks the free-form registries (A/B/C) out of the way until wanted. */
 .adv-section {
