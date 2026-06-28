@@ -4,7 +4,7 @@
 // the future traverser DSL. Errors come back as a Result with a message + span (for the editor to
 // point at), never thrown across the boundary.
 
-import type { ArithOp, AttrName, AttrRef, CompareOp, Expr, Pred, Result, Span } from './types'
+import type { ArithOp, AttrName, AttrRef, CompareOp, Expr, Pred, RegLetter, Result, Span } from './types'
 import { lex, type Token } from './lex'
 import { attrSpec } from './attributes'
 
@@ -170,10 +170,35 @@ class Parser {
       this.expect('rparen', 'expected ")"')
       return { kind: 'group', inner }
     }
+    if (t.kind === 'lbracket') {
+      return this.parseRegRead()
+    }
     if (t.kind === 'ident') {
       return this.parseAttribute()
     }
-    throw new ParseFail('expected a number, attribute, or "("', t.span)
+    throw new ParseFail('expected a number, attribute, "[A]", or "("', t.span)
+  }
+
+  // A tile-registry read: [A], [a], or [A, B] (the sum). Replaces the old registry-a attribute name.
+  private parseRegRead(): Expr {
+    const open = this.next() // '['
+    const regs: RegLetter[] = []
+    for (;;) {
+      const tok = this.peek()
+      if (tok.kind !== 'ident' || !/^[abc]$/i.test(tok.text)) {
+        throw new ParseFail('expected a registry letter A, B or C, e.g. [A] or [A, B]', tok.span)
+      }
+      this.next()
+      regs.push(tok.text.toLowerCase() as RegLetter)
+      if (this.peek().kind === 'comma') {
+        this.next()
+        continue
+      }
+      break
+    }
+    this.expect('rbracket', 'expected "]"')
+    if (regs.length === 0) throw new ParseFail('a registry read needs at least one letter, e.g. [A]', open.span)
+    return { kind: 'reg', regs }
   }
   private parseAttribute(): Expr {
     const t = this.next()
@@ -181,6 +206,10 @@ class Parser {
     if (KEYWORDS.has(name)) throw new ParseFail(`unexpected "${name}"`, t.span)
     const spec = attrSpec(name)
     if (!spec) throw new ParseFail(`unknown attribute "${name}"`, t.span)
+    if (spec.rampOnly) {
+      const letter = name.slice(-1).toUpperCase()
+      throw new ParseFail(`read registry ${letter} as [${letter}] — the "${name}" name is only for colour ramps`, t.span)
+    }
 
     const node: AttrRef = { kind: 'attr', name: name as AttrName, scope: spec.scopes[0] ?? 'tile' }
 

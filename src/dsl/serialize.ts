@@ -26,6 +26,8 @@ function exprText(e: Expr): Texted {
       return { s: String(e.value), prec: 8 }
     case 'attr':
       return { s: attrStr(e), prec: 8 }
+    case 'reg':
+      return { s: `[${e.regs.map((r) => r.toUpperCase()).join(', ')}]`, prec: 8 }
     case 'neg':
       return { s: `-${wrapExpr(e.operand, 7)}`, prec: 7 }
     case 'bin': {

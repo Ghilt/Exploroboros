@@ -431,9 +431,57 @@ export function Workspace() {
     return () => document.removeEventListener('keydown', onKey)
   }, [])
 
+  // Canvas controls (run + tools). Rendered in a stable top bar ABOVE all panes, so they keep their
+  // place when a pane opens or closes — instead of riding the canvas pane's changing width.
+  const canvasControls = (
+    <>
+      <div className="canvas-run" role="group" aria-label="traverser run">
+        <button type="button" className="run-btn" onClick={play} disabled={running || walkers.length === 0} aria-label="Play — run the traversers" title="Play — run the traversers">▶</button>
+        <button type="button" className="run-btn" onClick={pause} disabled={!running} aria-label="Pause — stop ticking, keep the walkers" title="Pause — stop ticking, keep the walkers">❚❚</button>
+        <button type="button" className="run-btn" onClick={stopRun} disabled={!running && runLive === null && !hasTraverserVisits(overlay)} aria-label="Stop — end the run and clear its trail (keeps the walkers and your painting)" title="Stop — end the run and clear its trail (keeps the walkers and your painting)">■</button>
+        <button type="button" className="canvas-chip canvas-chip-btn run-speed" onClick={cycleSpeed} title="Run speed — click to cycle: slow, fast, max">speed: {speed}</button>
+      </div>
+      <div className="canvas-tools">
+        <TilingPicker value={tilingId} onChange={selectTiling} />
+        <div className="canvas-drag" ref={dragMenuRef}>
+          <button type="button" className="canvas-chip canvas-chip-btn" aria-label="drag mode" aria-haspopup="menu" aria-expanded={dragMenuOpen} title="What a one-finger drag does" onClick={() => setDragMenuOpen((o) => !o)}>
+            {dragMode === 'paint' ? `paint: ${paintLabel(paintTarget)}` : dragMode === 'select' ? 'drag: box select' : dragMode === 'paintselect' ? 'drag: paint select' : 'drag: off'}
+          </button>
+          {dragMenuOpen && (
+            <div className="drag-menu" role="menu">
+              <button type="button" role="menuitem" className="drag-item" aria-current={dragMode === 'off'} onClick={() => chooseDrag('off')}>off</button>
+              <button type="button" role="menuitem" className="drag-item" aria-current={dragMode === 'select'} onClick={() => chooseDrag('select')}>box select</button>
+              <button type="button" role="menuitem" className="drag-item" aria-current={dragMode === 'paintselect'} onClick={() => chooseDrag('paintselect')}>paint select</button>
+              <div className="drag-menu-label">Paint</div>
+              {PAINT_TARGETS.map((t) => (
+                <button type="button" role="menuitem" key={t.key} className="drag-item drag-item--indent" aria-current={dragMode === 'paint' && paintTarget === t.key} onClick={() => choosePaint(t.key)}>{t.label}</button>
+              ))}
+            </div>
+          )}
+        </div>
+        <button type="button" className="canvas-chip canvas-chip-btn" onClick={() => setDisplayMode((m) => (m === 'edges' ? 'none' : m === 'none' ? 'stats' : 'edges'))} title="Tile display — click to cycle: edges, none, stats">display: {displayMode}</button>
+        <div className="canvas-more-wrap" ref={moreRef}>
+          <button type="button" className="canvas-btn canvas-more" onClick={() => setToolsOpen((o) => !o)} aria-label="more controls" aria-expanded={toolsOpen} title="More controls">⋯</button>
+          <div className={`canvas-extra${toolsOpen ? ' is-open' : ''}`}>
+            <label className="canvas-grid" title={runLive !== null ? 'Stop the run to resize the grid' : 'Grid size — tiles = N × N'}>
+              <span className="canvas-grid-label">{gridInput}×{gridInput}</span>
+              <input type="range" min={GRID_MIN} max={GRID_MAX} step={10} value={gridInput} aria-label="grid size" disabled={runLive !== null} onChange={(e) => setGridInput(Number(e.target.value))} />
+            </label>
+            <button type="button" className="canvas-btn" onClick={() => setFitNonce((n) => n + 1)}>Fit</button>
+            <button type="button" className="canvas-btn" onClick={resetAll} disabled={overlayIsEmpty(overlay) && seeds.length === 0 && runLive === null} title="Reset — clears every visit and counter, and removes the walkers">Reset</button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+
   return (
-    <div className="workspace">
-      <Panel title="Traversers" side="left" defaultCollapsed>
+    <div className="canvas-shell">
+      <div className="canvas-controls" role="toolbar" aria-label="Canvas controls">
+        {canvasControls}
+      </div>
+      <div className="workspace">
+      <Panel title="Traversers" side="left" defaultCollapsed wide>
         <TraversersPane store={traverserStore} predicateNames={predicateNames} />
       </Panel>
 
@@ -446,155 +494,6 @@ export function Workspace() {
       </Panel>
 
       <div className="canvas-pane">
-        <header className="panel-head">
-          <div className="canvas-run" role="group" aria-label="traverser run">
-            <button
-              type="button"
-              className="run-btn"
-              onClick={play}
-              disabled={running || walkers.length === 0}
-              aria-label="Play — run the traversers"
-              title="Play — run the traversers"
-            >
-              ▶
-            </button>
-            <button
-              type="button"
-              className="run-btn"
-              onClick={pause}
-              disabled={!running}
-              aria-label="Pause — stop ticking, keep the walkers"
-              title="Pause — stop ticking, keep the walkers"
-            >
-              ❚❚
-            </button>
-            <button
-              type="button"
-              className="run-btn"
-              onClick={stopRun}
-              disabled={!running && runLive === null && !hasTraverserVisits(overlay)}
-              aria-label="Stop — end the run and clear its trail (keeps the walkers and your painting)"
-              title="Stop — end the run and clear its trail (keeps the walkers and your painting)"
-            >
-              ■
-            </button>
-            <button
-              type="button"
-              className="canvas-chip canvas-chip-btn run-speed"
-              onClick={cycleSpeed}
-              title="Run speed — click to cycle: slow, fast, max"
-            >
-              speed: {speed}
-            </button>
-          </div>
-          <div className="canvas-tools">
-            <TilingPicker value={tilingId} onChange={selectTiling} />
-            <div className="canvas-drag" ref={dragMenuRef}>
-              <button
-                type="button"
-                className="canvas-chip canvas-chip-btn"
-                aria-label="drag mode"
-                aria-haspopup="menu"
-                aria-expanded={dragMenuOpen}
-                title="What a one-finger drag does"
-                onClick={() => setDragMenuOpen((o) => !o)}
-              >
-                {dragMode === 'paint'
-                  ? `paint: ${paintLabel(paintTarget)}`
-                  : dragMode === 'select'
-                    ? 'drag: box select'
-                    : dragMode === 'paintselect'
-                      ? 'drag: paint select'
-                      : 'drag: off'}
-              </button>
-              {dragMenuOpen && (
-                <div className="drag-menu" role="menu">
-                  <button type="button" role="menuitem" className="drag-item" aria-current={dragMode === 'off'} onClick={() => chooseDrag('off')}>
-                    off
-                  </button>
-                  <button type="button" role="menuitem" className="drag-item" aria-current={dragMode === 'select'} onClick={() => chooseDrag('select')}>
-                    box select
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="drag-item"
-                    aria-current={dragMode === 'paintselect'}
-                    onClick={() => chooseDrag('paintselect')}
-                  >
-                    paint select
-                  </button>
-                  <div className="drag-menu-label">Paint</div>
-                  {PAINT_TARGETS.map((t) => (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      key={t.key}
-                      className="drag-item drag-item--indent"
-                      aria-current={dragMode === 'paint' && paintTarget === t.key}
-                      onClick={() => choosePaint(t.key)}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <button
-              type="button"
-              className="canvas-chip canvas-chip-btn"
-              onClick={() => setDisplayMode((m) => (m === 'edges' ? 'none' : m === 'none' ? 'stats' : 'edges'))}
-              title="Tile display — click to cycle: edges, none, stats"
-            >
-              display: {displayMode}
-            </button>
-            {/* Fit / Reset / grid-size: inline on desktop, behind a ⋯ button on mobile. */}
-            <div className="canvas-more-wrap" ref={moreRef}>
-              <button
-                type="button"
-                className="canvas-btn canvas-more"
-                onClick={() => setToolsOpen((o) => !o)}
-                aria-label="more controls"
-                aria-expanded={toolsOpen}
-                title="More controls"
-              >
-                ⋯
-              </button>
-              <div className={`canvas-extra${toolsOpen ? ' is-open' : ''}`}>
-                <label
-                  className="canvas-grid"
-                  title={runLive !== null ? 'Stop the run to resize the grid' : 'Grid size — tiles = N × N'}
-                >
-                  <span className="canvas-grid-label">
-                    {gridInput}×{gridInput}
-                  </span>
-                  <input
-                    type="range"
-                    min={GRID_MIN}
-                    max={GRID_MAX}
-                    step={10}
-                    value={gridInput}
-                    aria-label="grid size"
-                    disabled={runLive !== null}
-                    onChange={(e) => setGridInput(Number(e.target.value))}
-                  />
-                </label>
-                <button type="button" className="canvas-btn" onClick={() => setFitNonce((n) => n + 1)}>
-                  Fit
-                </button>
-                <button
-                  type="button"
-                  className="canvas-btn"
-                  onClick={resetAll}
-                  disabled={overlayIsEmpty(overlay) && seeds.length === 0 && runLive === null}
-                  title="Reset — clears every visit and counter, and removes the walkers"
-                >
-                  Reset
-                </button>
-              </div>
-            </div>
-          </div>
-        </header>
         <div className="canvas-stage">
           <TilingCanvas
             tiling={tiling}
@@ -652,6 +551,7 @@ export function Workspace() {
           <p className="pane-hint">Click a tile to inspect it — or switch drag to “select” and box a group.</p>
         )}
       </Panel>
+      </div>
     </div>
   )
 }
@@ -719,14 +619,13 @@ function InspectContent({
 }) {
   const st = tileState(overlay, node.id)
   const own = visitCount(st)
-  // adjacent-visited-count: total visits across adjacent edges (a two-edge neighbour counts twice —
-  // matches the prototype's adjacent-visited). adjacent-tiles-visited-count: distinct adjacent tiles
-  // visited at least once. Identical for the edge-to-edge square tiling.
-  const adjacentVisited = neighborEdges(tiling, node.id).reduce(
-    (sum, e) => sum + visitCount(tileState(overlay, e.tile)),
-    0,
-  )
-  const adjacentTilesVisited = uniqueNeighbors(tiling, node.id).filter(
+  // Mirror the DSL attributes exactly so the readout matches what a predicate sees:
+  // visited-edges = adjacent edges whose neighbour is visited (a two-edge neighbour counts twice);
+  // visited-neighbors = distinct adjacent tiles visited. Identical on the edge-to-edge square tiling.
+  const visitedEdges = neighborEdges(tiling, node.id).filter(
+    (e) => visitCount(tileState(overlay, e.tile)) > 0,
+  ).length
+  const visitedNeighbors = uniqueNeighbors(tiling, node.id).filter(
     (id) => visitCount(tileState(overlay, id)) > 0,
   ).length
 
@@ -820,10 +719,10 @@ function InspectContent({
         </dd>
         <dt>steps</dt>
         <dd className="steps-readout">{formatSteps(st.visits)}</dd>
-        <dt title="adjacent-visited-count: visited adjacent edges (a two-edge neighbour counts twice)">adj-v-count</dt>
-        <dd>{adjacentVisited}</dd>
-        <dt title="adjacent-tiles-visited-count: distinct adjacent tiles visited">adj-t-v-count</dt>
-        <dd>{adjacentTilesVisited}</dd>
+        <dt title="distinct adjacent tiles that are visited (the Rule-90 count)">visited-neighbors</dt>
+        <dd>{visitedNeighbors}</dd>
+        <dt title="adjacent edges whose neighbour is visited (a two-edge neighbour counts twice)">visited-edges</dt>
+        <dd>{visitedEdges}</dd>
         <dt className="reg-head">
           registries
           <HelpButton title="Registries A, B, C">

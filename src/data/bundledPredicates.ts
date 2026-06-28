@@ -15,7 +15,7 @@ export const BUNDLED_PREDICATES: ReadonlyArray<BundledPredicate> = [
   {
     id: 'rule90',
     name: 'Rule-90 gate',
-    text: 'adjacent-visited-unique == 1',
+    text: 'visited-neighbors == 1',
     description: 'Exactly one neighbouring tile is visited — the gate that grows Sierpinski-like patterns.',
   },
   {
@@ -30,9 +30,9 @@ export const BUNDLED_PREDICATES: ReadonlyArray<BundledPredicate> = [
     text: '(coordinate[0] default 0 + coordinate[1] default 0) % 2 == 0',
     description: 'Every other tile, by lattice coordinates.',
   },
-  { id: 'has-a', name: 'Has A', text: 'registry-a > 0', description: 'Tiles whose registry A is non-zero.' },
-  { id: 'has-b', name: 'Has B', text: 'registry-b > 0', description: 'Tiles whose registry B is non-zero.' },
-  { id: 'has-c', name: 'Has C', text: 'registry-c > 0', description: 'Tiles whose registry C is non-zero.' },
+  { id: 'has-a', name: 'Has A', text: '[A] > 0', description: 'Tiles whose registry A is non-zero.' },
+  { id: 'has-b', name: 'Has B', text: '[B] > 0', description: 'Tiles whose registry B is non-zero.' },
+  { id: 'has-c', name: 'Has C', text: '[C] > 0', description: 'Tiles whose registry C is non-zero.' },
   {
     id: 'triangles',
     name: 'Triangles',

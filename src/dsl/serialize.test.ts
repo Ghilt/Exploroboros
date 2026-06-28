@@ -45,7 +45,8 @@ function tree(src: string): Pred {
 describe('serialize — canonical text', () => {
   it('spaces operators consistently', () => {
     expect(canon('visited%2==1')).toBe('visited % 2 == 1')
-    expect(canon('registry-a>0 and visited==1')).toBe('registry-a > 0 and visited == 1')
+    expect(canon('[A]>0 and visited==1')).toBe('[A] > 0 and visited == 1')
+    expect(canon('[a, b] == 0')).toBe('[A, B] == 0')
   })
 
   it('drops redundant parentheses and the implicit "of tile"', () => {
@@ -64,22 +65,23 @@ describe('serialize — canonical text', () => {
   })
 
   it('inserts parentheses only where precedence needs them', () => {
-    expect(canon('(visited == 1 or visited == 2) and registry-a == 3')).toBe(
-      '(visited == 1 or visited == 2) and registry-a == 3',
+    expect(canon('(visited == 1 or visited == 2) and [A] == 3')).toBe(
+      '(visited == 1 or visited == 2) and [A] == 3',
     )
     // and binds tighter than or, so no parens needed here
-    expect(canon('visited == 1 or visited == 2 and registry-a == 3')).toBe(
-      'visited == 1 or visited == 2 and registry-a == 3',
+    expect(canon('visited == 1 or visited == 2 and [A] == 3')).toBe(
+      'visited == 1 or visited == 2 and [A] == 3',
     )
-    expect(canon('not (visited == 1 and registry-a == 2)')).toBe('not (visited == 1 and registry-a == 2)')
+    expect(canon('not (visited == 1 and [A] == 2)')).toBe('not (visited == 1 and [A] == 2)')
   })
 })
 
 describe('serialize — round-trips through parse', () => {
   const samples = [
     'visited > 0',
-    'visited % 2 == 1 and registry-a > 0',
-    '(visited == 1 or visited == 2) and registry-a == 3',
+    'visited % 2 == 1 and [A] > 0',
+    '(visited == 1 or visited == 2) and [A] == 3',
+    '[A, B, C] > 0',
     'not visited == 0',
     'coordinate[0] default 0 + coordinate[1] default 0 == 2',
     'step[3] default 0 != latest-step default 0',

@@ -8,15 +8,19 @@ type Props = {
   title: string
   side?: 'left' | 'right'
   defaultCollapsed?: boolean
+  // Expanded width variant: `wide` panels take twice the normal width (for content-heavy docks like
+  // the traverser editor). Ignored while collapsed (a rail is always thin).
+  wide?: boolean
   children: ReactNode
 }
 
-export function Panel({ title, side = 'right', defaultCollapsed = false, children }: Props) {
+export function Panel({ title, side = 'right', defaultCollapsed = false, wide = false, children }: Props) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
+  const cls = `panel panel--${side}${wide ? ' panel--wide' : ''}`
 
   if (collapsed) {
     return (
-      <div className={`panel panel--${side} is-collapsed`}>
+      <div className={`${cls} is-collapsed`}>
         <button
           type="button"
           className="panel-rail"
@@ -31,7 +35,7 @@ export function Panel({ title, side = 'right', defaultCollapsed = false, childre
   }
 
   return (
-    <div className={`panel panel--${side}`}>
+    <div className={cls}>
       <header className="panel-head">
         <span className="panel-title">{title}</span>
         <button

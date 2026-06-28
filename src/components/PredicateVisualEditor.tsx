@@ -158,6 +158,10 @@ export function PredicateVisualEditor({ text, onChange }: { text: string; onChan
         return <NumberChip value={e.value} ariaLabel="number" onCommit={(n) => apply(path, { kind: 'number', value: n })} />
       case 'attr':
         return attrChip(path, e)
+      case 'reg':
+        // A registry read [A] / [A, B]. Shown as a static chip; edit it in Text mode for now.
+        return <span className="pv-static pv-reg">[{e.regs.map((r) => r.toUpperCase()).join(', ')}]</span>
+
       case 'neg':
         return (
           <span className="pv-frag">

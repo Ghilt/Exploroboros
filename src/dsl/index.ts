@@ -11,6 +11,8 @@ export type {
   Neg,
   Bin,
   Group,
+  RegLetter,
+  RegRead,
   Expr,
   Compare,
   Not,
@@ -26,7 +28,7 @@ export type { Token, TokenKind } from './lex'
 export { lex } from './lex'
 
 export type { EvalContext, AttrSpec, TraverserAttrs } from './attributes'
-export { ATTRIBUTES, TILE_ATTRIBUTES, attrSpec } from './attributes'
+export { ATTRIBUTES, TILE_ATTRIBUTES, RAMP_ATTRIBUTES, attrSpec } from './attributes'
 
 export { parsePredicate, parseExpr } from './parse'
 export { serialize, serializeExpr } from './serialize'

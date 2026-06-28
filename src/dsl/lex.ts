@@ -11,6 +11,7 @@ export type TokenKind =
   | 'rparen'
   | 'lbracket'
   | 'rbracket'
+  | 'comma' // separates registries in a `[A, B]` read
   | 'op' // + - * / %
   | 'cmp' // == != < <= > >= (and bare =, normalized to == by the parser)
   | 'eof'
@@ -85,6 +86,11 @@ export function lex(src: string): Result<Token[]> {
     }
     if (c === ']') {
       tokens.push({ kind: 'rbracket', text: c, span: { start, end: i + 1 } })
+      i += 1
+      continue
+    }
+    if (c === ',') {
+      tokens.push({ kind: 'comma', text: c, span: { start, end: i + 1 } })
       i += 1
       continue
     }

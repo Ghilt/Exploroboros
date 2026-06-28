@@ -25,7 +25,7 @@ describe('autoNameOf / isSimple', () => {
   })
   it('treats a single comparison as simple, compound as not', () => {
     expect(isSimple('visited > 0')).toBe(true)
-    expect(isSimple('visited > 0 and registry-a > 0')).toBe(false)
+    expect(isSimple('visited > 0 and [A] > 0')).toBe(false)
     expect(isSimple('garbage')).toBe(false)
   })
 })

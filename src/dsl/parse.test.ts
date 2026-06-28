@@ -15,7 +15,7 @@ function errOf(src: string): string {
 
 describe('parse — precedence & structure', () => {
   it('respects % > == > and', () => {
-    expect(ok('visited % 2 == 1 and registry-a > 0')).toEqual({
+    expect(ok('visited % 2 == 1 and [A] > 0')).toEqual({
       kind: 'bool',
       op: 'and',
       left: {
@@ -27,10 +27,29 @@ describe('parse — precedence & structure', () => {
       right: {
         kind: 'compare',
         op: '>',
-        left: { kind: 'attr', name: 'registry-a', scope: 'tile' },
+        left: { kind: 'reg', regs: ['a'] },
         right: { kind: 'number', value: 0 },
       },
     })
+  })
+
+  it('parses a registry read [A] and a sum [A, B]', () => {
+    expect(ok('[A] > 0')).toEqual({
+      kind: 'compare',
+      op: '>',
+      left: { kind: 'reg', regs: ['a'] },
+      right: { kind: 'number', value: 0 },
+    })
+    expect(ok('[A, b] == 2')).toEqual({
+      kind: 'compare',
+      op: '==',
+      left: { kind: 'reg', regs: ['a', 'b'] },
+      right: { kind: 'number', value: 2 },
+    })
+  })
+
+  it('rejects the old registry-a name with a pointer to [A]', () => {
+    expect(errOf('registry-a > 0')).toContain('[A]')
   })
 
   it('parses the owner example with an optional "of tile" scope', () => {
@@ -56,7 +75,7 @@ describe('parse — precedence & structure', () => {
       right: { kind: 'number', value: 3 },
     })
     // "(visited == 1)" has a comparison inside -> predicate group
-    const p = ok('(visited == 1) or registry-a == 2')
+    const p = ok('(visited == 1) or [A] == 2')
     expect(p.kind).toBe('bool')
     if (p.kind !== 'bool') return
     expect(p.op).toBe('or')

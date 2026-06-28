@@ -1,4 +1,5 @@
 import './PredicatePane.css'
+import './TraversersPane.css'
 import { useMemo, useState } from 'react'
 import { compileProgram } from '../traverse'
 import type { TraverserStore, StoredTraverser } from '../state/traverserStore'
@@ -6,9 +7,9 @@ import { HelpButton } from './HelpButton'
 import { TrashButton } from './TrashButton'
 
 // The Traversers pane: a library of walker DEFINITIONS, each a DSL program describing how a walker
-// moves and writes registries each tick. Rows show the name; click to expand the editor (name + DSL
-// text), compiled live with an inline error. Definitions persist in the browser; place one on a tile
-// from the Inspect pane, then Play. Reuses the predicate pane's styles.
+// moves and writes registries each tick. The pane has two modes: a LIST of definitions, and a
+// full-pane EDITOR (opened by clicking a row or "+ New") that maximises editing space, with a "Done"
+// button at the bottom to return to the list. Edits autosave. Reuses the predicate pane's styles.
 export function TraversersPane({
   store,
   predicateNames,
@@ -17,16 +18,31 @@ export function TraversersPane({
   // name -> DSL text, so a guard can reference a saved predicate by name (resolved at compile).
   predicateNames: ReadonlyMap<string, string>
 }) {
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const toggle = (id: string) => setExpandedId((cur) => (cur === id ? null : id))
-  const add = () => setExpandedId(store.add())
-  const remove = (id: string) => {
-    store.remove(id)
-    if (id === expandedId) setExpandedId(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const editing = editingId ? store.traversers.find((t) => t.id === editingId) ?? null : null
+
+  // ---- editor mode: the editor consumes the whole pane ----
+  if (editing) {
+    return (
+      <div className="predicate-pane trav-pane trav-pane--editing">
+        <TraverserEditor
+          key={editing.id}
+          traverser={editing}
+          predicateNames={predicateNames}
+          onSetText={store.setText}
+          onRename={store.rename}
+          onDone={() => setEditingId(null)}
+        />
+      </div>
+    )
   }
 
+  // ---- list mode ----
+  const add = () => setEditingId(store.add())
+  const remove = (id: string) => store.remove(id)
+
   return (
-    <div className="predicate-pane">
+    <div className="predicate-pane trav-pane">
       <span className="pane-help">
         <HelpButton title="Traversers">
           <p>
@@ -42,10 +58,11 @@ export function TraversersPane({
             <code>move straight -&gt; r1</code> hops twice in one tick.
           </p>
           <p>
-            <strong>Registries:</strong> <code>put A = visited + 1</code>, <code>increase P</code>. A/B/C live on
-            the tile; P/Q/R travel with the walker. Read another tile with{' '}
-            <code>@</code>: <code>if visited &gt; 0 @ r1 then move l1</code>. Reference a saved predicate by
-            name. Also: <code>morph &lt;name&gt; …</code>, <code>update max-split 2</code>, and{' '}
+            <strong>Registries:</strong> <code>put A = [A] + 1</code>, <code>increase P</code>. A/B/C live on
+            the tile; P/Q/R travel with the walker. Read a tile registry as <code>[A]</code> (or{' '}
+            <code>[A, B]</code> to sum). Read another tile with <code>@</code>:{' '}
+            <code>if visited &gt; 0 @ r1 then move l1</code>. Reference a saved predicate by name. Also:{' '}
+            <code>morph &lt;name&gt; …</code>, <code>update max-split 2</code>, and{' '}
             <code>directive move always forbid if &lt;condition&gt;</code> / <code>reset directives</code>.
           </p>
           <p>
@@ -81,22 +98,13 @@ export function TraversersPane({
         {store.traversers.length > 0 ? (
           <ul className="pred-list">
             {store.traversers.map((t) => (
-              <li key={t.id} className={t.id === expandedId ? 'is-expanded' : undefined}>
+              <li key={t.id}>
                 <div className="pred-row">
-                  <button type="button" className="pred-name" aria-expanded={t.id === expandedId} onClick={() => toggle(t.id)}>
+                  <button type="button" className="pred-name" onClick={() => setEditingId(t.id)}>
                     {t.name || '(unnamed)'}
                   </button>
                   <TrashButton label={`delete ${t.name || 'traverser'}`} onClick={() => remove(t.id)} />
                 </div>
-                {t.id === expandedId && (
-                  <TraverserEditor
-                    key={t.id}
-                    traverser={t}
-                    predicateNames={predicateNames}
-                    onSetText={store.setText}
-                    onRename={store.rename}
-                  />
-                )}
               </li>
             ))}
           </ul>
@@ -108,22 +116,26 @@ export function TraversersPane({
   )
 }
 
+// The full-pane editor: name + a program textarea that grows to fill the pane, a live compile status,
+// and a "Done" button that returns to the list. Edits autosave through the store as you type.
 function TraverserEditor({
   traverser,
   predicateNames,
   onSetText,
   onRename,
+  onDone,
 }: {
   traverser: StoredTraverser
   predicateNames: ReadonlyMap<string, string>
   onSetText: (id: string, text: string) => void
   onRename: (id: string, name: string) => void
+  onDone: () => void
 }) {
   const result = useMemo(() => compileProgram(traverser.text, predicateNames), [traverser.text, predicateNames])
 
   return (
-    <div className="pred-editor">
-      <label className="pred-field">
+    <div className="trav-edit">
+      <label className="pred-field trav-edit-name">
         <span className="pred-field-label">Name</span>
         <input
           className="pred-name-input"
@@ -133,17 +145,13 @@ function TraverserEditor({
         />
       </label>
 
-      <label className="pred-field">
-        <span className="pred-field-label">Program</span>
-        <textarea
-          className="pred-text"
-          value={traverser.text}
-          spellCheck={false}
-          rows={6}
-          aria-label="traverser DSL"
-          onChange={(e) => onSetText(traverser.id, e.target.value)}
-        />
-      </label>
+      <textarea
+        className="pred-text trav-edit-text"
+        value={traverser.text}
+        spellCheck={false}
+        aria-label="traverser DSL"
+        onChange={(e) => onSetText(traverser.id, e.target.value)}
+      />
 
       {result.ok ? (
         <p className="pred-status pred-status--ok">✓ {result.value.statements.length} rule(s)</p>
@@ -152,7 +160,12 @@ function TraverserEditor({
           {result.error.message}
         </p>
       )}
+
+      <div className="trav-edit-foot">
+        <button type="button" className="trav-done" onClick={onDone}>
+          ‹ Done
+        </button>
+      </div>
     </div>
   )
 }
-

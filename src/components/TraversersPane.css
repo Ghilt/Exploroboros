@@ -1,0 +1,56 @@
+/* Full-pane traverser editor. Only the wide Traversers dock uses this, so the fill rules are scoped
+   to .panel--wide to avoid touching the other panes. */
+
+/* Let the dock body (and the pane inside it) fill the panel's height so the editor can grow. */
+.panel--wide .panel-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.panel--wide .panel-body > .predicate-pane {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* The editor lays out as a column: name, the textarea (grows), status, then the Done footer. */
+.trav-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  height: 100%;
+  min-height: 0;
+}
+.trav-edit-name {
+  flex: 0 0 auto;
+}
+.trav-edit-text {
+  flex: 1 1 auto;
+  /* A generous floor so it's still usable on mobile, where the pane height is content-driven. */
+  min-height: clamp(8rem, 42vh, 32rem);
+  resize: none;
+}
+.trav-edit .pred-status {
+  flex: 0 0 auto;
+}
+.trav-edit-foot {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  padding-top: 0.2rem;
+  border-top: 1px solid var(--line);
+}
+.trav-done {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  padding: 0.4rem 1.2rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--fg);
+  cursor: pointer;
+}
+.trav-done:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}

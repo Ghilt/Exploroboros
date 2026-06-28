@@ -1,16 +1,55 @@
+/* The canvas page is a column: a stable controls bar on top, the panes row below. */
+.canvas-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+  /* Fallback height; desktop fills the full-height canvas page, mobile stacks (see below). */
+  height: clamp(24rem, 68vh, 52rem);
+}
+
 .workspace {
   display: flex;
   gap: 0.6rem;
   align-items: stretch;
-  /* Fallback height; desktop fills the full-height canvas page, mobile stacks (see below). */
-  height: clamp(24rem, 68vh, 52rem);
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+/* The run + tools controls, in one tight bar above ALL panes. Centered as a block so they keep the
+   same spot no matter which panes are open (they don't ride the canvas pane's changing width). */
+.canvas-controls {
+  position: relative; /* positioning context for the mobile dropdowns (see the mobile media query) */
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 1rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
 }
 
 /* Desktop: fill the full-height canvas page (App.css .app-canvas) so the canvas is always fully
    visible. */
 @media (min-width: 64rem) {
-  .workspace {
+  .canvas-shell {
     height: 100%;
+  }
+  .workspace {
+    /* Panes sit flush against each other and the canvas on desktop (no gutter). */
+    gap: 0;
+  }
+  /* Flush stacked look: each pane rounds only its LEFT corners; the last pane (Inspect, side=right)
+     rounds all four. The `.workspace` prefix out-ranks Panel.css's base `.panel` border-radius. */
+  .workspace .panel,
+  .workspace .canvas-pane {
+    border-radius: var(--radius) 0 0 var(--radius);
+  }
+  .workspace .panel--right {
+    border-radius: var(--radius);
   }
 }
 
@@ -29,12 +68,6 @@
   min-height: 0;
   overflow: hidden;
   background-image: repeating-linear-gradient(45deg, var(--motif) 0 2px, transparent 2px 24px);
-}
-/* The canvas header holds two groups (run controls + tools); let them wrap to separate rows when
-   the viewport is narrow (mobile) instead of overflowing. */
-.canvas-pane .panel-head {
-  flex-wrap: wrap;
-  row-gap: 0.45rem;
 }
 .canvas-tools {
   display: flex;
@@ -467,14 +500,34 @@
   color: var(--muted);
 }
 
-/* Stack vertically on narrow screens, canvas first and tall. */
+/* Stack vertically on narrow screens, canvas first and tall. The shell grows with content (scrolls). */
 @media (max-width: 64rem) {
+  .canvas-shell {
+    height: auto;
+  }
   .workspace {
     flex-direction: column;
-    height: auto;
+    flex: 0 0 auto;
   }
   .canvas-pane {
     order: -1;
     min-height: 60vh;
+  }
+  /* The control popups (⋯ extras, drag menu) anchor to the centered bar — not their button, which
+     can land anywhere in the centered/wrapped row — so they never spill off the screen. */
+  .canvas-more-wrap,
+  .canvas-drag {
+    position: static;
+  }
+  .canvas-extra.is-open {
+    left: 0.6rem;
+    right: 0.6rem;
+    top: calc(100% + 0.3rem);
+    min-width: 0;
+  }
+  .drag-menu {
+    left: 0.6rem;
+    right: auto;
+    top: calc(100% + 0.3rem);
   }
 }

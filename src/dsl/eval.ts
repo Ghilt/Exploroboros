@@ -19,6 +19,15 @@ export function evalNumber(expr: Expr, ctx: EvalContext): number {
       const v = spec ? spec.compute(ctx, expr.index) : undefined
       return v ?? expr.fallback ?? 0
     }
+    case 'reg': {
+      // [A] / [A, B] — sum the named tile registries (reuse the registry-x computes).
+      let sum = 0
+      for (const r of expr.regs) {
+        const spec = attrSpec(`registry-${r}`)
+        sum += spec?.compute(ctx) ?? 0
+      }
+      return sum
+    }
     case 'bin': {
       const a = evalNumber(expr.left, ctx)
       const b = evalNumber(expr.right, ctx)

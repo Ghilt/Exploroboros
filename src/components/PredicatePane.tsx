@@ -25,7 +25,7 @@ export function PredicatePane({ store }: { store: PredicateStore }) {
         <HelpButton title="Predicates">
           <p>
             A <strong>predicate</strong> is a yes/no test on a tile — written in a small language, e.g.{' '}
-            <code>visited &gt; 0</code> or <code>adjacent-visited-unique == 1</code>. You combine attributes
+            <code>visited &gt; 0</code> or <code>visited-neighbors == 1</code>. You combine attributes
             (visit count, registries, coordinates, edge count…) with maths and <code>and</code> / <code>or</code>{' '}
             / <code>not</code>.
           </p>

@@ -25,6 +25,7 @@ export function Guide() {
       <nav className="guide-toc" aria-label="On this page">
         <a href="#anatomy">Anatomy</a>
         <a href="#settings">Settings</a>
+        <a href="#tiles">Tiles &amp; attributes</a>
         <a href="#moving">Moving</a>
         <a href="#conditions">Conditions</a>
         <a href="#registries">Registries</a>
@@ -34,18 +35,39 @@ export function Guide() {
       </nav>
 
       <section className="guide-section" id="anatomy">
-        <h2>Anatomy of a definition</h2>
+        <h2>Anatomy of a traverser definition</h2>
         <p>
-          A definition has an optional <strong>settings header</strong> followed by a list of{' '}
-          <strong>rules</strong> and <strong>directives</strong>, one per line. A rule is{' '}
-          <code>if &lt;condition&gt; then &lt;action&gt;</code>; a line with just an action always fires.
-          Lines run <strong>top to bottom</strong> each tick. <code>#</code> starts a comment.
+          The little program you give a traverser is called its <strong>definition</strong>. Here is a
+          small one:
         </p>
-        <pre className="guide-code">{`max-split = 2            # header settings (any order)
-movement = relative
+        <pre className="guide-code">{`max-split = 2                  # a settings header line (optional)
 
-if visited == 0 @ straight then move straight   # a rule
-increase P                                       # a bare action: always runs`}</pre>
+if visited > 0 then move l1    # a rule — runs only when its condition holds
+move straight                  # a bare action — always runs`}</pre>
+        <p>Reading it line by line:</p>
+        <ul>
+          <li>
+            <code>max-split = 2</code> is a <strong>settings header</strong> line. The header is optional and
+            sits at the top; the full list is under <a href="#settings">Settings</a>.
+          </li>
+          <li>
+            <code>if visited &gt; 0 then move l1</code> is a <strong>rule</strong> — the shape is{' '}
+            <code>if &lt;condition&gt; then &lt;action&gt;</code>, and it fires only when the condition is
+            true. (Here: "if the tile I'm on has been visited, turn left.")
+          </li>
+          <li>
+            <code>move straight</code> is a <strong>bare action</strong> — no <code>if</code>, so it always
+            runs.
+          </li>
+          <li>
+            <code>#</code> starts a <strong>comment</strong>, and blank lines are ignored.
+          </li>
+        </ul>
+        <p>
+          Every tick, the walker runs these lines <strong>top to bottom</strong>. A standing rule about
+          movement — a <strong>directive</strong> — is a fourth kind of line, covered under{' '}
+          <a href="#directives">Directives</a>.
+        </p>
         <p className="guide-note">
           A tick reads the board <strong>as it was at the start of the tick</strong> — a walker never sees
           its own (or another walker's) writes until the next tick. A walker that doesn't move this tick is
@@ -91,6 +113,100 @@ increase P                                       # a bare action: always runs`}<
         </p>
       </section>
 
+      <section className="guide-section" id="tiles">
+        <h2>Tiles &amp; attributes</h2>
+        <p>
+          A traverser lives on a <strong>tiling</strong> — a board of <strong>tiles</strong>. Everything a
+          walker decides comes from reading facts about a tile, called its <strong>attributes</strong>.
+          These are the same attributes the <strong>Predicates</strong> and <strong>Coloring</strong> panes
+          use, so what you learn here applies across the whole app.
+        </p>
+
+        <h3>The board</h3>
+        <ul>
+          <li>
+            <strong>Tile</strong> — a single polygon (a square, triangle, hexagon, …). A walker always sits
+            on exactly one tile.
+          </li>
+          <li>
+            <strong>Edge</strong> — one side of a tile. You move by naming an edge (see <a href="#moving">Moving</a>).
+          </li>
+          <li>
+            <strong>Neighbour</strong> — a tile that shares an edge with this one. Most tiles touch their
+            neighbours across a single edge, but in some tilings (e.g. the octagon + wedge) one neighbour is
+            reached across <em>two</em> edges — which is why visit-counting comes in two flavours below.
+          </li>
+          <li>
+            <strong>Visited</strong> — a tile is "visited" once a walker has landed on it (or you've painted
+            it by hand). Visits accumulate; the tile remembers how many and on which ticks.
+          </li>
+        </ul>
+
+        <h3>Tile attributes you can read</h3>
+        <p>
+          Use any of these in a condition or a formula. They report on the tile being asked about — the one
+          you're on, or a neighbour if you add <code>@ &lt;edge&gt;</code> (see <a href="#conditions">Conditions</a>).
+        </p>
+
+        <p className="guide-subhead"><strong>Visit state</strong></p>
+        <table className="guide-table">
+          <thead>
+            <tr><th>Attribute</th><th>What it reports</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>visited</code></td><td>How many times the tile has been visited (0 if never).</td></tr>
+            <tr><td><code>visited-neighbors</code></td><td>How many <em>distinct neighbour tiles</em> are visited (a two-edge neighbour counts once). This is the usual Rule-90 / fractal count.</td></tr>
+            <tr><td><code>visited-edges</code></td><td>How many <em>adjacent edges</em> lead to a visited tile (a two-edge neighbour counts twice).</td></tr>
+            <tr><td><code>first-step</code></td><td>The tick of the tile's <em>first</em> visit. Needs <code>default</code>.</td></tr>
+            <tr><td><code>latest-step</code></td><td>The tick of the tile's <em>most recent</em> visit. Needs <code>default</code>.</td></tr>
+            <tr><td><code>step[n]</code></td><td>The tick of the <em>n</em>-th visit (0-based). Needs <code>default</code>.</td></tr>
+          </tbody>
+        </table>
+
+        <p className="guide-subhead"><strong>Registries</strong> (per-tile counters — also writable, see <a href="#registries">Registries</a>)</p>
+        <table className="guide-table">
+          <thead>
+            <tr><th>Attribute</th><th>What it reports</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>[A]</code></td><td>The tile's A counter. (Also <code>[B]</code>, <code>[C]</code>; lowercase <code>[a]</code> is fine.)</td></tr>
+            <tr><td><code>[A, B]</code></td><td>The <em>sum</em> of the listed registries — here A + B.</td></tr>
+          </tbody>
+        </table>
+
+        <p className="guide-subhead"><strong>Shape &amp; identity</strong></p>
+        <table className="guide-table">
+          <thead>
+            <tr><th>Attribute</th><th>What it reports</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>tile-type</code></td><td>The shape class, tested categorically — <code>tile-type == triangle</code>, never a number. A name a tiling doesn't have simply matches nothing.</td></tr>
+            <tr><td><code>edge-count</code></td><td>How many sides the tile has.</td></tr>
+            <tr><td><code>rotation</code></td><td>The tile's orientation, in degrees.</td></tr>
+            <tr><td><code>tile-number</code></td><td>The tile's index in the tiling (a stable per-tile id).</td></tr>
+            <tr><td><code>coordinate[n]</code></td><td>The <em>n</em>-th lattice coordinate of the tile. What each index means varies per tiling. Needs <code>default</code>.</td></tr>
+          </tbody>
+        </table>
+        <p className="guide-note">
+          Attributes that may have no value for a tile — <code>first-step</code>, <code>latest-step</code>,{' '}
+          <code>step[n]</code>, <code>coordinate[n]</code> — require a fallback written as{' '}
+          <code>default N</code>, e.g. <code>first-step default -1</code>. The fallback is used whenever the
+          tile has no such value (never visited, index out of range).
+        </p>
+
+        <h3>Walker state</h3>
+        <p>
+          Only while a walker is running, a few extra attributes report on the <em>walker itself</em> rather
+          than the tile:
+        </p>
+        <ul>
+          <li><code>steps</code> — how many ticks this walker has taken.</li>
+          <li><code>splits</code> — how many times it has split.</li>
+          <li><code>heading</code> — its current heading in degrees (0 = east, 90 = up).</li>
+          <li><code>P</code> / <code>Q</code> / <code>R</code> — its own registries that travel with it (see <a href="#registries">Registries</a>).</li>
+        </ul>
+      </section>
+
       <section className="guide-section" id="moving">
         <h2>Moving</h2>
         <p>
@@ -127,9 +243,10 @@ increase P                                       # a bare action: always runs`}<
         </p>
         <ul>
           <li>
-            <strong>Inline</strong>: <code>visited &gt; 0</code>, <code>tile-type == triangle</code>,{' '}
-            combined with <code>and</code> / <code>or</code> / <code>not</code> and arithmetic — the same
-            language as the Predicates pane.
+            <strong>Inline</strong>: <code>visited &gt; 0</code>, <code>visited-neighbors == 1</code>,{' '}
+            <code>tile-type == triangle</code> — any <a href="#tiles">tile attribute</a> combined with{' '}
+            <code>and</code> / <code>or</code> / <code>not</code> and arithmetic. This is the same language
+            (and the same attributes) as the Predicates pane.
           </li>
           <li>
             <strong>By name</strong>: write the name of a predicate you saved in the Predicates pane, e.g.{' '}
@@ -162,14 +279,16 @@ increase P                                       # a bare action: always runs`}<
         </ul>
         <p>
           Write with <code>put X = &lt;formula&gt;</code> (set) or <code>increase X [by &lt;formula&gt;]</code>{' '}
-          (add). Read a tile registry in a formula as <code>registry-a</code> / <code>registry-b</code> /{' '}
-          <code>registry-c</code>, and walker ones as <code>P</code> / <code>Q</code> / <code>R</code>;
-          formulas may also use any tile attribute and the walker's <code>steps</code>, <code>splits</code>,{' '}
-          <code>heading</code>.
+          (add), where <code>X</code> is a single registry letter (<code>A</code>–<code>C</code> or{' '}
+          <code>P</code>–<code>R</code>). <strong>Read</strong> a tile registry in a formula with brackets:{' '}
+          <code>[A]</code> (lowercase <code>[a]</code> too), and <code>[A, B]</code> for the <em>sum</em>.
+          Walker registries read as bare <code>P</code> / <code>Q</code> / <code>R</code>; formulas may also
+          use any tile attribute and the walker's <code>steps</code>, <code>splits</code>, <code>heading</code>.
         </p>
         <pre className="guide-code">{`put A = visited + 1     # set tile registry A
 increase P              # add 1 to walker registry P
-put Q = registry-a      # copy the tile's A into the walker's Q`}</pre>
+put Q = [A]             # copy the tile's A into the walker's Q
+if [A, B] > 0 then ...  # true when A + B is positive`}</pre>
         <p className="guide-note">
           If two walkers share a tile in one tick, <code>increase</code> from both <strong>adds up</strong>,
           but a <code>put</code> is <strong>last-writer-wins</strong>. Prefer <code>increase</code> when
@@ -234,7 +353,7 @@ move [straight, r1, l1]`}</pre>
         <pre className="guide-code">{`increase A                 # tally how many times this tile is touched
 put P = P + visited        # accumulate a trail length on the walker
 move nearest-unvisited`}</pre>
-        <p>Colour the result by reading <code>registry-a</code> from a ramp in the Coloring pane.</p>
+        <p>Colour the result by driving a ramp from <strong>Registry A</strong> in the Coloring pane.</p>
 
         <p className="guide-back">
           <a className="btn btn-primary" href={hrefFor('canvas')}>

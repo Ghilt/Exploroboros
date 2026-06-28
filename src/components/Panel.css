@@ -11,6 +11,11 @@
 .panel.is-collapsed {
   flex-basis: 2.4rem;
 }
+/* A "wide" dock takes twice the normal width when expanded (the .is-collapsed rule above out-ranks
+   this, so a collapsed wide panel still shrinks to a thin rail). Overridden to auto on mobile below. */
+.panel--wide {
+  flex-basis: 30rem;
+}
 
 .panel-head {
   display: flex;

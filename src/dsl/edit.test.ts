@@ -17,13 +17,13 @@ describe('replaceAt', () => {
   })
 
   it('swaps an operator deep in the tree without mutating the input', () => {
-    const root = ast('visited % 2 == 1 and registry-a > 0')
+    const root = ast('visited % 2 == 1 and [A] > 0')
     // path to the right comparison's operator: bool.right is the compare; set its op to '>='
     const right = root.kind === 'bool' ? root.right : null
     if (!right || right.kind !== 'compare') throw new Error('unexpected shape')
     const next = replaceAt(root, ['right'], { ...right, op: '>=' })
-    expect(serialize(next)).toBe('visited % 2 == 1 and registry-a >= 0')
-    expect(serialize(root)).toBe('visited % 2 == 1 and registry-a > 0') // original untouched
+    expect(serialize(next)).toBe('visited % 2 == 1 and [A] >= 0')
+    expect(serialize(root)).toBe('visited % 2 == 1 and [A] > 0') // original untouched
   })
 
   it('replaces an operand expression', () => {

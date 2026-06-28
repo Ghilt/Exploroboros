@@ -20,8 +20,10 @@ export type BoolOp = 'and' | 'or'
 // compute to 0, and the UI filters them out of the coloring/predicate menus (scope: 'traverser').
 export type AttrName =
   | 'visited'
-  | 'adjacent-visited'
-  | 'adjacent-visited-unique'
+  | 'visited-neighbors'
+  | 'visited-edges'
+  | 'adjacent-visited' // alias of visited-edges (older name)
+  | 'adjacent-visited-unique' // alias of visited-neighbors (older name)
   | 'registry-a'
   | 'registry-b'
   | 'registry-c'
@@ -57,7 +59,11 @@ export type AttrRef = {
 export type Neg = { kind: 'neg'; operand: Expr } // unary minus
 export type Bin = { kind: 'bin'; op: ArithOp; left: Expr; right: Expr }
 export type Group = { kind: 'group'; inner: Expr } // ( expr )
-export type Expr = NumberLit | AttrRef | Neg | Bin | Group
+// A tile-registry read: `[A]` is registry A, `[A, B]` is the SUM of A and B. Case-insensitive on
+// input; stored lowercase. The dedicated bracket syntax replaces the old `registry-a` attribute name.
+export type RegLetter = 'a' | 'b' | 'c'
+export type RegRead = { kind: 'reg'; regs: ReadonlyArray<RegLetter> }
+export type Expr = NumberLit | AttrRef | Neg | Bin | Group | RegRead
 
 // ---- boolean predicates ----
 export type Compare = { kind: 'compare'; op: CompareOp; left: Expr; right: Expr }

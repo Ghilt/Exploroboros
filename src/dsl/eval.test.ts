@@ -34,10 +34,13 @@ describe('eval — tile attributes', () => {
     expect(num('visited', ctxFor(sq, 'sq:1,1', ov))).toBe(0)
   })
 
-  it('reads registries', () => {
-    const ov = bumpRegistry(new Map(), 'sq:0,0', 'a', 3)
-    expect(num('registry-a', ctxFor(sq, 'sq:0,0', ov))).toBe(3)
-    expect(num('registry-b', ctxFor(sq, 'sq:0,0', ov))).toBe(0)
+  it('reads registries with [A], and [A, B] sums them', () => {
+    let ov = bumpRegistry(new Map(), 'sq:0,0', 'a', 3)
+    ov = bumpRegistry(ov, 'sq:0,0', 'b', 4)
+    expect(num('[A]', ctxFor(sq, 'sq:0,0', ov))).toBe(3)
+    expect(num('[a]', ctxFor(sq, 'sq:0,0', ov))).toBe(3) // lowercase accepted
+    expect(num('[C]', ctxFor(sq, 'sq:0,0', ov))).toBe(0)
+    expect(num('[A, B]', ctxFor(sq, 'sq:0,0', ov))).toBe(7) // sum
   })
 
   it('reads edge count and tile number', () => {
@@ -153,12 +156,19 @@ describe('eval — tile-type and rotation', () => {
   })
 })
 
-describe('eval — adjacent-visited (edges) vs adjacent-visited-unique (tiles)', () => {
+describe('eval — visited-edges vs visited-neighbors (+ legacy aliases)', () => {
   it('counts shared edges vs distinct tiles for a two-edge neighbour', () => {
     const t = twoEdgeNeighbourTiling()
     const ov = addVisit(new Map(), 'B') // B is the single neighbour, sharing two edges with A
     const ctx = ctxFor(t, 'A', ov)
-    expect(num('adjacent-visited', ctx)).toBe(2) // two visited edges
-    expect(num('adjacent-visited-unique', ctx)).toBe(1) // one distinct visited tile
+    expect(num('visited-edges', ctx)).toBe(2) // two visited edges
+    expect(num('visited-neighbors', ctx)).toBe(1) // one distinct visited tile
+  })
+
+  it('keeps the old names working as aliases', () => {
+    const t = twoEdgeNeighbourTiling()
+    const ctx = ctxFor(t, 'A', addVisit(new Map(), 'B'))
+    expect(num('adjacent-visited', ctx)).toBe(2)
+    expect(num('adjacent-visited-unique', ctx)).toBe(1)
   })
 })
