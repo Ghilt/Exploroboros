@@ -274,6 +274,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-27 | Paint-select (freehand drag-to-select) + Shift-additive box/paint select; selection clears on pan/zoom/paint/empty-tap; painted tiles flash a fading outline | ✅ yes | owner verified after a hard-reload (paint-select gathers a non-box group; Shift+box/paint adds to the selection; plain replaces) and said "commit" — note the earlier "paint-select broken" was stale Konva HMR (§9), not a bug | `0957030` |
 | 2026-06-28 | Image export — client-side high-res PNG (Export menu: grid size / resolution / background / edges; Web Worker render; auto-download + thumbnail strip + zoom/pan viewer; versioned recipe in PNG metadata; Abort; flush no-edge tiles in export + live canvas) | ✅ yes | owner reviewed the running export across iterations on desktop + mobile — caught the seam bleed + the off-screen mobile dialog (both fixed), asked for Abort + metadata versioning — then said "commit"; backed by build / lint / 394 tests + in-browser checks (worker render, recipe metadata round-trip, abort mid-run, 0 seam pixels, mobile dialog within viewport) | `97c6251` |
 | 2026-06-28 | Reopen a saved creation — click a gallery image / drag an exported PNG onto the canvas → restores tiling, grid, walkers, hand-paint, and the traverser / predicate / coloring library | ✅ yes | owner opened gallery images into the canvas ("it works!"), flagged that traversers weren't loading into the pane (placeholder recipes had none) — fixed so opening loads traversers + named predicates + coloring — then said "commit"; backed by build / lint / 400 src tests + in-browser checks (gallery open switches tiling + populates all three panes; PNG drop round-trips an export) | `a1e6d0b` |
+| 2026-06-28 | "Load prototype ports" debug button — gasket traverser ported from the prototype (traversal only; colour stays separate) | ✅ yes | owner approved ("good commit") with the change served on this worktree's OWN preview (port 5238, footer-labelled); backed by build / lint / 396 tests + served-source confirmation; gasket DSL compiles (max-split 3, two move gates, five moves) | `af6a65b` |
 
 ## 8. Todo list (working backlog)
 
@@ -343,6 +344,10 @@ in-session task tracker.
     grid-resize locked while running, mobile header wraps *(verified 2026-06-27, `064cfc7`)*
   - [ ] DSL-driven traversers — custom rules in the Traversers pane (paint / move along edge refs / visit /
     split / guards / state terms, §5), reusing the predicate DSL; replaces the one hardcoded behaviour
+  - [x] Prototype-port loader (debug) — a "Load prototype ports" button at the bottom of the Traversers
+    pane adds hardcoded traverser definitions ported from the prototype's `.tasks` files (traversal only;
+    colour stays separate). Currently the **gasket** (XOR-unique fork). Preset data + the DSL translation
+    live in `src/data/prototypePorts.ts`; extend that list to port more *(verified 2026-06-28, `af6a65b`)*
 - [x] **Image export — client-side high-res PNG** *(§4.2; verified 2026-06-28, `97c6251`)* —
   pure core in `src/export/` (`runToCompletion` via the in-place `stepTraversersInto`, `remap` of seeds/paint
   by bounds-centre offset, `colorize`, `sizing` with device caps, the Canvas2D `renderTiling`, the recipe
@@ -499,9 +504,65 @@ Hard-won; read before fighting the tooling again.
 every command: `$env:Path = 'C:\Program Files\nodejs;' + $env:Path; npx.cmd vitest run`
 (`npm.cmd run build` / `npm.cmd run lint`). See §3.
 
-**Preview server:** start via the preview tool using `.claude/launch.json` (name `dev`) — it runs
-Vite through `node.exe` directly on **port 5174**, dodging the npm-shim policy. Don't launch the dev
-server through Bash.
+**Preview server (main checkout):** start via the preview tool using `.claude/launch.json` (name
+`dev`) — it runs Vite through `node.exe` directly on **port 5174**, dodging the npm-shim policy. Don't
+launch the dev server through Bash. **If you're in a git worktree, this default is wrong and will make
+you preview the WRONG tree's code — read "Worktree sessions" next before starting a preview.**
+
+**Worktree sessions (the owner may run several at once).** You can tell you're in one: your working
+dir is `…\.claude\worktrees\<name>` and the environment note says "operating in a git worktree." The
+owner runs multiple worktree sessions (and the main checkout) in parallel, each on its own branch — so
+**never assume a server that's already running is serving *your* code.** The trap: every checkout's
+`dev` config hardcodes **port 5174 `--strictPort`**, so only the FIRST Vite to bind 5174 wins; a second
+worktree's `preview_start` then **silently reuses that running server** (another tree's code). The owner
+also often keeps a manual `npm run dev -- --host` on **5173** (the main checkout, for the phone tunnel).
+Two facts make the fix clean: (1) `.claude/launch.json` is **gitignored** (`.gitignore:27`) — per-worktree,
+never merges, so give yours its own config freely (a fresh worktree may have NO launch.json — gitignored
+files aren't checked out — or a copied 5174 one; either way, set your own); (2) a worktree here has **no
+real `node_modules`** (only Vite cache dirs like `.vite`) — it resolves deps from the main repo's
+`node_modules` by Node's upward walk, so the default **relative** `node_modules/vite/bin/vite.js` does
+NOT resolve in a worktree; point at the main repo's **absolute** path. **Recipe** — before previewing,
+write `.claude/launch.json` with a UNIQUE name (so the tool starts a fresh server, not reuse another's)
+and a UNIQUE port, absolute vite path (cwd stays the worktree, so Vite serves *your* branch):
+
+```json
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "dev-<suffix>",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": ["E:\\Code\\exploroboros\\node_modules\\vite\\bin\\vite.js", "--port", "<PORT>", "--strictPort"],
+      "port": <PORT> }
+  ]
+}
+```
+
+Pick `<PORT>` deterministically from the worktree folder name so it's stable across restarts and
+unlikely to clash: `5200 + (sum of the name's char codes) % 500`, then bump past any port already in use
+(`Get-NetTCPConnection -State Listen`). E.g. worktree `sad-johnson-a61889` → **5238**. Then
+`preview_start` your unique name and **confirm it's serving YOUR branch before trusting any check** —
+fetch a known-new served source file with a *synchronous* `XMLHttpRequest` (an async `fetch` won't
+serialize back through `preview_eval`), e.g. GET `/src/<a file your branch added>` and grep the response.
+That served-source fetch is the reliable proof because the headless preview tab is frequently
+non-interactive (React `onClick` never fires) and capture wedges — see the two "Preview-capture" /
+"Konva + HMR" notes below; don't loop on it, hand the interactive/visual check to the owner's device.
+
+**Tell the owner, plainly and early — the owner does not read code and runs several sessions at once,
+so they will NOT know which is which unless you say so.** As soon as you know your setup, state in your
+reply: (1) that you're working in a **worktree session** (the worktree name + branch); (2) the **other
+exploroboros instances currently running** and their addresses, so they aren't confused by the extras —
+enumerate the listening Vite ports (`Get-NetTCPConnection -State Listen`, look at 5173 / 5174 / 52xx)
+and label which is the main checkout vs another worktree where you can; and (3) **this session's own
+address**, e.g. "this session is at `http://localhost:5238/#/canvas`". Repeat your address whenever you
+hand something off to verify, so the owner opens the right page.
+
+**Also label your pages in the footer (a persistent on-screen marker, so the owner can eyeball which
+instance a tab is).** Append your session name to the version line in `src/components/Footer.tsx`:
+`v0.0.0 · phase 0 - <worktree name>`. This is local-only and **must never reach main**, so enforce it
+with `git update-index --skip-worktree src/components/Footer.tsx` — git then ignores the edit in your
+worktree (it won't show in `git status` or commits; reverse with `--no-skip-worktree`). On main the line
+stays `v0.0.0 · phase 0`. (The edit still compiles + renders — skip-worktree only hides it from git, not
+from Vite. It's a *static* render, so it shows even when the headless tab's React events are dead.)
 
 **Phone tunnel (develop on the go).** This network **blocks `trycloudflare.com`** — `cloudflared
 tunnel --url …` fails with `context deadline exceeded` because TCP 443 to `api.trycloudflare.com` is
