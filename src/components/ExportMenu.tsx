@@ -6,8 +6,8 @@ import type { Traverser } from '../traverse'
 import type { ColoringRule } from '../colorizer'
 import type { StoredPredicate } from '../state/predicateStore'
 import type { StoredTraverser } from '../state/traverserStore'
-import { buildRecipe, DESKTOP_CAPS, MOBILE_CAPS, type Recipe } from '../export'
-import { generateExport, isAbortError, type ExportOutcome } from '../export/exportImage'
+import { buildRecipe, DESKTOP_CAPS, MOBILE_CAPS } from '../export'
+import type { ExportParams } from '../export/exportImage'
 import { HelpButton } from './HelpButton'
 
 // The live canvas draws white tiles / black edges (FALLBACK in TilingCanvas), not themed — so the
@@ -35,33 +35,29 @@ type Props = {
   predicates: ReadonlyArray<StoredPredicate>
   traversers: ReadonlyArray<StoredTraverser>
   coloringRules: ReadonlyArray<ColoringRule>
-  onExported: (outcome: ExportOutcome, recipe: Recipe) => void
+  // Kick off a background export job (the dialog closes immediately; the job shows in the strip).
+  onStartExport: (params: ExportParams) => void
 }
 
-export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, predicates, traversers, coloringRules, onExported }: Props) {
+export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, predicates, traversers, coloringRules, onStartExport }: Props) {
   const [open, setOpen] = useState(false)
   const [gridN, setGridN] = useState(liveGridN)
   const [longEdge, setLongEdge] = useState<number>(3200)
   const [background, setBackground] = useState<Background>('white')
   const [edges, setEdges] = useState(false)
-  const [running, setRunning] = useState(false)
-  const [progress, setProgress] = useState<{ ticks: number; live: number } | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
-  // Controls the in-flight export so the Abort button can cancel it (terminates the worker).
-  const abortRef = useRef<AbortController | null>(null)
 
   const mobile = isMobile()
   const resOptions = RES_PRESETS.filter((r) => !mobile || r <= MOBILE_MAX_RES)
 
-  // Close on outside tap / Escape — unless a run is in progress (don't lose the progress view).
+  // Close on outside tap / Escape.
   useEffect(() => {
     if (!open) return
     const onDown = (e: PointerEvent) => {
-      if (!running && wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !running) setOpen(false)
+      if (e.key === 'Escape') setOpen(false)
     }
     document.addEventListener('pointerdown', onDown)
     document.addEventListener('keydown', onKey)
@@ -69,7 +65,7 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
       document.removeEventListener('pointerdown', onDown)
       document.removeEventListener('keydown', onKey)
     }
-  }, [open, running])
+  }, [open])
 
   // Rough planning readout (no full build): tile count scales ~ (gridN/liveGridN)² like the generators,
   // and the long edge spans ~gridN tiles, so px/tile ≈ longEdge / gridN.
@@ -77,45 +73,23 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
   const pxPerTile = gridN > 0 ? longEdge / gridN : 0
   const heavy = estTiles > 250_000 || longEdge >= 6144
 
-  const doExport = async () => {
-    setError(null)
-    setRunning(true)
-    setProgress({ ticks: 0, live: seeds.length })
-    const controller = new AbortController()
-    abortRef.current = controller
-    try {
-      const recipe = buildRecipe({
-        tilingId,
-        exportGridN: Math.max(2, Math.floor(gridN)),
-        liveTiling: tiling,
-        seeds,
-        baseOverlay,
-        predicates,
-        traversers,
-        coloringRules,
-        output: { longEdgePx: longEdge, edges, background: BG_COLOR[background] },
-      })
-      const outcome = await generateExport(
-        {
-          recipe,
-          palette: PALETTE,
-          caps: mobile ? MOBILE_CAPS : DESKTOP_CAPS,
-          onProgress: (ticks, live) => setProgress({ ticks, live }),
-        },
-        controller.signal,
-      )
-      onExported(outcome, recipe)
-      setOpen(false)
-    } catch (e) {
-      // A user abort isn't an error — just return to the form.
-      if (!isAbortError(e)) setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      abortRef.current = null
-      setRunning(false)
-      setProgress(null)
-    }
+  // Fire-and-forget: build the recipe, hand the job to the Workspace (which shows it in the strip as a
+  // cancelable thumbnail), and close the dialog immediately.
+  const doExport = () => {
+    const recipe = buildRecipe({
+      tilingId,
+      exportGridN: Math.max(2, Math.floor(gridN)),
+      liveTiling: tiling,
+      seeds,
+      baseOverlay,
+      predicates,
+      traversers,
+      coloringRules,
+      output: { longEdgePx: longEdge, edges, background: BG_COLOR[background] },
+    })
+    onStartExport({ recipe, palette: PALETTE, caps: mobile ? MOBILE_CAPS : DESKTOP_CAPS })
+    setOpen(false)
   }
-  const abortExport = () => abortRef.current?.abort()
 
   return (
     <div className="export-menu" ref={wrapRef}>
@@ -145,25 +119,21 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
                 grid at a big resolution gives small, crisp tiles. Your walkers keep their position
                 relative to the centre, so the pattern grows the same — with more room.
               </p>
-              <p>The full setup is stored inside the PNG, so later you’ll be able to reopen it here.</p>
+              <p>
+                Export runs in the background — a thumbnail appears in the corner with a spinner; the X
+                cancels it. The full setup is stored inside the PNG, so later you’ll be able to reopen it.
+              </p>
             </HelpButton>
           </div>
 
           <label className="export-row">
             <span>Grid size</span>
-            <input
-              type="number"
-              min={2}
-              step={10}
-              value={gridN}
-              disabled={running}
-              onChange={(e) => setGridN(Math.max(2, Number(e.target.value) || 0))}
-            />
+            <input type="number" min={2} step={10} value={gridN} onChange={(e) => setGridN(Math.max(2, Number(e.target.value) || 0))} />
           </label>
 
           <label className="export-row">
             <span>Resolution</span>
-            <select value={longEdge} disabled={running} onChange={(e) => setLongEdge(Number(e.target.value))}>
+            <select value={longEdge} onChange={(e) => setLongEdge(Number(e.target.value))}>
               {resOptions.map((r) => (
                 <option key={r} value={r}>
                   {r}px
@@ -174,7 +144,7 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
 
           <label className="export-row">
             <span>Background</span>
-            <select value={background} disabled={running} onChange={(e) => setBackground(e.target.value as Background)}>
+            <select value={background} onChange={(e) => setBackground(e.target.value as Background)}>
               <option value="white">White</option>
               <option value="transparent">Transparent</option>
               <option value="black">Black</option>
@@ -182,37 +152,18 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
           </label>
 
           <label className="export-row export-check">
-            <input type="checkbox" checked={edges} disabled={running} onChange={(e) => setEdges(e.target.checked)} />
+            <input type="checkbox" checked={edges} onChange={(e) => setEdges(e.target.checked)} />
             <span>Show tile edges</span>
           </label>
 
           <p className="export-readout">
             ≈ {pxPerTile.toFixed(pxPerTile < 10 ? 1 : 0)} px/tile · ≈ {estTiles.toLocaleString()} tiles
           </p>
-          {heavy && !running && (
-            <p className="export-warn">Large export — may take a while and use a lot of memory.</p>
-          )}
-          {error && <p className="export-error">{error}</p>}
+          {heavy && <p className="export-warn">Large export — may take a while and use a lot of memory.</p>}
 
-          {running ? (
-            <div className="export-running">
-              <div className="export-progress" role="status">
-                <span className="export-spinner" aria-hidden="true" />
-                <span>
-                  {progress && progress.ticks > 0
-                    ? `Running… ${progress.ticks.toLocaleString()} ticks, ${progress.live} walker${progress.live === 1 ? '' : 's'}`
-                    : 'Rendering…'}
-                </span>
-              </div>
-              <button type="button" className="export-abort" onClick={abortExport}>
-                Abort
-              </button>
-            </div>
-          ) : (
-            <button type="button" className="export-go" onClick={doExport}>
-              Export
-            </button>
-          )}
+          <button type="button" className="export-go" onClick={doExport}>
+            Export
+          </button>
         </div>
       )}
     </div>

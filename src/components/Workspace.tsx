@@ -36,7 +36,7 @@ import { useTraverserStore } from '../state/traverserStore'
 import { useColoringStore } from '../state/coloringStore'
 import { colorize } from '../colorizer'
 import { downloadBlob, exportFilename } from '../export/download'
-import type { ExportOutcome } from '../export/exportImage'
+import { generateExport, isAbortError, type ExportParams } from '../export/exportImage'
 import { remapSeeds, remapPaint, parseRecipe, decodeRecipeFromPng, type Recipe } from '../export'
 import { takePendingRecipe } from '../state/pendingRecipe'
 import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
@@ -133,6 +133,8 @@ export function Workspace() {
   const [exports, setExports] = useState<ExportItem[]>([])
   const [viewingId, setViewingId] = useState<string | null>(null)
   const exportSeq = useRef(0)
+  // Abort controllers for in-flight export jobs, keyed by item id (cancel = terminate the worker).
+  const jobControllers = useRef(new Map<string, AbortController>())
   // Drag-and-drop of an exported PNG onto the canvas to reopen it; `dropNote` is a transient result toast.
   const [dropActive, setDropActive] = useState(false)
   const [dropNote, setDropNote] = useState<string | null>(null)
@@ -201,55 +203,87 @@ export function Workspace() {
   // re-derived by re-running on the export grid). Same as what Stop restores.
   const exportBase = useMemo(() => clearTraverserVisits(overlay), [overlay])
 
-  // The export currently open in the viewer (null = show the live canvas). A cap-evicted id resolves
-  // to null here and the canvas comes back.
-  const viewing = viewingId ? exports.find((x) => x.id === viewingId) ?? null : null
+  // The export currently open in the viewer (null = show the live canvas). Only a finished item is
+  // viewable; a running/cap-evicted id resolves to null and the canvas comes back.
+  const viewing = viewingId ? exports.find((x) => x.id === viewingId && x.status === 'done') ?? null : null
 
-  // Keep at most this many exports in memory; older ones are evicted (and their URLs revoked).
+  // Keep at most this many exports in memory; older FINISHED ones are evicted (and their URLs revoked).
   const EXPORT_CAP = 12
-  const handleExported = (outcome: ExportOutcome, recipe: Recipe) => {
-    const item: ExportItem = {
-      id: `ex${(exportSeq.current += 1)}`,
-      fullUrl: URL.createObjectURL(outcome.full),
-      thumbUrl: URL.createObjectURL(outcome.thumb),
-      full: outcome.full,
-      width: outcome.width,
-      height: outcome.height,
-      filename: exportFilename(recipe.tilingId, recipe.gridN, recipe.output.longEdgePx),
-      hitCap: outcome.hitCap,
-    }
-    downloadBlob(item.full, item.filename) // durable: blobs vanish on reload, the file doesn't
+
+  const revokeItem = (it: ExportItem) => {
+    if (it.fullUrl) URL.revokeObjectURL(it.fullUrl)
+    if (it.thumbUrl) URL.revokeObjectURL(it.thumbUrl)
+  }
+
+  // Start a background export job: it appears in the strip immediately as a running placeholder, runs
+  // off the main thread, then flips to a finished thumbnail (and auto-downloads). Cancel via removeExport.
+  const startExport = (params: ExportParams) => {
+    const id = `ex${(exportSeq.current += 1)}`
+    const { recipe } = params
+    const filename = exportFilename(recipe.tilingId, recipe.gridN, recipe.output.longEdgePx)
+    const controller = new AbortController()
+    jobControllers.current.set(id, controller)
     setExports((list) => {
-      const next = [...list, item]
+      const next: ExportItem[] = [...list, { id, status: 'running', filename }]
+      // Evict the oldest FINISHED item if we're over the cap (never drop a running job).
       while (next.length > EXPORT_CAP) {
-        const dropped = next.shift()!
-        URL.revokeObjectURL(dropped.fullUrl)
-        URL.revokeObjectURL(dropped.thumbUrl)
+        const idx = next.findIndex((x) => x.status === 'done')
+        if (idx < 0) break
+        revokeItem(next.splice(idx, 1)[0])
       }
       return next
     })
+
+    generateExport(params, controller.signal)
+      .then((outcome) => {
+        jobControllers.current.delete(id)
+        const fullUrl = URL.createObjectURL(outcome.full)
+        const thumbUrl = URL.createObjectURL(outcome.thumb)
+        downloadBlob(outcome.full, filename) // durable: blobs vanish on reload, the file doesn't
+        setExports((list) =>
+          list.map((x) =>
+            x.id === id
+              ? { ...x, status: 'done', fullUrl, thumbUrl, full: outcome.full, width: outcome.width, height: outcome.height, hitCap: outcome.hitCap }
+              : x,
+          ),
+        )
+      })
+      .catch((e) => {
+        jobControllers.current.delete(id)
+        setExports((list) => list.filter((x) => x.id !== id)) // a cancelled or failed job drops out
+        if (!isAbortError(e)) {
+          setDropNote(`Export failed: ${e instanceof Error ? e.message : String(e)}`)
+          window.setTimeout(() => setDropNote(null), 4000)
+        }
+      })
   }
+
+  // The strip's X: cancel a running job (terminates its worker; the catch removes it), or remove a
+  // finished one (revoke its URLs).
   const removeExport = (id: string) => {
+    const ctrl = jobControllers.current.get(id)
+    if (ctrl) {
+      ctrl.abort()
+      return
+    }
     setExports((list) => {
       const item = list.find((x) => x.id === id)
-      if (item) {
-        URL.revokeObjectURL(item.fullUrl)
-        URL.revokeObjectURL(item.thumbUrl)
-      }
+      if (item) revokeItem(item)
       return list.filter((x) => x.id !== id)
     })
     setViewingId((cur) => (cur === id ? null : cur))
   }
 
-  // Revoke every object URL on unmount so leaving the page doesn't leak the held PNGs.
+  // On unmount, abort any in-flight jobs and revoke every object URL so leaving the page doesn't leak.
+  // We deliberately read the LATEST refs here (not a mount-time snapshot) — that's the whole point of a
+  // teardown — so the exhaustive-deps "ref in cleanup" hint doesn't apply.
   const exportsRef = useRef(exports)
   exportsRef.current = exports
   useEffect(() => {
     return () => {
-      for (const it of exportsRef.current) {
-        URL.revokeObjectURL(it.fullUrl)
-        URL.revokeObjectURL(it.thumbUrl)
-      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      for (const c of jobControllers.current.values()) c.abort()
+      for (const it of exportsRef.current) revokeItem(it)
     }
   }, [])
 
@@ -612,7 +646,7 @@ export function Workspace() {
           predicates={predicateStore.predicates}
           traversers={traverserStore.traversers}
           coloringRules={coloringStore.rules}
-          onExported={handleExported}
+          onStartExport={startExport}
         />
         <div className="canvas-more-wrap" ref={moreRef}>
           <button type="button" className="canvas-btn canvas-more" onClick={() => setToolsOpen((o) => !o)} aria-label="more controls" aria-expanded={toolsOpen} title="More controls">⋯</button>
@@ -649,7 +683,7 @@ export function Workspace() {
 
       <div className="canvas-pane">
         <div className="canvas-stage" onDragOver={onCanvasDragOver} onDragLeave={onCanvasDragLeave} onDrop={onCanvasDrop}>
-          {viewing ? (
+          {viewing && viewing.fullUrl ? (
             <ImageViewer src={viewing.fullUrl} />
           ) : (
             <TilingCanvas
@@ -673,7 +707,7 @@ export function Workspace() {
             viewingId={viewingId}
             onView={setViewingId}
             onReturn={() => setViewingId(null)}
-            onDownload={(item) => downloadBlob(item.full, item.filename)}
+            onDownload={(item) => { if (item.full) downloadBlob(item.full, item.filename) }}
             onRemove={removeExport}
           />
           {dropActive && <div className="canvas-drop-overlay">Drop an exported PNG to open it</div>}

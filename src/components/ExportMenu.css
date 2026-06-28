@@ -92,11 +92,6 @@
   font-size: 0.7rem;
   color: var(--accent);
 }
-.export-error {
-  margin: 0;
-  font-size: 0.7rem;
-  color: #d8472b;
-}
 
 .export-go {
   margin-top: 0.2rem;
@@ -111,55 +106,4 @@
 }
 .export-go:hover {
   filter: brightness(1.05);
-}
-
-.export-running {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-.export-progress {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-family: var(--mono);
-  font-size: 0.72rem;
-  color: var(--muted);
-  padding: 0.2rem 0;
-  min-width: 0;
-}
-.export-progress span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.export-abort {
-  flex: none;
-  padding: 0.3rem 0.6rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  color: var(--fg);
-  font-size: 0.74rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.export-abort:hover {
-  border-color: #d8472b;
-  color: #d8472b;
-}
-.export-spinner {
-  width: 0.9rem;
-  height: 0.9rem;
-  border: 2px solid var(--line);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: export-spin 0.7s linear infinite;
-  flex: none;
-}
-@keyframes export-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }

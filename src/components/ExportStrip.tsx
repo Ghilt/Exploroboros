@@ -1,17 +1,20 @@
 import './ExportStrip.css'
 
-// An exported image held in memory for the session: object URLs for the full PNG (with embedded
-// recipe metadata) and a small thumbnail, plus the blob for (re)download. Workspace owns the list and
-// the URL lifecycle (revokes on remove / cap-eviction / unmount).
+// An export in the strip. A job appears immediately as `running` (placeholder thumbnail, not clickable,
+// spinner where the download button will be, X = cancel); when the worker finishes it flips to `done`
+// (the real thumbnail, clickable to view, with download + remove). Workspace owns the list, the abort
+// controllers, and the object-URL lifecycle.
 export type ExportItem = {
   id: string
-  fullUrl: string
-  thumbUrl: string
-  full: Blob
-  width: number
-  height: number
+  status: 'running' | 'done'
   filename: string
-  hitCap: boolean
+  // Present once done:
+  fullUrl?: string
+  thumbUrl?: string
+  full?: Blob
+  width?: number
+  height?: number
+  hitCap?: boolean
 }
 
 type Props = {
@@ -20,37 +23,50 @@ type Props = {
   onView: (id: string) => void
   onReturn: () => void
   onDownload: (item: ExportItem) => void
+  // Cancels a running job, or removes a finished one.
   onRemove: (id: string) => void
 }
 
 // The thumbnail strip overlaid bottom-right of the canvas stage. Each export stacks here for the
-// session; clicking one opens it in the viewer. While viewing, a "grid" chip returns to the live canvas.
+// session. While viewing an export, a "grid" chip returns to the live canvas.
 export function ExportStrip({ items, viewingId, onView, onReturn, onDownload, onRemove }: Props) {
   if (items.length === 0) return null
   return (
     <div className="export-strip">
-      {items.map((item) => (
-        <div key={item.id} className={`export-thumb${item.id === viewingId ? ' is-active' : ''}`}>
-          <button
-            type="button"
-            className="export-thumb-open"
-            onClick={() => onView(item.id)}
-            title={`Open ${item.width}×${item.height}px export`}
-            aria-label={`Open ${item.width} by ${item.height} pixel export`}
-          >
-            <img src={item.thumbUrl} alt="" draggable={false} />
-            {item.hitCap && <span className="export-thumb-badge" title="Run hit the tick cap — may be incomplete">!</span>}
-          </button>
-          <div className="export-thumb-actions">
-            <button type="button" onClick={() => onDownload(item)} title="Download again" aria-label="Download this export">
-              ↓
-            </button>
-            <button type="button" onClick={() => onRemove(item.id)} title="Remove from the strip" aria-label="Remove this export">
-              ×
-            </button>
+      {items.map((item) =>
+        item.status === 'running' ? (
+          <div key={item.id} className="export-thumb is-running">
+            <div className="export-thumb-pending" role="img" aria-label="Generating export…" />
+            <div className="export-thumb-actions">
+              <span className="export-job-spinner" aria-hidden="true" title="Generating…" />
+              <button type="button" onClick={() => onRemove(item.id)} title="Cancel this export" aria-label="Cancel this export">
+                ×
+              </button>
+            </div>
           </div>
-        </div>
-      ))}
+        ) : (
+          <div key={item.id} className={`export-thumb${item.id === viewingId ? ' is-active' : ''}`}>
+            <button
+              type="button"
+              className="export-thumb-open"
+              onClick={() => onView(item.id)}
+              title={`Open ${item.width}×${item.height}px export`}
+              aria-label={`Open ${item.width} by ${item.height} pixel export`}
+            >
+              <img src={item.thumbUrl} alt="" draggable={false} />
+              {item.hitCap && <span className="export-thumb-badge" title="Run hit the tick cap — may be incomplete">!</span>}
+            </button>
+            <div className="export-thumb-actions">
+              <button type="button" onClick={() => onDownload(item)} title="Download again" aria-label="Download this export">
+                ↓
+              </button>
+              <button type="button" onClick={() => onRemove(item.id)} title="Remove from the strip" aria-label="Remove this export">
+                ×
+              </button>
+            </div>
+          </div>
+        ),
+      )}
 
       {viewingId && (
         <button type="button" className="export-canvas-chip" onClick={onReturn} title="Back to the live canvas" aria-label="Back to the live canvas">

@@ -427,12 +427,17 @@ Hard-won; read before fighting the tooling again.
   backdrop, focus). Use it for non-obvious concepts (ethos §2); the Predicate + Coloring panes float
   one in their **top-right corner** (`.pane-help`, absolute), not inline with the lead text.
 - `src/components/{ExportMenu,ExportStrip,ImageViewer}.tsx` (+ `.css`) — the export UI (drives `src/export/`).
-  `ExportMenu` is the top-bar chip + popup (grid size / resolution / background / edges, a px-per-tile readout,
-  a progress view) that builds the recipe and calls `generateExport`; it has a "?" explainer for the
-  grid-vs-resolution concept. `ExportStrip` is the bottom-right thumbnail strip (download / remove per item,
-  a grid chip to return from the viewer); `ImageViewer` is the zoom/pan `<img>` (no Konva) that swaps in over
-  the canvas. Workspace owns the `exports` list, the object-URL lifecycle (revoke on remove / cap / unmount),
-  the `viewingId` swap, and auto-download on each export.
+  `ExportMenu` is the top-bar chip + popup (grid size / resolution / background / edges, a px-per-tile
+  readout) — a pure form that builds the recipe, calls `onStartExport`, and **closes immediately** (export is
+  fire-and-forget; it has a "?" explainer for the grid-vs-resolution concept). `ExportStrip` is the
+  bottom-right thumbnail strip: a job shows first as a **running** placeholder (dashed + pulsing, a spinner
+  where the download button will be, **not clickable**, X = cancel), then flips to **done** (the real
+  thumbnail — clickable to view, download + remove); a grid chip returns from the viewer. `ImageViewer` is the
+  zoom/pan `<img>` (no Konva) that swaps in over the canvas. **Workspace owns the jobs:** `startExport` adds a
+  running `ExportItem` immediately, runs `generateExport(params, signal)` (a per-job `AbortController` kept in
+  a ref), then flips it to done + auto-downloads; `removeExport` aborts a running job (terminates its worker)
+  or removes a finished one; it also owns the object-URL lifecycle (revoke on remove / cap-evict the oldest
+  *finished* / unmount + abort-all) and the `viewingId` swap.
 - `src/dsl/` — the **pure tile-predicate DSL** (no React/DOM/Konva), public API via `src/dsl/index.ts`.
   `types.ts` (AST: numeric `Expr` + boolean `Pred`, incl. the `shape`/`tile-type` leaf), `lex.ts`,
   `parse.ts` (recursive descent), `serialize.ts` (canonical text = the auto-name), `eval.ts`

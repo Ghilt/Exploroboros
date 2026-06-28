@@ -28,6 +28,41 @@
 .export-thumb.is-active {
   border-color: var(--accent);
 }
+/* A still-generating job: a muted, faintly pulsing placeholder (not clickable) until the worker
+   returns; the actions show a spinner where the download button will be, plus the cancel X. */
+.export-thumb.is-running {
+  border-style: dashed;
+}
+.export-thumb-pending {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--surface-2);
+  animation: export-pending-pulse 1.4s ease-in-out infinite;
+}
+@keyframes export-pending-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+.export-job-spinner {
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  background: var(--surface);
+  animation: export-job-spin 0.7s linear infinite;
+}
+@keyframes export-job-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .export-thumb-open {
   display: block;
   width: 100%;
@@ -62,11 +97,13 @@
   border-radius: 50%;
 }
 
-/* Download / remove — small icons in the thumb's top-right. */
+/* Download / remove — small icons INSIDE the thumb's top-right corner. Kept inside (not overhanging)
+   so they aren't clipped by the thumb border and don't push the strip wider than its thumbnails (which
+   gave the column a stray horizontal scrollbar). */
 .export-thumb-actions {
   position: absolute;
-  top: -0.4rem;
-  right: -0.4rem;
+  top: 0.25rem;
+  right: 0.25rem;
   display: flex;
   gap: 0.2rem;
 }
