@@ -277,6 +277,8 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-28 | "Load prototype ports" debug button — gasket traverser ported from the prototype (traversal only; colour stays separate) | ✅ yes | owner approved ("good commit") with the change served on this worktree's OWN preview (port 5238, footer-labelled); backed by build / lint / 396 tests + served-source confirmation; gasket DSL compiles (max-split 3, two move gates, five moves) | `af6a65b` |
 | 2026-06-28 | Export as a cancelable background job — Export closes the dialog immediately; the job shows as a running placeholder thumbnail (spinner, not clickable, X aborts → terminates the worker), then flips to the finished clickable thumbnail; thumbnail action buttons moved inside the corner (no clipped buttons, no stray horizontal scrollbar) | ✅ yes | owner verified the running app and said "commit"; backed by build / lint / 402 src tests + in-browser checks (dialog closes, running placeholder + spinner, abort removes the job, finished thumbnail clickable, strip has no horizontal scroll + buttons within bounds) | `1c1e9ac` |
 | 2026-06-28 | Inspect/canvas UX polish — tile type in Inspect; registries under an "advanced" collapsible; compact −0+ steppers; Copy/Paste above advanced; traverser subheading on its own line; wider panes (1:1:1:2); traverser head always drawn (any display mode), hides that tile's labels, now a solid black pointy triangle | ✅ yes | owner reviewed on this worktree's own preview (port 5175) across iterations and said "this is good, commit"; backed by build / lint / 402 tests + an injected-DOM measurement (no horizontal overflow in the 17rem Inspect dock) | `7c97c54` |
+| 2026-06-28 | Gallery — 23 prototype fractals ported to real recipes (traverser + colour ramps rescaled so they ring at our grid's tick scale; clicking an image reopens the real setup to regenerate in-tool and compare to the thumbnail); all gallery images slimmed to WebP (~174 → 21 MB) | ✅ yes | owner reopened a ported fractal + exported it on black and compared to the prototype thumbnail ("it looks good") — backed by build / lint / 402 tests incl. a headless run-to-completion grow check per recipe | `0d939f7` |
+| 2026-06-28 | Export background is the whole plane — unpainted tiles take the chosen background (transparent leaves them clear), instead of fixed-white tiles with the background showing only as a border | ✅ yes | owner exported on a black background, saw the fractal on solid black matching the prototype renders, said "it looks good" | `ac23bb9` |
 
 ## 8. Todo list (working backlog)
 
@@ -361,6 +363,9 @@ in-session task tracker.
   recipe (migration chain; refuses newer-than-this-build images). Flush no-edge tiles in export + live canvas.
   - [ ] **Paint traverser seeds** — once **named traversers** can be placed by drag, add them (and colours)
     to the export menu / drag popup if useful (carried over from the paint-target item above).
+  - [x] **Export background = the whole plane** — the chosen background fills unpainted tiles too (and
+    "transparent" leaves them clear), so the fractal sits on it like the prototype — it was a fixed white
+    base with the background showing only as a border *(verified 2026-06-28, `ac23bb9`)*
 - [x] **Reopen from PNG** *(verified 2026-06-28, `a1e6d0b`)* — `Workspace.loadRecipe(recipe)`
   REPLACES the canvas setup from a recipe: tiling, grid (export grid clamped to ≤ `GRID_MAX` for editing),
   walkers + hand-paint (via `remapSeeds`/`remapPaint` centre-offsets), and the three stores (new `setAll`).
@@ -372,8 +377,12 @@ in-session task tracker.
   - [ ] **Preserve the export resolution on reopen** — a reopened recipe's original export grid isn't fed
     back into the export menu (its `gridN` seeds from the live/edit grid). Carry `recipe.gridN` as an export-
     grid hint so re-exporting matches the original size without re-typing it.
-  - [ ] **Real gallery** — replace the placeholder recipes with actual saved exports (their recipes ride in
-    the PNG metadata); persist across reloads (IndexedDB) + a "watch it grow" replay.
+  - [x] **Gallery — real ported recipes** — the fake placeholder recipes are replaced by **23 prototype
+    fractals ported to our DSL** (traverser + colour), each image wired to its recipe by filename and slimmed
+    to WebP. Deferred groups (absolute-nav, missing-feature, etc.) documented in `src/data/galleryRecipes.ts`
+    *(verified 2026-06-28, `0d939f7`)*
+  - [ ] **User-saved gallery** — let the user save their own exports into the gallery (recipe rides in the
+    PNG metadata); persist across reloads (IndexedDB) + a "watch it grow" replay.
 - [ ] **Deploy to Vercel**
 
 ## 9. Dev loop & operational notes (gotchas)
