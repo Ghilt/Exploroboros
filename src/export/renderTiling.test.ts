@@ -44,32 +44,39 @@ class RecCtx implements RenderCtx {
 
 const tiling = buildTiling('square', 1) // one tile, id 'sq:0,0'
 const view: View = { scale: 50, tx: 0, ty: 0 }
-const palette = { tile: '#fff', edge: '#000' }
+const palette = { edge: '#000' }
 const colorFor = new Map([['sq:0,0', 'rgba(1,2,3,1)']])
 
 describe('renderToCanvas', () => {
-  it('edges off: ONE flattened opaque fill per tile (flush — overlap, no seam stroke)', () => {
+  it('edges off, background colour: tile = colour flattened over the plane (flush, no seam stroke)', () => {
+    const ctx = new RecCtx()
+    renderToCanvas(ctx, tiling, view, palette, colorFor, { edges: false, background: '#ffffff' })
+    // background fills the canvas first; the tile's rgba(1,2,3,1) over white flattens to an opaque rgb.
+    expect(ctx.events).toEqual(['clearRect', 'fillRect', 'fill(rgb(1, 2, 3))'])
+  })
+
+  it('edges off, transparent: the colour is drawn raw, with NO base under it', () => {
     const ctx = new RecCtx()
     renderToCanvas(ctx, tiling, view, palette, colorFor, { edges: false, background: null })
-    // rgba(1,2,3,1) over #fff flattens to an opaque rgb; no per-tile stroke.
-    expect(ctx.events).toEqual(['clearRect', 'fill(rgb(1, 2, 3))'])
+    expect(ctx.events).toEqual(['clearRect', 'fill(rgba(1,2,3,1))'])
   })
 
-  it('edges on: base fill → colour fill → edge stroke, and no same-colour seam strokes', () => {
+  it('edges on: plane base → colour → edge stroke', () => {
     const ctx = new RecCtx()
-    renderToCanvas(ctx, tiling, view, palette, colorFor, { edges: true, background: null })
-    expect(ctx.events).toEqual(['clearRect', 'fill(#fff)', 'fill(rgba(1,2,3,1))', 'stroke(#000)'])
+    renderToCanvas(ctx, tiling, view, palette, colorFor, { edges: true, background: '#222' })
+    expect(ctx.events).toEqual(['clearRect', 'fillRect', 'fill(#222)', 'fill(rgba(1,2,3,1))', 'stroke(#000)'])
   })
 
-  it('fills the background first when one is given', () => {
+  it('an UNPAINTED tile takes the background colour, flush', () => {
     const ctx = new RecCtx()
-    renderToCanvas(ctx, tiling, view, palette, new Map(), { edges: false, background: '#222' })
-    expect(ctx.events.slice(0, 2)).toEqual(['clearRect', 'fillRect'])
+    renderToCanvas(ctx, tiling, view, palette, new Map(), { edges: false, background: '#000000' })
+    // black background fill, then the unpainted tile fills black too (the plane) — no white.
+    expect(ctx.events).toEqual(['clearRect', 'fillRect', 'fill(rgb(0, 0, 0))'])
   })
 
-  it('an unmatched tile (no colorFor) fills the base colour, flush', () => {
+  it('an unpainted tile on a TRANSPARENT background is left clear (skipped)', () => {
     const ctx = new RecCtx()
     renderToCanvas(ctx, tiling, view, palette, new Map(), { edges: false, background: null })
-    expect(ctx.events).toEqual(['clearRect', 'fill(rgb(255, 255, 255))'])
+    expect(ctx.events).toEqual(['clearRect'])
   })
 })

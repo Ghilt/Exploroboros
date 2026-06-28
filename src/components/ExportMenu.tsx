@@ -10,9 +10,9 @@ import { buildRecipe, DESKTOP_CAPS, MOBILE_CAPS } from '../export'
 import type { ExportParams } from '../export/exportImage'
 import { HelpButton } from './HelpButton'
 
-// The live canvas draws white tiles / black edges (FALLBACK in TilingCanvas), not themed — so the
-// export matches what you see with this fixed palette; the user only chooses the backdrop.
-const PALETTE = { tile: '#ffffff', edge: '#000000' }
+// The export's plane is the chosen Background — unpainted (unvisited) tiles take it, so the fractal
+// sits on it (white / black / transparent). Only the edge colour (when edges are shown) is fixed here.
+const PALETTE = { edge: '#000000' }
 
 // Resolution presets (long edge, px). The prototype's go-to was 3200. Mobile is capped lower (see
 // MOBILE_CAPS) — bigger presets are hidden there.
