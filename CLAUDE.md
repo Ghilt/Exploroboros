@@ -209,7 +209,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
   only **Reset** removes the walkers. Inspect gets a Traverser section (Place / aim ↺↻ / Remove, locked during a
   run) and a **lime heading arrow** shows each head in `stats`. The hardcoded behaviour is a placeholder for the
   DSL-driven traversers below.
-- **Image export — client-side high-res PNG (built 2026-06-28, pending owner verification):** an Export menu in
+- **Image export — client-side high-res PNG (done 2026-06-28, `97c6251`):** an Export menu in
   the canvas top bar runs the traverse to completion on its OWN large grid (the **export grid** is a separate
   knob — the interactive grid is just for exploring; walkers/paint are remapped onto it by bounds-centre
   offset), colours it, and rasterises to a PNG at a chosen pixel size — all in a **Web Worker** so the live
@@ -262,6 +262,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-27 | Grid resize locked during an active run (slider greys while playing/paused, frees on Stop); mobile ⋯ dropdown holds Fit / Reset / grid-size (inline on desktop) | ✅ yes | owner verified on device — the ⋯ menu reveals Fit/Reset/grid and the grid stays locked while a run is going — and approved | `3046977` |
 | 2026-06-27 | Drag modes — one drag popup (Off default / Select / Paint→Visited·A·B·C, no separate control); off lets the mobile page scroll; select boxes a group → multi-tile Inspect (no per-tile stats) with Place-on-all / rotate-all / Remove-all / ± | ✅ yes | owner verified the running app (off lets the page scroll, the popup picks a paint target, box-select a row → place + rotate all at once) and said "commit" | `9b3f94b` |
 | 2026-06-27 | Paint-select (freehand drag-to-select) + Shift-additive box/paint select; selection clears on pan/zoom/paint/empty-tap; painted tiles flash a fading outline | ✅ yes | owner verified after a hard-reload (paint-select gathers a non-box group; Shift+box/paint adds to the selection; plain replaces) and said "commit" — note the earlier "paint-select broken" was stale Konva HMR (§9), not a bug | `0957030` |
+| 2026-06-28 | Image export — client-side high-res PNG (Export menu: grid size / resolution / background / edges; Web Worker render; auto-download + thumbnail strip + zoom/pan viewer; versioned recipe in PNG metadata; Abort; flush no-edge tiles in export + live canvas) | ✅ yes | owner reviewed the running export across iterations on desktop + mobile — caught the seam bleed + the off-screen mobile dialog (both fixed), asked for Abort + metadata versioning — then said "commit"; backed by build / lint / 394 tests + in-browser checks (worker render, recipe metadata round-trip, abort mid-run, 0 seam pixels, mobile dialog within viewport) | `97c6251` |
 
 ## 8. Todo list (working backlog)
 
@@ -331,16 +332,15 @@ in-session task tracker.
     grid-resize locked while running, mobile header wraps *(verified 2026-06-27, `064cfc7`)*
   - [ ] DSL-driven traversers — custom rules in the Traversers pane (paint / move along edge refs / visit /
     split / guards / state terms, §5), reusing the predicate DSL; replaces the one hardcoded behaviour
-- [ ] **Image export — client-side high-res PNG** *(§4.2; built 2026-06-28, pending owner verification)* —
+- [x] **Image export — client-side high-res PNG** *(§4.2; verified 2026-06-28, `97c6251`)* —
   pure core in `src/export/` (`runToCompletion` via the in-place `stepTraversersInto`, `remap` of seeds/paint
   by bounds-centre offset, `colorize`, `sizing` with device caps, the Canvas2D `renderTiling`, the recipe
   schema, and the `pngText` tEXt writer) — all unit-tested; a Web Worker (`exportWorker.ts`) +
   OffscreenCanvas driver with a main-thread fallback (`exportImage.ts`); the **Export menu** in the canvas
   top bar (grid size + resolution + background + edges) with a progress view + an **Abort** button
   (`AbortSignal` → `worker.terminate()`, cancels mid-run); the **thumbnail strip** (`ExportStrip`) + **image
-  viewer** (`ImageViewer`) with the canvas↔image swap. Each export auto-downloads + embeds the recipe. Build /
-  lint / 387 tests pass + in-browser smoke-verified (worker, metadata round-trip, abort mid-run, viewer swap);
-  owner device verification + §7 row pending.
+  viewer** (`ImageViewer`) with the canvas↔image swap. Each export auto-downloads + embeds the **versioned**
+  recipe (migration chain; refuses newer-than-this-build images). Flush no-edge tiles in export + live canvas.
   - [ ] **Paint traverser seeds** — once **named traversers** can be placed by drag, add them (and colours)
     to the export menu / drag popup if useful (carried over from the paint-target item above).
 - [ ] **Reopen from PNG** *(fast-follow of image export)* — drag a saved PNG onto the canvas / click a gallery
