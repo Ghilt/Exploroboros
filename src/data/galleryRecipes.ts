@@ -21,17 +21,18 @@
 // advance (a flat wash). `ring()` keeps each ramp's stop COLOURS and relative spacing but compresses
 // the modulo to RING_MOD, so the palette cycles into concentric rings like the prototype — see §9.
 //
-// DEFERRED — rotation-routed fractals (sierpinski, classic, ringlare, wedge-seek). Not a missing
-// feature: the target-shape filter is expressible (per-edge
-// `if tile-type == wedge @ edge K then move edge K`) and the rotation offset is mappable with tolerance
-// bands (the prototype's `rot == 0/90/180/270` are our wedges' ~67.5/157.5/247.5/337.5). What's
-// unsolved is the absolute EDGE-NUMBER frame: the prototype's compass index (0 = N) ≠ our
-// clockwise-from-top index, so `move edge 1` goes the wrong way and the walk dies on the XOR gate
-// (a re-attempt with both corrections still died at ~8 tiles). Needs the edge-index mapping found by
-// observation. Also skipped: ember/accrete/bw-rings (`move to lowest`), prune (`kill`), twin-spiral
-// (`hunger`/`starve`) — genuinely missing DSL features; weave-3/rift (`col`/`num` with no clean lattice
-// equivalent); compass-paint/eddy (colour-by-heading — we don't record per-tile heading); quiz
-// (malformed source). carve/carve-2 and xor-wide/tangle (no reference render) left for later.
+// The rotation-routed family is now mostly ported via the tiling-agnostic `orientation` attribute:
+// classic (wedge rotation → r1/l1), ringlare (visited-count steering), and wedge-seek (shape fan) all
+// grow below. STILL DEFERRED — sierpinski: it routes each wedge to ONE specific ABSOLUTE compass edge
+// (`move edge 1/6/5/2 if rot==0/90/180/270`), and on our ~22.5°-rotated frame the wedge's
+// octagon-neighbour edges sit at different bearings than the prototype's compass (e.g. the orientation
+// that wants compass-W has a boundary, not an octagon, at our 270°). So the gasket's per-orientation
+// octagon-edge routing isn't a direct map — it needs working out from the gasket geometry (a focused
+// follow-up; the `orientation` attribute is the groundwork). Also skipped: ember/accrete/bw-rings
+// (`move to lowest`), prune (`kill`), twin-spiral (`hunger`/`starve`) — genuinely missing DSL features;
+// weave-3/rift (`col`/`num` with no clean lattice equivalent); compass-paint/eddy (colour-by-heading —
+// we don't record per-tile heading); quiz (malformed source). carve/carve-2 and xor-wide/tangle (no
+// reference render) left for later.
 
 import { RECIPE_SCHEMA_VERSION, APP_VERSION, type Recipe, type RecipeSeed } from '../export'
 import type { ColoringRule, RampStop } from '../colorizer'
@@ -145,11 +146,60 @@ const SPEED_VIS = def('speed-vis', ['max-split = 8', GATE_UNVISITED, 'directive 
 // classic-2 — relative-nav XOR maze, four turns, only onto OCTAGONS. No rotation routing, so it ports
 // cleanly (it was wrongly grouped with the absolute-nav fractals).
 const CLASSIC2 = def('classic-2', ['max-split = 2', GATE_UNVISITED, 'directive move always allow if visited-edges == 1', 'directive move always allow if tile-type == octagon', 'move r1', 'move l1', 'move r2', 'move l2'])
-// classic — DEFERRED. Relative-nav (so no absolute-edge issue), but it's routed entirely by WEDGE
-// rotation, and from an octagon it only moves when a wedge is straight ahead — so it's sensitive to
-// both the rotation→our-value correspondence AND the start tile/heading. A first attempt (rotation
-// bands at our ~67.5/157.5/247.5/337.5°, octagon seed) died at tick 1. Needs the correspondence found
-// by observation + the right start; tracked alongside the other rotation-routed fractals.
+// classic — relative-nav XOR maze routed by WEDGE rotation (via the tiling-agnostic `orientation`
+// attribute) plus an octagon "bounce" toward a wedge straight ahead. The orientation→turn map (from the
+// orientation.test.ts probe + the kalleboda slot→rot table): wedge orientation 0/2 → r1, 1/3 → l1.
+// `tile-type == wedge` gates the orientation rules (octagons are also orientation 0). Seeded on the
+// centre WEDGE facing 45° (π/4): the `visited-edges == 1` gate only threads single-edge adjacencies
+// (kalleboda is mostly two-edged), so the start is heading-sensitive — 45° grows ~36%, others stall
+// (found by a one-off seed-heading probe).
+const CLASSIC = def('classic', [
+  'max-split = 2',
+  GATE_UNVISITED,
+  'directive move always allow if visited-edges == 1',
+  'if tile-type == wedge @ straight then move r2',
+  'if tile-type == wedge @ straight then move l2',
+  'if tile-type == wedge and (orientation == 0 or orientation == 2) then move r1',
+  'if tile-type == wedge and (orientation == 1 or orientation == 3) then move l1',
+])
+
+// ringlare — relative-nav single self-avoiding walker steered by how many visited EDGES the candidate
+// target touches; winds into nested rings. No rotation/absolute edges. Each prototype `move edge K if
+// adjacent-visited == M` → a guarded relative move whose guard reads the target via `@ <rel-edge>`
+// (adjacent-visited → visited-edges; edge 0/1/6/7→straight/r1/l2/l1). The one prototype line with two
+// different decorated subjects (`edge 0 is … and edge 7 is …`) is dropped — a guard carries one `@`.
+const RINGLARE = def('ringlare', [
+  'max-split = 1',
+  GATE_UNVISITED,
+  'if visited-edges == 1 @ r1 then move r1',
+  'if (visited-edges == 2 or visited-edges == 1) @ straight then move straight',
+  'if visited-edges == 3 @ l2 then move l2',
+  'if visited-edges == 5 @ straight then move straight',
+  'if visited-edges == 3 @ r1 then move r1',
+  'if visited-edges == 2 @ r1 then move r1',
+  'if visited-edges == 4 @ straight then move straight',
+  'if visited-edges == 4 @ l1 then move l1',
+  'if visited-edges == 3 @ straight then move straight',
+  'if visited-edges == 4 @ l2 then move l2',
+  'if visited-edges == 6 @ l2 then move l2',
+  'if visited-edges == 5 @ l2 then move l2',
+  'if visited-edges == 6 @ straight then move straight',
+])
+
+// wedge-seek — absolute-nav XOR fan that alternates shape: from a wedge fan to all neighbouring octagons,
+// from an octagon fan to all neighbouring wedges. The octagon-target fan (`@ edge K` octagon) also offers
+// octagon→octagon from octagons, but the wedge-target fan is listed first and max-split 2 caps it, so
+// octagon→wedge / wedge→octagon dominate (kalleboda has no wedge–wedge adjacency, so the wedge fan never
+// fires from a wedge). The absolute index doesn't matter — we try all 8 edges via per-edge target gates.
+const EDGES_0_7 = [0, 1, 2, 3, 4, 5, 6, 7]
+const WEDGE_SEEK = def('wedge-seek', [
+  'max-split = 2',
+  'movement = absolute',
+  GATE_UNVISITED,
+  'directive move always allow if visited-neighbors == 1',
+  ...EDGES_0_7.map((k) => `if tile-type == wedge @ edge ${k} then move edge ${k}`),
+  ...EDGES_0_7.map((k) => `if tile-type == octagon @ edge ${k} then move edge ${k}`),
+])
 
 // Image filename (in src/assets/gallery/) → its recipe.
 export const GALLERY_RECIPES: Readonly<Record<string, Recipe>> = {
@@ -159,6 +209,9 @@ export const GALLERY_RECIPES: Readonly<Record<string, Recipe>> = {
   'octa-carpet.webp': recipe('#0a0a04', [seed('octa-carpet', 5, { shape: 'octagon' })], OCTA_CARPET, [ring('octa-carpet-c', 60, [stop('#FFFFC8', 0), stop('#FF6428', 20), stop('#781E5A', 50)])]),
   'labyrinth-2.webp': recipe('#0e0c18', [seed('labyrinth-2', 2, { heading: compass(4) })], LABYRINTH, [ring('labyrinth-2-c', 460, [stop('#9AD0FF', 0), stop('#7B5BF2', 220), stop('#E0509A', 460)])]),
   'classic-2.webp': recipe('#000000', [seed('classic-2', 2, { shape: 'octagon' })], CLASSIC2, [ring('classic-2-c', 350, [stop('#FAE9A0', 0), stop('#0070FA', 39), stop('#FAE9A0', 350)])]),
+  'classic.webp': recipe('#000000', [seed('classic', 2, { shape: 'wedge', heading: Math.PI / 4 })], CLASSIC, [ring('classic-c', 35, [stop('#4AE9A0', 0), stop('#000000', 35)])]),
+  'ringlare.webp': recipe('#04060c', [seed('ringlare', 1)], RINGLARE, [ring('ringlare-c', 400, [stop('#00FFC8', 0), stop('#FF00A0', 200)])]),
+  'wedge-seek.webp': recipe('#0c0604', [seed('wedge-seek', 2, { shape: 'octagon' })], WEDGE_SEEK, [ring('wedge-seek-c', 720, [stop('#FFD0A0', 0), stop('#E0602E', 240), stop('#5A1E2A', 480)])]),
   'nested-rings.webp': recipe('#060006', [seed('nested-rings', 3)], NESTED, [ring('nested-rings-c', 60, [stop('#FFFFFF', 0), stop('#2A0E4A', 5), stop('#FF4DA0', 40)])]),
   'sierp-shape.webp': recipe('#060406', [seed('sierp-gasket', 3)], SIERP_GASKET, [
     inlineRing('sierp-shape-oct', 'tile-type == octagon', 400, [stop('#FFE08A', 0), stop('#FF6A3D', 200)]),
