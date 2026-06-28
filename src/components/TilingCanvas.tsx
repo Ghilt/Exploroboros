@@ -17,6 +17,9 @@ import {
   representativeTileSize,
   tileState,
   visitCount,
+  flattenColor,
+  inflatePolygon,
+  FLUSH_OVERLAP_PX,
 } from '../canvas'
 import type { View, Size, TileState } from '../canvas'
 
@@ -610,26 +613,38 @@ function drawTiles(
   const maxY = Math.max(a.y, b.y) + margin
   const onScreen = (c: Vec2) => c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY
 
+  // No-edge mode renders FLUSH (must match renderTiling.ts in the exporter): a thin stroke can't hide
+  // the anti-alias seam between adjacent fills (the background bleeds ~25% at every shared edge), so
+  // instead we fill each tile ONCE with its flattened OPAQUE colour on a slightly inflated polygon, so
+  // neighbours overlap and no seam shows. With edges on, the edge stroke covers the seam, so keep the
+  // base→colour layering there. See src/canvas/flush.ts.
+  const flush = displayMode === 'none'
+  const inflate = flush && view.scale > 0 ? FLUSH_OVERLAP_PX / view.scale : 0
   for (const node of tiling.nodes) {
     if (!onScreen(node.centroid)) continue
-    traceTile(ctx, node.vertices, view)
-    // Base fill, then the coloring rules' colour on top (it carries its own alpha, so a translucent
-    // rule blends over the base). Painting only records visited/registry data — the rules decide colour.
-    ctx.setAttr('fillStyle', pal.tile)
-    ctx.fill()
-    const fill = colorFor?.get(node.id)
-    if (fill) {
-      ctx.setAttr('fillStyle', fill)
+    if (flush) {
+      traceTile(ctx, inflatePolygon(node.vertices, node.centroid, inflate), view)
+      ctx.setAttr('fillStyle', flattenColor(colorFor?.get(node.id), pal.tile))
       ctx.fill()
+    } else {
+      traceTile(ctx, node.vertices, view)
+      ctx.setAttr('fillStyle', pal.tile)
+      ctx.fill()
+      const fill = colorFor?.get(node.id)
+      if (fill) {
+        ctx.setAttr('fillStyle', fill)
+        ctx.fill()
+      }
     }
     if (selectedSet.has(node.id)) {
+      traceTile(ctx, node.vertices, view) // accent on the true tile shape, not the inflated one
       ctx.save()
       ctx.setAttr('globalAlpha', 0.14)
       ctx.setAttr('fillStyle', pal.accent)
       ctx.fill()
       ctx.restore()
     }
-    if (displayMode !== 'none') {
+    if (!flush) {
       ctx.setAttr('strokeStyle', pal.edge)
       ctx.setAttr('lineWidth', 1)
       ctx.stroke()

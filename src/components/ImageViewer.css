@@ -1,0 +1,21 @@
+/* Full-bleed zoom/pan viewer for an exported PNG, filling the canvas stage. */
+.image-viewer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--surface-2);
+  touch-action: none;
+  cursor: grab;
+}
+.image-viewer:active {
+  cursor: grabbing;
+}
+.image-viewer img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* Crisp tiles when zoomed past 1:1 — fractals are made of hard edges. */
+  image-rendering: pixelated;
+  user-select: none;
+  -webkit-user-drag: none;
+}

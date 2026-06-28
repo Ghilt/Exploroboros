@@ -6,7 +6,7 @@
 
 import type { Tiling } from '../tiling'
 import { nodeById, across, clockwiseEdgeOrder } from '../tiling'
-import { tileState, visitCount, addVisits, applyRegistryWrites, type TileState, type RegWrite } from '../canvas'
+import { tileState, visitCount, addVisits, applyRegistryWrites, EMPTY_TILE_STATE, type TileState, type RegWrite } from '../canvas'
 import { runProgram, type TileWrite, type WalkerState } from './lang'
 import type { Traverser, TraverseState, TickResult } from './types'
 
@@ -65,12 +65,16 @@ export function chooseMove(
   return best ? { tile: best.tile, heading: best.heading } : null
 }
 
-// Advance one tick. Each walker runs its program off the frozen overlay; a walker that produces no
-// move/morph is dropped (it only persists by moving). Branches inherit the parent's registers/steps
-// (branch 0 keeps the id, extras get fresh ids; splits++ on a real split). Identical branches —
-// same def, tile, heading and P/Q/R — coalesce to bound branching. Then tile-registry writes apply
-// (in order), one visit per destination tile is stamped at the new step, and over-age walkers drop.
-export function stepTraversers(state: TraverseState): TickResult {
+// The decisions of one tick, WITHOUT touching the overlay: each walker runs its program off the
+// frozen overlay; a walker that produces no move/morph is dropped (it only persists by moving).
+// Branches inherit the parent's registers/steps (branch 0 keeps the id, extras get fresh ids; splits++
+// on a real split). Identical branches — same def, tile, heading and P/Q/R — coalesce to bound
+// branching; over-age walkers (max-steps) drop. Returns the surviving walkers plus the writes to
+// apply (registry writes in order, then one visit per destination tile at `nextStep`). Both
+// stepTraversers (immutable) and stepTraversersInto (mutable) build on this, so their decisions match.
+type TickCore = { next: Traverser[]; tileWrites: RegWrite[]; destinations: string[]; nextStep: number }
+
+function computeTick(state: TraverseState): TickCore {
   const { tiling, overlay, traversers, step, defs, indexById } = state
   const nextStep = step + 1
   const tileByIndex = tiling.nodes.map((n) => n.id)
@@ -124,8 +128,36 @@ export function stepTraversers(state: TraverseState): TickResult {
     next.push(b)
   }
 
-  let nextOverlay = applyRegistryWrites(overlay, tileWrites)
   const destinations = [...new Set(next.map((b) => b.tile))]
-  nextOverlay = addVisits(nextOverlay, destinations, nextStep)
-  return { overlay: nextOverlay, traversers: next, step: nextStep }
+  return { next, tileWrites, destinations, nextStep }
+}
+
+// Advance one tick, returning a FRESH overlay (the immutable form the live React run uses).
+export function stepTraversers(state: TraverseState): TickResult {
+  const core = computeTick(state)
+  let nextOverlay = applyRegistryWrites(state.overlay, core.tileWrites)
+  nextOverlay = addVisits(nextOverlay, core.destinations, core.nextStep)
+  return { overlay: nextOverlay, traversers: core.next, step: core.nextStep }
+}
+
+// Advance one tick, applying the writes INTO `overlay` in place (no per-tick copy). Same decisions as
+// stepTraversers — `state.overlay` must be this same Map, read fully (in computeTick) before any write.
+// For the headless export run, where copying a growing overlay every tick would be O(ticks × visited)
+// on a big grid; in place it's O(work). The live run keeps using the immutable stepTraversers.
+export function stepTraversersInto(
+  state: TraverseState,
+  overlay: Map<string, TileState>,
+): { traversers: Traverser[]; step: number } {
+  const core = computeTick(state)
+  // Registry writes first (set = last-writer-wins, add accumulates), then one visit per destination —
+  // the same order as applyRegistryWrites + addVisits, but mutating the shared Map.
+  for (const w of core.tileWrites) {
+    const prev = overlay.get(w.tile) ?? EMPTY_TILE_STATE
+    overlay.set(w.tile, { ...prev, [w.reg]: w.op === 'set' ? w.value : prev[w.reg] + w.value })
+  }
+  for (const id of core.destinations) {
+    const prev = overlay.get(id) ?? EMPTY_TILE_STATE
+    overlay.set(id, { ...prev, visits: [...prev.visits, core.nextStep] })
+  }
+  return { traversers: core.next, step: core.nextStep }
 }

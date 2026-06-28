@@ -1,0 +1,165 @@
+/* Export chip + its popup form. Mirrors the drag-menu look (Workspace.css): a chip that opens an
+   absolutely-positioned panel below it. On DESKTOP the wrapper is the positioning context so the popup
+   hangs off the chip; on MOBILE that breaks (see the media query). */
+.export-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.export-pop {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 15rem;
+  padding: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+/* MOBILE: the chip wraps to an unpredictable spot in the centered controls row, so anchoring the popup
+   to it spills off-screen. Make the wrapper `position: static` so the popup anchors to the relative
+   `.canvas-controls` bar instead, and span it across the bar — the SAME fix as the ⋯ / drag popups in
+   Workspace.css. Any new bar dropdown needs this (CLAUDE.md §9). Breakpoint matches Workspace.css. */
+@media (max-width: 64rem) {
+  .export-menu {
+    position: static;
+  }
+  .export-pop {
+    left: 0.6rem;
+    right: 0.6rem;
+    width: auto;
+    top: calc(100% + 0.3rem);
+  }
+}
+
+.export-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+.export-title {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.export-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+.export-row input[type='number'],
+.export-row select {
+  width: 7rem;
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--fg);
+}
+.export-check {
+  justify-content: flex-start;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+.export-check input {
+  margin: 0;
+}
+
+.export-readout {
+  margin: 0.1rem 0 0;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.export-warn {
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--accent);
+}
+.export-error {
+  margin: 0;
+  font-size: 0.7rem;
+  color: #d8472b;
+}
+
+.export-go {
+  margin-top: 0.2rem;
+  padding: 0.4rem 0.6rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.export-go:hover {
+  filter: brightness(1.05);
+}
+
+.export-running {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.export-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+  padding: 0.2rem 0;
+  min-width: 0;
+}
+.export-progress span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.export-abort {
+  flex: none;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--fg);
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.export-abort:hover {
+  border-color: #d8472b;
+  color: #d8472b;
+}
+.export-spinner {
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: export-spin 0.7s linear infinite;
+  flex: none;
+}
+@keyframes export-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

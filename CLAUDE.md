@@ -71,8 +71,15 @@ Installed and confirmed working 2026-06-26:
   clipboard, tiling factory) lives in pure, isomorphic, Vitest-tested modules in `src/canvas/`. **Hard rule:
   `konva`/`react-konva` are imported ONLY in `TilingCanvas.tsx`** (a stray import into a pure module breaks
   Vitest/SSR). Installed 2026-06-27 with the owner's OK (`npm install konva react-konva`).
-- **Hosting (planned, not yet wired):** Vercel — SPA auto-detected; native `@vercel/og` (Satori + resvg) for
-  future serverless PNG export.
+- **Image export (added 2026-06-28, resolves §4.2):** 100% **client-side**, **no new dependencies**. A pure,
+  isomorphic core in `src/export/` (run-to-completion, seed remap, colorize, sizing, a Canvas2D renderer, a
+  hand-rolled PNG **tEXt** metadata writer) runs inside a **Web Worker** (`new Worker(new URL(...), {type:'module'})`,
+  Vite-bundled to its own ~50 KB chunk) that rasterises via **OffscreenCanvas** — so a big, slow export never
+  freezes the interactive canvas — with a main-thread `<canvas>` fallback. The full generation **recipe** is
+  embedded in the PNG so images can later be reopened (§6/§9). Uses only platform APIs (Worker, OffscreenCanvas,
+  Canvas2D, Blob) — the §3 registry is unchanged.
+- **Hosting (planned, not yet wired):** Vercel — SPA auto-detected. (Export is client-side now (§4.2); a
+  serverless renderer like `@vercel/og` stays an option only for future server-rendered share images.)
 - **Repo:** local git repo at `E:\Code\exploroboros` (the owner's machine).
 
 ## 4. Deferred decisions / Open Questions (the embedded quiz)
@@ -87,9 +94,13 @@ Resolve each at the noted trigger — **ask the owner the question; don't assume
    spatial-hash + point-in-polygon (the square inverts its lattice O(1)); `rbush` stays the documented upgrade
    if hit-testing ever needs it. PixiJS/WebGL remains the escape hatch behind the same `TilingCanvas` boundary
    if tile counts must grow past Canvas2D limits.)*
-2. **Serverless image export** *(trigger: building export).* `@vercel/og` (Satori + resvg; runs on Vercel
-   edge; simplest) vs `@napi-rs/canvas` (full Canvas API; Node function). *Recommendation:* `@vercel/og`
-   unless we need pixel-level canvas drawing. Cache by hashing the (tiling + rules) params.
+2. **Serverless image export** *(trigger: building export).* ~~`@vercel/og` vs `@napi-rs/canvas`.~~
+   **Resolved 2026-06-28: no backend — export runs 100% client-side** (owner's call). The run cost scales
+   with tiles+ticks (cheap) and rasterising vector fills is fast even at 4K+, everything is already pure, and
+   the metadata-in-PNG means anything is re-generable in the browser. A Web Worker (+ OffscreenCanvas) keeps
+   big, slow exports off the main thread; PNG metadata is a hand-rolled tEXt chunk (no dep). See `src/export/`
+   (§9) and the image-export roadmap entry (§6). A backend stays an option only if very weak phones or
+   server-rendered share images ever demand it.
 3. **"Any-tiling" data schema** *(trigger: building the tiling model).* **Resolved 2026-06-26.** Tilings are
    **code-defined generators** (not an imported file format — owner's call); each emits raw polygons into a
    shared `stitch()` that detects coincident edges and builds the graph. Schema (`src/tiling/types.ts`): a
@@ -198,8 +209,19 @@ still needed into this doc **before** then; do not rely on the path persisting.
   only **Reset** removes the walkers. Inspect gets a Traverser section (Place / aim ↺↻ / Remove, locked during a
   run) and a **lime heading arrow** shows each head in `stats`. The hardcoded behaviour is a placeholder for the
   DSL-driven traversers below.
+- **Image export — client-side high-res PNG (built 2026-06-28, pending owner verification):** an Export menu in
+  the canvas top bar runs the traverse to completion on its OWN large grid (the **export grid** is a separate
+  knob — the interactive grid is just for exploring; walkers/paint are remapped onto it by bounds-centre
+  offset), colours it, and rasterises to a PNG at a chosen pixel size — all in a **Web Worker** so the live
+  canvas never freezes. Each export **auto-downloads** AND drops a **thumbnail** in the bottom-right strip;
+  clicking a thumbnail swaps the canvas for a **zoom/pan image viewer** (the live canvas becomes a corner grid
+  chip to return). The full generation **recipe** is embedded in the PNG (a tEXt chunk), **versioned with a
+  migration chain** so a future build can still read today's images (and refuses an image from a *newer* build
+  rather than misreading it) — see §9. Pure core + tests in `src/export/`; no new deps (§3/§4.2). Also fixed:
+  tiles render **flush** when edges are off (the white anti-alias seam), in both the export and the live canvas.
 - **Next up:** **DSL-driven traversers** (custom rules in the Traversers pane — paint/move/visit/split/guards/
-  state, §5; reuses the predicate DSL) → **serverless PNG export** (§4.2) → **deploy** to Vercel.
+  state, §5; reuses the predicate DSL) → **reopen from PNG** (drag a saved image in / click a gallery image →
+  parse the embedded recipe → restore the canvas; the export side already embeds it) → **deploy** to Vercel.
 
 ## 7. Verifying on a phone + verification log
 
@@ -309,7 +331,22 @@ in-session task tracker.
     grid-resize locked while running, mobile header wraps *(verified 2026-06-27, `064cfc7`)*
   - [ ] DSL-driven traversers — custom rules in the Traversers pane (paint / move along edge refs / visit /
     split / guards / state terms, §5), reusing the predicate DSL; replaces the one hardcoded behaviour
-- [ ] **Serverless PNG export** *(§4.2)*
+- [ ] **Image export — client-side high-res PNG** *(§4.2; built 2026-06-28, pending owner verification)* —
+  pure core in `src/export/` (`runToCompletion` via the in-place `stepTraversersInto`, `remap` of seeds/paint
+  by bounds-centre offset, `colorize`, `sizing` with device caps, the Canvas2D `renderTiling`, the recipe
+  schema, and the `pngText` tEXt writer) — all unit-tested; a Web Worker (`exportWorker.ts`) +
+  OffscreenCanvas driver with a main-thread fallback (`exportImage.ts`); the **Export menu** in the canvas
+  top bar (grid size + resolution + background + edges) with a progress view + an **Abort** button
+  (`AbortSignal` → `worker.terminate()`, cancels mid-run); the **thumbnail strip** (`ExportStrip`) + **image
+  viewer** (`ImageViewer`) with the canvas↔image swap. Each export auto-downloads + embeds the recipe. Build /
+  lint / 387 tests pass + in-browser smoke-verified (worker, metadata round-trip, abort mid-run, viewer swap);
+  owner device verification + §7 row pending.
+  - [ ] **Paint traverser seeds** — once **named traversers** can be placed by drag, add them (and colours)
+    to the export menu / drag popup if useful (carried over from the paint-target item above).
+- [ ] **Reopen from PNG** *(fast-follow of image export)* — drag a saved PNG onto the canvas / click a gallery
+  image → `parseRecipe(decodeRecipeFromPng(...))` → restore tiling / grid / seeds / predicates / traversers /
+  coloring and continue. The export side already embeds the recipe (`src/export/recipe.ts`, `parseRecipe` +
+  `decodeRecipeFromPng` exist + tested); this is the import/restore UI.
 - [ ] **Deploy to Vercel**
 
 ## 9. Dev loop & operational notes (gotchas)
@@ -338,7 +375,8 @@ Hard-won; read before fighting the tooling again.
   **lime arrow** (`traverserHeads` prop → `drawTraverserHeads`) marks each traverser head + heading. `src/canvas/`
   holds its pure, tested helpers — `view.ts` (world↔screen transform), `pick.ts` (hit-testing),
   `stroke.ts` (paint gap-fill), `overlay.ts` (per-tile run state — the visit step-list + A/B/C
-  registries, plus its updaters), `clipboard.ts`, `buildTiling.ts` — imported via `src/canvas/index.ts`.
+  registries, plus its updaters), `clipboard.ts`, `buildTiling.ts`, `flush.ts` (flush-tile rendering:
+  `flattenColor` + `inflatePolygon`, see the gotcha below) — imported via `src/canvas/index.ts`.
 - `src/components/TilingDebugView.tsx` — the original dependency-free SVG renderer. Still **live**: it
   draws the tiling-picker gallery thumbnails (`TilingThumbnail.tsx` → `TilingPicker.tsx`). Not used for
   the main canvas (that's the Konva `TilingCanvas`), but don't delete it — the picker needs it.
@@ -363,6 +401,13 @@ Hard-won; read before fighting the tooling again.
   button that opens a little info dialog (reuses the TilingPicker modal pattern — portal, Escape,
   backdrop, focus). Use it for non-obvious concepts (ethos §2); the Predicate + Coloring panes float
   one in their **top-right corner** (`.pane-help`, absolute), not inline with the lead text.
+- `src/components/{ExportMenu,ExportStrip,ImageViewer}.tsx` (+ `.css`) — the export UI (drives `src/export/`).
+  `ExportMenu` is the top-bar chip + popup (grid size / resolution / background / edges, a px-per-tile readout,
+  a progress view) that builds the recipe and calls `generateExport`; it has a "?" explainer for the
+  grid-vs-resolution concept. `ExportStrip` is the bottom-right thumbnail strip (download / remove per item,
+  a grid chip to return from the viewer); `ImageViewer` is the zoom/pan `<img>` (no Konva) that swaps in over
+  the canvas. Workspace owns the `exports` list, the object-URL lifecycle (revoke on remove / cap / unmount),
+  the `viewingId` swap, and auto-download on each export.
 - `src/dsl/` — the **pure tile-predicate DSL** (no React/DOM/Konva), public API via `src/dsl/index.ts`.
   `types.ts` (AST: numeric `Expr` + boolean `Pred`, incl. the `shape`/`tile-type` leaf), `lex.ts`,
   `parse.ts` (recursive descent), `serialize.ts` (canonical text = the auto-name), `eval.ts`
@@ -377,9 +422,34 @@ Hard-won; read before fighting the tooling again.
   outward `normalAngle`; `TraverseState`; `TickResult`), `step.ts` (`chooseMove` = least-turn to an adjacent
   **unvisited** tile, returning the new heading; `stepTraversers` = the synchronous tick: read the frozen
   overlay → compute all moves → coalesce same-tile walkers → write one visit per target at the new step;
-  `headingOptions`/`rotateHeading` for the edge-snapped Inspect aim). May import `src/tiling` + the overlay
-  helpers; the basic behaviour is hardcoded, with the **DSL-driven** traversers (§5) to slot in behind the same
+  `headingOptions`/`rotateHeading` for the edge-snapped Inspect aim). The tick's decisions live in a shared
+  `computeTick`; `stepTraversers` applies them to a **fresh** overlay (the live React run), while
+  `stepTraversersInto` applies them **in place** into a mutable overlay — used by the headless export run so a
+  long run on a big grid is O(work), not O(ticks × visited). May import `src/tiling` + the overlay helpers; the
+  basic behaviour is hardcoded, with the **DSL-driven** traversers (§5) to slot in behind the same
   `stepTraversers` shape — so keep it pure.
+- `src/export/` — the **pure, isomorphic image-export core** (no React/Konva), public API via
+  `src/export/index.ts`. `runToCompletion.ts` (loops `stepTraversersInto` to completion, `maxTicks` cap),
+  `remap.ts` (seed/paint placement by bounds-centre offset, grid-size-independent), `renderTiling.ts`
+  (`renderToCanvas` — a Canvas2D subset of `drawTiles`; **flush** no-edge rendering via `src/canvas/flush.ts`;
+  takes a structural `RenderCtx`, so `OffscreenCanvas`/`<canvas>`/a fake all work), `sizing.ts`
+  (`pickCanvasSize` → aspect-matched WxH + device caps), `recipe.ts` (the serialisable `Recipe` +
+  `buildRecipe`/`parseRecipe`; **versioned** — see below),
+  `prepare.ts` (rebuilds
+  defs/predicateText/index + remaps a recipe — **mirrors the Workspace assembly**, keep in sync), `generate.ts`
+  (`computeExport` — the pure build→run→colorize→size). **Impure (DOM, main-thread only, NOT in the pure
+  graph):** `pngText.ts` is pure but `exportWorker.ts` (the Web Worker — imports only pure modules + uses
+  OffscreenCanvas; Vite bundles it to its own chunk), `exportImage.ts` (worker driver + main-thread fallback +
+  metadata splice + auto-download; takes an `AbortSignal` — abort `terminate()`s the worker mid-run and rejects
+  with an `AbortError` the UI swallows as a cancel), `download.ts`. **Keep Konva out** and keep the pure files DOM-free so the
+  worker + Vitest stay happy.
+  - **Recipe versioning (so images survive app updates).** The recipe carries `schemaVersion` (the
+    compatibility key) + `appVersion` (a human stamp, never branched on). **When you change the recipe shape
+    OR an engine/DSL behaviour that affects how an old recipe reproduces, bump `RECIPE_SCHEMA_VERSION` and add
+    a `MIGRATIONS` entry** (`{from, migrate}`) in `recipe.ts`. `parseRecipe` returns a `ParseResult`:
+    it migrates an OLDER recipe up to the current shape (chain in `migrateRecipe`), and REFUSES a NEWER one
+    with `reason: 'too-new'` (the reopen UI should say "update the app") — never strict-equality-reject an old
+    image. Today's exports are `schemaVersion: 1`; the migration list is empty until the first bump.
 - `src/state/` — localStorage-backed stores: `predicateStore.ts` (custom predicates as DSL text +
   name), `coloringStore.ts` (the ordered rules, key `…:coloring:v2`), `persist.ts` (SSR/quota-safe
   load/save + `newId`). Pure list updaters are unit-tested; the hooks wire them to persistence.
@@ -462,3 +532,37 @@ there); where a component test needs the canvas, **`vi.mock` it** — `Workspace
 `./TilingCanvas` with a tiny DOM stand-in that exposes the `onSelect` callback, so the
 selection→inspect / paint / copy-paste wiring is testable without a canvas. The interactive feel is
 verified on a real device.
+
+**Web Worker (the export worker) — two speed bumps.** (1) **Keep it pure.** `exportWorker.ts` must import
+only pure modules; a stray React/Konva import balloons (and breaks) its bundle. Verify after a `build`: the
+`dist/assets/exportWorker-*.js` chunk should stay small (~50 KB) — if it jumps toward the main bundle size, a
+heavy import leaked in. The tsconfig has no `WebWorker` lib (only `DOM`), so the worker types its global as a
+small local `WorkerScope` cast instead of `DedicatedWorkerGlobalScope` (`OffscreenCanvas` lives in the DOM
+lib, so that resolves). (2) **TS6 typed-array strictness:** `new Blob([bytes])` rejects `Uint8Array<ArrayBufferLike>`
+(could be a `SharedArrayBuffer`); annotate functions that produce PNG bytes as `Uint8Array<ArrayBuffer>`
+(see `pngText.ts`) so the Blob accepts them. The headless export run uses `stepTraversersInto` (mutates one
+overlay in place) — never loop the immutable `stepTraversers` over a big grid (O(ticks × visited) → minutes).
+
+**Flush tiles (no-edge mode) — a 1px stroke is NOT enough.** Two adjacent anti-aliased polygon fills only
+partially cover their shared boundary pixels, and sequential alpha-compositing leaks ~25% of the background
+through at every shared edge — a faint outline around *every* tile, even between same-coloured ones (and a
+same-colour stroke is itself AA'd, so it doesn't fully cover). The fix (`src/canvas/flush.ts`, used by both
+`drawTiles` and `renderTiling` when edges are off): fill each tile **once** with its **flattened opaque**
+colour (`flattenColor` composites the rule colour over the base so overlaps don't darken or leak) on a
+**slightly inflated** polygon (`inflatePolygon`, ~1.2 output px) so neighbours overlap and the later fill
+covers the seam. Edges-on keeps the base→colour→edge layering (the edge stroke hides the seam). Verify by
+sampling exported pixels (white tiles on a black bg → 0 dark pixels across the tiling interior), not by eye
+on a compressed screenshot.
+
+**Canvas-bar dropdowns spill off-screen on MOBILE — the recurring trap.** Every popup that hangs off a chip
+in the `.canvas-controls` toolbar (the ⋯ extras, the drag menu, the Export dialog — and any future one)
+breaks the same way on phones: the desktop pattern is a `position: relative` wrapper around the chip with a
+`position: absolute` popup, which anchors the popup to the *chip*. But `.canvas-controls` is a **centered,
+flex-wrapping** row, so on a narrow screen the chip lands in an unpredictable spot and the popup spills past
+the viewport edge. **Fix (do this for EVERY bar dropdown):** in the `@media (max-width: 64rem)` block, set the
+wrapper to `position: static` so the absolute popup anchors to the relative `.canvas-controls` bar instead,
+and give the popup `left: 0.6rem; right: 0.6rem; width: auto; top: calc(100% + 0.3rem)` so it spans the bar
+on-screen. Precedents: `.canvas-more-wrap` / `.canvas-drag` in `Workspace.css`, `.export-menu` / `.export-pop`
+in `ExportMenu.css`. `.canvas-controls` is `position: relative` precisely to be this anchor — don't remove it.
+Verify with `preview_resize` to a phone width, open the popup, and check its `getBoundingClientRect().right`
+is within `innerWidth`.

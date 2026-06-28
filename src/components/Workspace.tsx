@@ -28,10 +28,16 @@ import { HelpButton } from './HelpButton'
 import { PredicatePane } from './PredicatePane'
 import { TraversersPane } from './TraversersPane'
 import { ColoringPane } from './ColoringPane'
+import { ExportMenu } from './ExportMenu'
+import { ExportStrip, type ExportItem } from './ExportStrip'
+import { ImageViewer } from './ImageViewer'
 import { usePredicateStore } from '../state/predicateStore'
 import { useTraverserStore } from '../state/traverserStore'
 import { useColoringStore } from '../state/coloringStore'
 import { colorize } from '../colorizer'
+import { downloadBlob, exportFilename } from '../export/download'
+import type { ExportOutcome } from '../export/exportImage'
+import type { Recipe } from '../export'
 import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
 
 const GRID_MIN = 10
@@ -121,6 +127,12 @@ export function Workspace() {
   // Which definition the Inspect "Place" buttons instantiate.
   const [placeDef, setPlaceDef] = useState(BUILTIN_WALKER)
 
+  // Exported images, held for the session (each also auto-downloads — object URLs die on reload).
+  // `viewingId` swaps the live canvas for the image viewer when an export thumbnail is opened.
+  const [exports, setExports] = useState<ExportItem[]>([])
+  const [viewingId, setViewingId] = useState<string | null>(null)
+  const exportSeq = useRef(0)
+
   // Built here from the picker choice + grid size (CLAUDE.md §4.3). Only the square has a
   // generator today; buildTiling falls back to it for any other id.
   const tiling = useMemo(() => buildTiling(tilingId, gridN), [tilingId, gridN])
@@ -180,6 +192,62 @@ export function Workspace() {
     for (const t of runLive ?? seeds) m.set(t.tile, t.heading)
     return m
   }, [runLive, seeds])
+
+  // The hand-authored base for an export: manual paint + registries only (traverser visits are
+  // re-derived by re-running on the export grid). Same as what Stop restores.
+  const exportBase = useMemo(() => clearTraverserVisits(overlay), [overlay])
+
+  // The export currently open in the viewer (null = show the live canvas). A cap-evicted id resolves
+  // to null here and the canvas comes back.
+  const viewing = viewingId ? exports.find((x) => x.id === viewingId) ?? null : null
+
+  // Keep at most this many exports in memory; older ones are evicted (and their URLs revoked).
+  const EXPORT_CAP = 12
+  const handleExported = (outcome: ExportOutcome, recipe: Recipe) => {
+    const item: ExportItem = {
+      id: `ex${(exportSeq.current += 1)}`,
+      fullUrl: URL.createObjectURL(outcome.full),
+      thumbUrl: URL.createObjectURL(outcome.thumb),
+      full: outcome.full,
+      width: outcome.width,
+      height: outcome.height,
+      filename: exportFilename(recipe.tilingId, recipe.gridN, recipe.output.longEdgePx),
+      hitCap: outcome.hitCap,
+    }
+    downloadBlob(item.full, item.filename) // durable: blobs vanish on reload, the file doesn't
+    setExports((list) => {
+      const next = [...list, item]
+      while (next.length > EXPORT_CAP) {
+        const dropped = next.shift()!
+        URL.revokeObjectURL(dropped.fullUrl)
+        URL.revokeObjectURL(dropped.thumbUrl)
+      }
+      return next
+    })
+  }
+  const removeExport = (id: string) => {
+    setExports((list) => {
+      const item = list.find((x) => x.id === id)
+      if (item) {
+        URL.revokeObjectURL(item.fullUrl)
+        URL.revokeObjectURL(item.thumbUrl)
+      }
+      return list.filter((x) => x.id !== id)
+    })
+    setViewingId((cur) => (cur === id ? null : cur))
+  }
+
+  // Revoke every object URL on unmount so leaving the page doesn't leak the held PNGs.
+  const exportsRef = useRef(exports)
+  exportsRef.current = exports
+  useEffect(() => {
+    return () => {
+      for (const it of exportsRef.current) {
+        URL.revokeObjectURL(it.fullUrl)
+        URL.revokeObjectURL(it.thumbUrl)
+      }
+    }
+  }, [])
 
   // The clock. A reassigned ref keeps the interval calling the LATEST state each tick (the
   // copyRef/pasteRef pattern below), so listeners attach once yet never read stale state. The tick
@@ -460,6 +528,17 @@ export function Workspace() {
           )}
         </div>
         <button type="button" className="canvas-chip canvas-chip-btn" onClick={() => setDisplayMode((m) => (m === 'edges' ? 'none' : m === 'none' ? 'stats' : 'edges'))} title="Tile display — click to cycle: edges, none, stats">display: {displayMode}</button>
+        <ExportMenu
+          tilingId={tilingId}
+          tiling={tiling}
+          liveGridN={gridN}
+          seeds={seeds}
+          baseOverlay={exportBase}
+          predicates={predicateStore.predicates}
+          traversers={traverserStore.traversers}
+          coloringRules={coloringStore.rules}
+          onExported={handleExported}
+        />
         <div className="canvas-more-wrap" ref={moreRef}>
           <button type="button" className="canvas-btn canvas-more" onClick={() => setToolsOpen((o) => !o)} aria-label="more controls" aria-expanded={toolsOpen} title="More controls">⋯</button>
           <div className={`canvas-extra${toolsOpen ? ' is-open' : ''}`}>
@@ -495,20 +574,32 @@ export function Workspace() {
 
       <div className="canvas-pane">
         <div className="canvas-stage">
-          <TilingCanvas
-            tiling={tiling}
-            displayMode={displayMode}
-            dragMode={dragMode}
-            selectedIds={selectedIds}
-            overlay={overlay}
-            colorFor={colorFor}
-            traverserHeads={traverserHeads}
-            tileNumber={(id) => indexById.get(id) ?? -1}
-            onSelect={(id) => setSelectedIds([id])}
-            onSelectTiles={setSelectedIds}
-            onDeselect={() => setSelectedIds((cur) => (cur.length ? [] : cur))}
-            onPaint={paint}
-            fitSignal={fitNonce}
+          {viewing ? (
+            <ImageViewer src={viewing.fullUrl} />
+          ) : (
+            <TilingCanvas
+              tiling={tiling}
+              displayMode={displayMode}
+              dragMode={dragMode}
+              selectedIds={selectedIds}
+              overlay={overlay}
+              colorFor={colorFor}
+              traverserHeads={traverserHeads}
+              tileNumber={(id) => indexById.get(id) ?? -1}
+              onSelect={(id) => setSelectedIds([id])}
+              onSelectTiles={setSelectedIds}
+              onDeselect={() => setSelectedIds((cur) => (cur.length ? [] : cur))}
+              onPaint={paint}
+              fitSignal={fitNonce}
+            />
+          )}
+          <ExportStrip
+            items={exports}
+            viewingId={viewingId}
+            onView={setViewingId}
+            onReturn={() => setViewingId(null)}
+            onDownload={(item) => downloadBlob(item.full, item.filename)}
+            onRemove={removeExport}
           />
         </div>
       </div>
