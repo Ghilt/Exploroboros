@@ -3,6 +3,7 @@ import './TraversersPane.css'
 import { useMemo, useState } from 'react'
 import { compileProgram } from '../traverse'
 import type { TraverserStore, StoredTraverser } from '../state/traverserStore'
+import { PROTOTYPE_PORTS } from '../data/prototypePorts'
 import { HelpButton } from './HelpButton'
 import { TrashButton } from './TrashButton'
 
@@ -112,6 +113,18 @@ export function TraversersPane({
           <p className="pane-hint">No traversers yet. The built-in “Walker” is always available to place.</p>
         )}
       </section>
+
+      {/* Debug: add hardcoded traverser definitions ported from the prototype (currently just gasket). */}
+      <div className="trav-ports">
+        <button
+          type="button"
+          className="trav-ports-btn"
+          title={`Debug — add prototype-ported traversers: ${PROTOTYPE_PORTS.map((p) => p.name).join(', ')}`}
+          onClick={() => store.addPresets(PROTOTYPE_PORTS)}
+        >
+          Load prototype ports
+        </button>
+      </div>
     </div>
   )
 }

@@ -54,3 +54,25 @@
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* A muted debug control pinned to the bottom of the list pane: loads the hardcoded prototype-port
+   traverser definitions. `margin-top: auto` works because .predicate-pane is a fill-height flex
+   column. */
+.trav-ports {
+  margin-top: auto;
+  padding-top: 0.8rem;
+}
+.trav-ports-btn {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.trav-ports-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}

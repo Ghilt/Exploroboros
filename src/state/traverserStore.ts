@@ -56,6 +56,9 @@ export type TraverserStore = {
   traversers: ReadonlyArray<StoredTraverser>
   persistOk: boolean
   add: () => string
+  // Append a batch of preset definitions (the "load prototype ports" button), each given a unique
+  // name against the growing list so repeated loads don't collide.
+  addPresets: (presets: ReadonlyArray<{ name: string; text: string }>) => void
   setText: (id: string, text: string) => void
   rename: (id: string, name: string) => void
   remove: (id: string) => void
@@ -77,10 +80,18 @@ export function useTraverserStore(): TraverserStore {
     return t.id
   }, [traversers])
 
+  const addPresets = useCallback((presets: ReadonlyArray<{ name: string; text: string }>) => {
+    setTraversers((list) => {
+      let next = list
+      for (const p of presets) next = withAdded(next, makeTraverser(uniqueName(next, p.name), p.text))
+      return next
+    })
+  }, [])
+
   const setText = useCallback((id: string, text: string) => setTraversers((list) => withSetText(list, id, text)), [])
   const rename = useCallback((id: string, name: string) => setTraversers((list) => withRenamed(list, id, name)), [])
   const remove = useCallback((id: string) => setTraversers((list) => withRemoved(list, id)), [])
   const setAll = useCallback((list: ReadonlyArray<StoredTraverser>) => setTraversers([...list]), [])
 
-  return { traversers, persistOk, add, setText, rename, remove, setAll }
+  return { traversers, persistOk, add, addPresets, setText, rename, remove, setAll }
 }
