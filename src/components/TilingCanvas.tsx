@@ -63,8 +63,9 @@ const FALLBACK: Palette = {
   visited: '#c9551c',
   accent: '#e2682a',
   accentStrong: '#c9551c',
-  // Traverser arrow — a fixed lime, not themed, so the head always reads as "the walker".
-  traverser: '#7CFC00',
+  // Traverser arrow — solid black (tiles are always white), so the head reads as "the walker" in
+  // every display mode.
+  traverser: '#000',
   mono: 'ui-monospace, SFMono-Regular, Menlo, monospace',
 }
 
@@ -91,7 +92,8 @@ type Props = {
   // Precomputed fill per tile id (CSS colour), from the coloring rules. Tiles absent here keep the
   // base fill. Computed by the colorizer in Workspace, not per frame.
   colorFor?: ReadonlyMap<string, string>
-  // Tile id -> heading (radians, world y-up) for each traverser, drawn as an arrow in stats mode.
+  // Tile id -> heading (radians, world y-up) for each traverser, always drawn as an arrow (any
+  // display mode) — and a tile with a traverser shows ONLY the arrow, no printed labels.
   traverserHeads?: ReadonlyMap<string, number>
   tileNumber?: (id: string) => number
   onSelect?: (id: string) => void
@@ -533,7 +535,7 @@ export function TilingCanvas({
             <Shape
               listening={false}
               sceneFunc={(ctx) =>
-                drawTiles(ctx, tiling, viewRef.current, size, paletteRef.current, selectedSet, overlay, colorFor, displayMode, tileNumber)
+                drawTiles(ctx, tiling, viewRef.current, size, paletteRef.current, selectedSet, overlay, colorFor, displayMode, tileNumber, traverserHeads)
               }
             />
           </Layer>
@@ -544,11 +546,7 @@ export function TilingCanvas({
             />
             <Shape
               listening={false}
-              sceneFunc={(ctx) => {
-                if (displayMode === 'stats') {
-                  drawTraverserHeads(ctx, tiling, viewRef.current, paletteRef.current, traverserHeads)
-                }
-              }}
+              sceneFunc={(ctx) => drawTraverserHeads(ctx, tiling, viewRef.current, paletteRef.current, traverserHeads)}
             />
             <Shape
               listening={false}
@@ -600,8 +598,11 @@ function drawTiles(
   colorFor: ReadonlyMap<string, string> | undefined,
   displayMode: DisplayMode,
   tileNumber: ((id: string) => number) | undefined,
+  // Tiles carrying a traverser show only its arrow — their printed labels are suppressed below.
+  traverserHeads: ReadonlyMap<string, number> | undefined,
 ): void {
   const ov = overlay ?? NO_OVERLAY
+  const hasTraverser = (id: string) => traverserHeads?.has(id) ?? false
   // World-space viewport (+ one-tile margin) — skip tiles off-screen so cost tracks what's
   // visible, not the total tile count.
   const margin = representativeTileSize(tiling)
@@ -674,6 +675,7 @@ function drawTiles(
   let lastFont = ''
   for (const node of tiling.nodes) {
     if (!onScreen(node.centroid)) continue
+    if (hasTraverser(node.id)) continue
     const numPx = numPxFor(node.shape)
     if (numPx < MIN_LABEL_PX) continue
     const font = `${numPx}px ${pal.mono}`
@@ -693,6 +695,7 @@ function drawTiles(
     lastFont = ''
     for (const node of tiling.nodes) {
       if (!onScreen(node.centroid)) continue
+      if (hasTraverser(node.id)) continue
       const v = visitCount(tileState(ov, node.id))
       if (v <= 0) continue
       const visPx = visPxFor(node.shape)
@@ -716,6 +719,7 @@ function drawTiles(
     lastFont = ''
     for (const node of tiling.nodes) {
       if (!onScreen(node.centroid)) continue
+      if (hasTraverser(node.id)) continue
       const s = ov.get(node.id)
       if (!s || (s.a === 0 && s.b === 0 && s.c === 0)) continue
       const numPx = numPxFor(node.shape)
@@ -761,10 +765,10 @@ function drawSelection(ctx: Konva.Context, tiling: Tiling, view: View, pal: Pale
   ctx.stroke()
 }
 
-// A traverser's head: a short arrow through the tile centre pointing along its heading. Heading is
-// radians world y-up; the world->screen flip means the screen direction is (cos h, -sin h) — read
-// straight off the mapping's uniform |scale| on both axes (no per-arrow transform needed). Drawn in
-// stats mode only (the owner's call), over the printed labels.
+// A traverser's head: a solid, pointy triangle through the tile centre, apex pointing along its
+// heading. Heading is radians world y-up; the world->screen flip means the screen direction is
+// (cos h, -sin h) — read straight off the mapping's uniform |scale| on both axes. Always drawn (any
+// display mode); a tile with a head suppresses its printed labels (drawTiles).
 function drawTraverserHeads(
   ctx: Konva.Context,
   tiling: Tiling,
@@ -774,32 +778,25 @@ function drawTraverserHeads(
 ): void {
   if (!heads || heads.size === 0) return
   const tilePx = representativeTileSize(tiling) * view.scale
-  const len = Math.max(10, Math.min(tilePx * 0.5, 44))
-  const headLen = len * 0.42
-  const barb = 0.5 // ~29° half-angle on the arrowhead
+  const len = Math.max(14, Math.min(tilePx * 0.62, 54)) // tip-to-base length
+  const halfW = len * 0.34 // half the base width — kept well under `len` so the triangle stays pointy
   ctx.save()
-  ctx.setAttr('strokeStyle', pal.traverser)
   ctx.setAttr('fillStyle', pal.traverser)
-  ctx.setAttr('lineWidth', Math.max(1.5, tilePx * 0.05))
-  ctx.setAttr('lineCap', 'round')
-  ctx.setAttr('lineJoin', 'round')
   for (const [id, heading] of heads) {
     const node = nodeById(tiling, id)
     if (!node) continue
     const c = worldToScreen(node.centroid, view)
     const dx = Math.cos(heading)
-    const dy = -Math.sin(heading) // world y-up -> screen y-down
-    const tip = { x: c.x + dx * len * 0.5, y: c.y + dy * len * 0.5 }
-    const tail = { x: c.x - dx * len * 0.5, y: c.y - dy * len * 0.5 }
-    ctx.beginPath()
-    ctx.moveTo(tail.x, tail.y)
-    ctx.lineTo(tip.x, tip.y)
-    ctx.stroke()
-    const ang = Math.atan2(dy, dx)
+    const dy = -Math.sin(heading) // world y-up -> screen y-down (unit vector)
+    const px = -dy // perpendicular (unit), for the base corners
+    const py = dx
+    const tip = { x: c.x + dx * len * 0.6, y: c.y + dy * len * 0.6 }
+    const bx = c.x - dx * len * 0.4 // base centre, behind the tile centre
+    const by = c.y - dy * len * 0.4
     ctx.beginPath()
     ctx.moveTo(tip.x, tip.y)
-    ctx.lineTo(tip.x - headLen * Math.cos(ang - barb), tip.y - headLen * Math.sin(ang - barb))
-    ctx.lineTo(tip.x - headLen * Math.cos(ang + barb), tip.y - headLen * Math.sin(ang + barb))
+    ctx.lineTo(bx + px * halfW, by + py * halfW)
+    ctx.lineTo(bx - px * halfW, by - py * halfW)
     ctx.closePath()
     ctx.fill()
   }

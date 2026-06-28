@@ -348,8 +348,10 @@
   padding: 0 0 0.8rem;
   border-bottom: 1px solid var(--line);
 }
+/* Block-level so it claims its own line — the controls below always wrap under the subheading
+   (an inline-flex head let them ride up onto the same line once the pane got wider). */
 .trav-head {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   margin-bottom: 0.45rem;
 }
@@ -419,8 +421,9 @@
   color: var(--accent);
 }
 .heading-arrow {
-  /* Matches the lime traverser arrow on the canvas. */
-  color: #7cfc00;
+  /* Mirrors the canvas traverser arrow (now black). Uses --fg, not pure black, so it stays visible
+     on the dark panel surface in dark mode. */
+  color: var(--fg);
   flex: none;
 }
 .trav-remove {
@@ -454,22 +457,28 @@
 .tile-stats dt {
   color: var(--muted);
   font-family: var(--mono);
+  /* Keep multi-word labels (visited-neighbors / visited-edges) on a single line. */
+  white-space: nowrap;
+}
+/* The tile's shape, shown in mono so it reads as a "type" and echoes the DSL `tile-type`. */
+.tile-type-value {
+  font-family: var(--mono);
 }
 .tile-stats dd {
   margin: 0;
   font-variant-numeric: tabular-nums;
 }
 
-.visited-control,
-.reg-control {
+/* Compact −0+ stepper: tight buttons flanking the value, kept narrow so the dock doesn't waste
+   horizontal space (or need a scrollbar). */
+.stepper {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.25rem;
 }
-.visited-control button,
-.reg-control button {
-  width: 1.6rem;
-  height: 1.6rem;
+.stepper button {
+  width: 1.25rem;
+  height: 1.25rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -478,28 +487,69 @@
   background: var(--surface-2);
   color: var(--fg);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.85rem;
   line-height: 1;
+  padding: 0;
 }
-.visited-value,
-.reg-value {
-  min-width: 1.5rem;
+.stepper button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.stepper-value {
+  min-width: 1.1rem;
   text-align: center;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
 
-/* Registries sub-heading + its faded "free-form" hint. */
-.reg-head {
-  display: inline-flex;
+/* "advanced" collapsible — tucks the free-form registries (A/B/C) out of the way until wanted. */
+.adv-section {
+  margin-top: 0.9rem;
+  padding-top: 0.2rem;
+  border-top: 1px solid var(--line);
+}
+.adv-section > summary {
+  display: flex;
   align-items: center;
+  gap: 0.3rem;
+  list-style: none;
+  cursor: pointer;
+  padding: 0.45rem 0;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.adv-section > summary::-webkit-details-marker {
+  display: none;
+}
+/* A rotating disclosure triangle so the collapsed/open state reads at a glance. */
+.adv-section > summary::before {
+  content: '▸';
+  font-size: 0.7rem;
+  transition: transform 0.15s ease;
+}
+.adv-section[open] > summary::before {
+  transform: rotate(90deg);
+}
+.adv-section > summary:hover {
+  color: var(--fg);
+}
+.adv-section > dl {
   margin-top: 0.2rem;
 }
-.reg-hint {
-  color: var(--muted);
+/* "registries" label + faded hint + "?" explainer, shown once the advanced section is open. */
+.adv-reg-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.1rem 0 0.4rem;
+}
+.adv-reg-title {
+  font-family: var(--mono);
   font-size: 0.78rem;
-  font-style: italic;
-  align-self: center;
+  color: var(--fg);
 }
 .steps-readout {
   color: var(--muted);
@@ -508,30 +558,29 @@
   word-break: break-word;
 }
 
-.clip-control {
-  display: inline-flex;
-  align-items: center;
+/* Copy / Paste tile attributes — a plain button pair near the bottom, above the advanced section. */
+.clip-actions {
+  display: flex;
   gap: 0.4rem;
-  flex-wrap: wrap;
+  margin-top: 0.9rem;
 }
-.clip-control button {
+.clip-btn {
   font-family: var(--mono);
-  font-size: 0.7rem;
-  padding: 0.2rem 0.5rem;
+  font-size: 0.72rem;
+  padding: 0.3rem 0.7rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: var(--surface-2);
   color: var(--fg);
   cursor: pointer;
 }
-.clip-control button:disabled {
+.clip-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.clip-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-}
-.clip-readout {
-  font-family: var(--mono);
-  font-size: 0.7rem;
-  color: var(--muted);
 }
 
 /* Stack vertically on narrow screens, canvas first and tall. The shell grows with content (scrolls). */

@@ -888,6 +888,8 @@ function InspectContent({
       </div>
 
       <dl>
+        <dt>tile type</dt>
+        <dd className="tile-type-value">{node.shape}</dd>
         {tileStats(tiling, node).map((stat) => (
           <Fragment key={stat.label}>
             <dt>{stat.label}</dt>
@@ -910,11 +912,11 @@ function InspectContent({
             </p>
           </HelpButton>
         </dt>
-        <dd className="visited-control">
+        <dd className="stepper">
           <button type="button" onClick={() => onVisit(node.id, -1)} aria-label="decrease visited">
             −
           </button>
-          <span className="visited-value">{own}</span>
+          <span className="stepper-value visited-value">{own}</span>
           <button type="button" onClick={() => onVisit(node.id, 1)} aria-label="increase visited">
             +
           </button>
@@ -925,8 +927,27 @@ function InspectContent({
         <dd>{visitedNeighbors}</dd>
         <dt title="adjacent edges whose neighbour is visited (a two-edge neighbour counts twice)">visited-edges</dt>
         <dd>{visitedEdges}</dd>
-        <dt className="reg-head">
-          registries
+      </dl>
+
+      <div className="clip-actions">
+        <button type="button" className="clip-btn" onClick={onCopy} aria-label="copy tile attributes">
+          Copy
+        </button>
+        <button
+          type="button"
+          className="clip-btn"
+          onClick={onPaste}
+          disabled={!canPaste(clip, node.shape)}
+          aria-label="paste tile attributes"
+        >
+          Paste
+        </button>
+      </div>
+
+      <details className="adv-section">
+        <summary>advanced</summary>
+        <div className="adv-reg-head">
+          <span className="adv-reg-title">registries</span>
           <HelpButton title="Registries A, B, C">
             <p>
               A, B and C are three <strong>free-form counters</strong> on every tile. The app gives
@@ -938,42 +959,24 @@ function InspectContent({
               with the paint tool to experiment.
             </p>
           </HelpButton>
-        </dt>
-        <dd className="reg-hint">free-form</dd>
-        {REGISTRIES.map(({ key, label }) => (
-          <Fragment key={key}>
-            <dt>{label}</dt>
-            <dd className="reg-control">
-              <button type="button" onClick={() => onRegistry(node.id, key, -1)} aria-label={`decrease ${label}`}>
-                −
-              </button>
-              <span className={`reg-value reg-${key}`}>{st[key]}</span>
-              <button type="button" onClick={() => onRegistry(node.id, key, 1)} aria-label={`increase ${label}`}>
-                +
-              </button>
-            </dd>
-          </Fragment>
-        ))}
-        <dt>clipboard</dt>
-        <dd className="clip-control">
-          <button type="button" onClick={onCopy} aria-label="copy tile attributes">
-            Copy
-          </button>
-          <button
-            type="button"
-            onClick={onPaste}
-            disabled={!canPaste(clip, node.shape)}
-            aria-label="paste tile attributes"
-          >
-            Paste
-          </button>
-          <span className="clip-readout">
-            {clip
-              ? `v${visitCount(clip.state)} · A${clip.state.a} B${clip.state.b} C${clip.state.c} · ${clip.shape}`
-              : 'empty'}
-          </span>
-        </dd>
-      </dl>
+        </div>
+        <dl>
+          {REGISTRIES.map(({ key, label }) => (
+            <Fragment key={key}>
+              <dt>{label}</dt>
+              <dd className="stepper">
+                <button type="button" onClick={() => onRegistry(node.id, key, -1)} aria-label={`decrease ${label}`}>
+                  −
+                </button>
+                <span className={`stepper-value reg-value reg-${key}`}>{st[key]}</span>
+                <button type="button" onClick={() => onRegistry(node.id, key, 1)} aria-label={`increase ${label}`}>
+                  +
+                </button>
+              </dd>
+            </Fragment>
+          ))}
+        </dl>
+      </details>
     </div>
   )
 }
@@ -1036,32 +1039,39 @@ function MultiInspectContent({
 
       <dl>
         <dt>visited</dt>
-        <dd className="visited-control">
+        <dd className="stepper">
           <button type="button" onClick={() => onVisit(-1)} aria-label="decrease visited on all">
             −
           </button>
-          <span className="visited-value">—</span>
+          <span className="stepper-value visited-value">—</span>
           <button type="button" onClick={() => onVisit(1)} aria-label="increase visited on all">
             +
           </button>
         </dd>
-        <dt className="reg-head">registries</dt>
-        <dd className="reg-hint">free-form</dd>
-        {REGISTRIES.map(({ key, label }) => (
-          <Fragment key={key}>
-            <dt>{label}</dt>
-            <dd className="reg-control">
-              <button type="button" onClick={() => onRegistry(key, -1)} aria-label={`decrease ${label} on all`}>
-                −
-              </button>
-              <span className={`reg-value reg-${key}`}>—</span>
-              <button type="button" onClick={() => onRegistry(key, 1)} aria-label={`increase ${label} on all`}>
-                +
-              </button>
-            </dd>
-          </Fragment>
-        ))}
       </dl>
+
+      <details className="adv-section">
+        <summary>advanced</summary>
+        <div className="adv-reg-head">
+          <span className="adv-reg-title">registries</span>
+        </div>
+        <dl>
+          {REGISTRIES.map(({ key, label }) => (
+            <Fragment key={key}>
+              <dt>{label}</dt>
+              <dd className="stepper">
+                <button type="button" onClick={() => onRegistry(key, -1)} aria-label={`decrease ${label} on all`}>
+                  −
+                </button>
+                <span className={`stepper-value reg-value reg-${key}`}>—</span>
+                <button type="button" onClick={() => onRegistry(key, 1)} aria-label={`increase ${label} on all`}>
+                  +
+                </button>
+              </dd>
+            </Fragment>
+          ))}
+        </dl>
+      </details>
     </div>
   )
 }

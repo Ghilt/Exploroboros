@@ -1,5 +1,5 @@
 .panel {
-  flex: 0 0 15rem;
+  flex: 0 0 17rem;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -14,7 +14,7 @@
 /* A "wide" dock takes twice the normal width when expanded (the .is-collapsed rule above out-ranks
    this, so a collapsed wide panel still shrinks to a thin rail). Overridden to auto on mobile below. */
 .panel--wide {
-  flex-basis: 30rem;
+  flex-basis: 34rem;
 }
 
 .panel-head {
