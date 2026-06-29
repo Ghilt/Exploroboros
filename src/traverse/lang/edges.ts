@@ -6,8 +6,8 @@
 // user-facing edge numbering and the Inspect rotate buttons. So a positive signed turn = clockwise =
 // RIGHT, negative = left — `r1` is the first edge right of straight, `l1` the first to the left.
 
-import type { Tiling } from '../../tiling'
-import { across, clockwiseEdgeOrder, clockwiseFromTopKey, nodeById } from '../../tiling'
+import type { Tiling, TileNode } from '../../tiling'
+import { across, clockwiseEdgeOrder, clockwiseFromTopKey, nodeById, opposite } from '../../tiling'
 import { tileState, visitCount, type TileState } from '../../canvas'
 import type { EdgeRef, Movement } from './types'
 
@@ -46,6 +46,22 @@ function resolveUnvisited(tiling: Tiling, overlay: ReadonlyMap<string, TileState
   return best ? { tile: best.tile, heading: best.heading } : null
 }
 
+// The local side a walker arrived THROUGH: its outward normal points back the way it came, i.e. most
+// opposite to the heading (the heading is the direction of travel). The wedge's edges have distinct
+// normals, so this is unambiguous. Used to make "straight" the edge opposite the entry edge.
+function entrySide(node: TileNode, heading: number): number {
+  let best = node.sides[0].geometry.localIndex
+  let bestDiff = -1
+  for (const s of node.sides) {
+    const diff = smallestAngle(s.geometry.normalAngle, heading)
+    if (diff > bestDiff) {
+      bestDiff = diff
+      best = s.geometry.localIndex
+    }
+  }
+  return best
+}
+
 // Step across a chosen local side: the neighbour + the exit edge's normal as the new heading.
 function step(tiling: Tiling, tile: string, side: number): Hop {
   const end = across(tiling, tile, side)
@@ -81,6 +97,18 @@ export function resolveRef(
   // straight = the least-turn edge (ties resolved by clockwise order, which `order` already is).
   let straight = entries[0]
   for (const e of entries) if (Math.abs(e.sd) < Math.abs(straight.sd) - 1e-9) straight = e
+
+  // ...except a concave shape that declares its own through-pairing (the wedge): there "straight" is
+  // the edge OPPOSITE the one entered, which the shape defines by hand, because its normals point in
+  // visually-surprising directions and the least-turn edge lands somewhere a human wouldn't call
+  // straight. Relative movement only — absolute "straight" stays the north-most edge (no entry edge).
+  const shape = tiling.shapes[node.shape]
+  if (movement === 'relative' && shape?.straightThroughOpposite) {
+    const opp = opposite(tiling, tile, entrySide(node, heading))[0]
+    const viaOpp = entries.find((e) => e.side === opp)
+    if (viaOpp) straight = viaOpp
+  }
+
   if (ref.kind === 'straight') return step(tiling, tile, straight.side)
 
   const others = entries.filter((e) => e !== straight)

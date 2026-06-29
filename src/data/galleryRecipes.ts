@@ -121,7 +121,10 @@ const GASKET = def('gasket', ['max-split = 3', GATE_UNVISITED, GATE_XOR1, ...XOR
 const OCTA_XOR = def('octa-xor', ['max-split = 5', GATE_UNVISITED, 'directive move always allow if tile-type == octagon', GATE_XOR1, ...XOR_5])
 const CARPET = def('carpet', ['max-split = 5', GATE_UNVISITED, GATE_XOR1, ...XOR_5])
 const OCTA_CARPET = def('octa-carpet', ['max-split = 5', GATE_UNVISITED, 'directive move always allow if tile-type == octagon', GATE_XOR1, ...XOR_5])
-const LABYRINTH = def('labyrinth-2', ['max-split = 2', GATE_UNVISITED, 'directive move always allow if visited-edges == 1', 'move r1', 'move l1', 'move r2', 'move l2'])
+// labyrinth-2 navigates wedges by turns; when the wedge "straight" pairing changed (so straight crosses
+// the body to a different octagon), the pure-turn walk trapped early. Appending `move straight` as a
+// fallback + seeding south restores a ~43% maze (was ~41%). Thumbnail will drift — re-verify in a gallery pass.
+const LABYRINTH = def('labyrinth-2', ['max-split = 2', GATE_UNVISITED, 'directive move always allow if visited-edges == 1', 'move r1', 'move l1', 'move r2', 'move l2', 'move straight'])
 const NESTED = def('nested-rings', ['max-split = 3', GATE_UNVISITED, GATE_XOR1, ...XOR_3])
 const SIERP_GASKET = def('sierp-gasket', ['max-split = 3', GATE_UNVISITED, GATE_XOR1, ...XOR_3]) // sierp-shape + sierp-3 share this
 const PULSE = def('pulse', ['max-split = 3', GATE_UNVISITED, GATE_TOTALISTIC, ...XOR_3])
@@ -154,7 +157,7 @@ export const GALLERY_RECIPES: Readonly<Record<string, Recipe>> = {
   'octa-xor.webp': recipe('#04040a', [seed('octa-xor', 5, { shape: 'octagon' })], OCTA_XOR, [ring('octa-xor-c', 260, [stop('#FFFFC8', 0), stop('#FF6428', 120), stop('#781E5A', 260)])]),
   'carpet.webp': recipe('#0a0408', [seed('carpet', 5)], CARPET, [ring('carpet-c', 380, [stop('#FFE08A', 0), stop('#FF6A3D', 120), stop('#7A1E5A', 260)])]),
   'octa-carpet.webp': recipe('#0a0a04', [seed('octa-carpet', 5, { shape: 'octagon' })], OCTA_CARPET, [ring('octa-carpet-c', 60, [stop('#FFFFC8', 0), stop('#FF6428', 20), stop('#781E5A', 50)])]),
-  'labyrinth-2.webp': recipe('#0e0c18', [seed('labyrinth-2', 2)], LABYRINTH, [ring('labyrinth-2-c', 460, [stop('#9AD0FF', 0), stop('#7B5BF2', 220), stop('#E0509A', 460)])]),
+  'labyrinth-2.webp': recipe('#0e0c18', [seed('labyrinth-2', 2, { heading: compass(4) })], LABYRINTH, [ring('labyrinth-2-c', 460, [stop('#9AD0FF', 0), stop('#7B5BF2', 220), stop('#E0509A', 460)])]),
   'classic-2.webp': recipe('#000000', [seed('classic-2', 2, { shape: 'octagon' })], CLASSIC2, [ring('classic-2-c', 350, [stop('#FAE9A0', 0), stop('#0070FA', 39), stop('#FAE9A0', 350)])]),
   'nested-rings.webp': recipe('#060006', [seed('nested-rings', 3)], NESTED, [ring('nested-rings-c', 60, [stop('#FFFFFF', 0), stop('#2A0E4A', 5), stop('#FF4DA0', 40)])]),
   'sierp-shape.webp': recipe('#060406', [seed('sierp-gasket', 3)], SIERP_GASKET, [

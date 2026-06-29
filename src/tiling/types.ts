@@ -16,6 +16,11 @@ export type ShapeDef = {
   // Length 1 for even-sided polygons; length 2 for odd-sided ones (the two sides
   // flanking the opposite vertex), so triangles/pentagons work through one API.
   oppositeSides: ReadonlyArray<ReadonlyArray<number>>
+  // Concave shapes (the wedge) whose outward normals point in visually-surprising directions: there
+  // the human-intuitive "straight" is the edge OPPOSITE the one entered (per oppositeSides), not the
+  // least-turn-from-heading edge. The DSL's `move straight` honors this in relative movement; regular
+  // convex shapes leave it unset (for them the opposite edge already IS the least-turn edge).
+  straightThroughOpposite?: boolean
 }
 
 // Geometry of one side (render info + absolute/relative direction for the DSL).

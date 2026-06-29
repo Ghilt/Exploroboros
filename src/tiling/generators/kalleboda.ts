@@ -58,10 +58,21 @@ const CELL_WEDGES: ReadonlyArray<{ c: Vec2; rot: number }> = [
 ]
 
 const OCTAGON_SHAPE: ShapeDef = makeShapeDef('octagon', 8)
-// Concave 8-gon. makeShapeDef's opposite-side / interior-angle values assume a regular polygon,
-// so they're nominal for the wedge (unused by rendering or adjacency today) — it just needs an
-// 8-side registry entry.
-const WEDGE_SHAPE: ShapeDef = makeShapeDef('wedge', 8)
+// Concave 8-gon. makeShapeDef's regular-polygon assumptions (interior angle, the (k+4)%8 opposite)
+// don't hold here. Most don't matter for rendering/adjacency, but the OPPOSITE pairing drives the
+// DSL's `move straight`, and the regular antipode skitters a walker across the concave tile to a
+// visually-wrong edge. So use the owner's hand-picked straight-through pairing (given against a fixed
+// A–H edge reference): the two edges of the sharp spike pass through to each other (enter one side of
+// the point, exit the other), the rest cross the body. Local CCW sides pair {0,7} {1,3} {2,5} {4,6}.
+// Crucially none is a two-edged-adjacency pair (the notch sides {0,1}/{3,4}/{6,7}, which share one
+// octagon), so straight always crosses to a DIFFERENT tile. Expressed in local indices, so it is
+// rotation-invariant — the same pairing holds for all four wedge orientations in the patch.
+const WEDGE_OPPOSITE: ReadonlyArray<ReadonlyArray<number>> = [[7], [3], [5], [1], [6], [2], [4], [0]]
+const WEDGE_SHAPE: ShapeDef = {
+  ...makeShapeDef('wedge', 8),
+  oppositeSides: WEDGE_OPPOSITE,
+  straightThroughOpposite: true,
+}
 
 const META: TilingMeta = {
   id: 'kalleboda',
