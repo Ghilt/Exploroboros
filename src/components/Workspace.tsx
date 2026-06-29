@@ -46,11 +46,11 @@ import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
 const GRID_MIN = 10
 const GRID_MAX = 140
 
-// Traverser clock speeds. slow/fast are an interval (ms between ticks); 'max' runs one tick per
-// animation frame (as fast as the machine paints). A chip next to Stop cycles these, like the
-// display-mode chip.
-type RunSpeed = 'slow' | 'fast' | 'max'
-const SPEED_MS: Record<Exclude<RunSpeed, 'max'>, number> = { slow: 300, fast: 90 }
+// Traverser clock speeds. 'slow' is an interval (ms between ticks); 'fast' runs one tick per
+// animation frame (as fast as the machine paints); 'step' is manual — one tick per click, no timer.
+// The segmented control next to Stop selects these.
+type RunSpeed = 'step' | 'slow' | 'fast'
+const SLOW_MS = 90
 
 const REGISTRIES: ReadonlyArray<{ key: Registry; label: string }> = [
   { key: 'a', label: 'A' },
@@ -100,7 +100,7 @@ export function Workspace() {
   const [runLive, setRunLive] = useState<Traverser[] | null>(null)
   const [running, setRunning] = useState(false)
   const [step, setStep] = useState(0)
-  const [speed, setSpeed] = useState<RunSpeed>('fast')
+  const [speed, setSpeed] = useState<RunSpeed>('slow')
   const traverserSeq = useRef(0)
   // Tile display: edged outline / no outline / outline + printed stats (number + visited + counters).
   const [displayMode, setDisplayMode] = useState<DisplayMode>('edges')
@@ -373,8 +373,8 @@ export function Workspace() {
     if (result.traversers.length === 0) setRunning(false) // every walker died -> auto-pause
   }
   useEffect(() => {
-    if (!running) return
-    if (speed === 'max') {
+    if (!running || speed === 'step') return // step mode advances manually — no timer
+    if (speed === 'fast') {
       let raf = 0
       const loop = () => {
         tickRef.current()
@@ -383,7 +383,7 @@ export function Workspace() {
       raf = requestAnimationFrame(loop)
       return () => cancelAnimationFrame(raf)
     }
-    const handle = setInterval(() => tickRef.current(), SPEED_MS[speed])
+    const handle = setInterval(() => tickRef.current(), SLOW_MS)
     return () => clearInterval(handle)
   }, [running, speed])
 
@@ -441,20 +441,21 @@ export function Workspace() {
   const selectedTraverser = selected ? walkers.find((t) => t.tile === selected.id) ?? null : null
 
   // ---- traverser run controls ----
+  // Start a fresh run from the authored seeds on a COPY (so the seeds stay intact for Stop to
+  // restore): refresh each walker's settings/registers from its current definition (so editing a def
+  // before Play takes effect), then mark each starting tile visited at step 0.
+  const initRun = () => {
+    const live = seeds.map((s) => {
+      const set = defs.get(s.def)?.settings ?? DEFAULT_SETTINGS
+      return { ...s, steps: 0, splits: 0, p: 0, q: 0, r: 0, maxSplit: set.maxSplit, maxSteps: set.maxSteps, movement: set.movement }
+    })
+    setRunLive(live)
+    setStep(0)
+    setOverlay((prev) => addVisits(prev, live.map((t) => t.tile), 0))
+  }
   const play = () => {
     if (walkers.length === 0) return
-    if (runLive === null) {
-      // Start a fresh run from the authored seeds — on a COPY, so the seeds stay intact for Stop to
-      // restore. Refresh each walker's settings/registers from its current definition (so editing a
-      // def before Play takes effect), then mark each starting tile visited at step 0.
-      const live = seeds.map((s) => {
-        const set = defs.get(s.def)?.settings ?? DEFAULT_SETTINGS
-        return { ...s, steps: 0, splits: 0, p: 0, q: 0, r: 0, maxSplit: set.maxSplit, maxSteps: set.maxSteps, movement: set.movement }
-      })
-      setRunLive(live)
-      setStep(0)
-      setOverlay((prev) => addVisits(prev, live.map((t) => t.tile), 0))
-    }
+    if (runLive === null) initRun()
     setRunning(true)
   }
   const pause = () => setRunning(false)
@@ -474,6 +475,32 @@ export function Workspace() {
     setSeeds([])
     setStep(0)
     setOverlay(new Map())
+  }
+
+  // Manual single-step (the `step` speed). The first click on a stopped run just initializes it
+  // (places + marks the seeds, like Play's first beat); each later click advances exactly one tick.
+  // The continuous clock stays off in step mode.
+  const stepOnce = () => {
+    if (runLive === null) {
+      if (seeds.length === 0) return
+      initRun()
+      return
+    }
+    const result = stepTraversers({ tiling, overlay, traversers: runLive, step, defs, indexById })
+    setOverlay(result.overlay)
+    setRunLive(result.traversers)
+    setStep(result.step)
+  }
+  // Speed selection: slow/fast pick the continuous rate (Play drives them); `step` is manual —
+  // choosing it pauses any run and advances one tick, and clicking it again steps once more.
+  const onSpeedChange = (s: RunSpeed) => {
+    if (s === 'step') {
+      setSpeed('step')
+      setRunning(false)
+      stepOnce()
+      return
+    }
+    setSpeed(s)
   }
 
   // Authoring the initial state (only while stopped): place / remove / aim walkers. These edit
@@ -614,18 +641,18 @@ export function Workspace() {
   const canvasControls = (
     <>
       <div className="transport seg-shell" role="group" aria-label="traverser run">
-        <button type="button" className="seg-item seg-item--btn transport-btn" onClick={play} disabled={running || walkers.length === 0} aria-label="Play — run the traversers" title="Play — run the traversers">▶</button>
+        <button type="button" className="seg-item seg-item--btn transport-btn" onClick={play} disabled={running || walkers.length === 0 || speed === 'step'} aria-label="Play — run the traversers" title={speed === 'step' ? 'In step mode — use the step button to advance one tick at a time' : 'Play — run the traversers'}>▶</button>
         <button type="button" className="seg-item seg-item--btn transport-btn" onClick={pause} disabled={!running} aria-label="Pause — stop ticking, keep the walkers" title="Pause — stop ticking, keep the walkers">❚❚</button>
         <button type="button" className="seg-item seg-item--btn transport-btn" onClick={stopRun} disabled={!running && runLive === null && !hasTraverserVisits(overlay)} aria-label="Stop — end the run and clear its trail (keeps the walkers and your painting)" title="Stop — end the run and clear its trail (keeps the walkers and your painting)">■</button>
         <SegmentedControl
           embedded
           ariaLabel="run speed"
           value={speed}
-          onChange={setSpeed}
+          onChange={onSpeedChange}
           options={[
-            { value: 'slow', label: 'slow', title: 'one tick every 300ms' },
-            { value: 'fast', label: 'fast', title: 'one tick every 90ms' },
-            { value: 'max', label: 'max', title: 'one tick per animation frame' },
+            { value: 'step', label: 'step', title: 'advance one tick' },
+            { value: 'slow', label: 'slow', title: 'one tick every 90ms' },
+            { value: 'fast', label: 'fast', title: 'one tick per animation frame' },
           ]}
         />
       </div>

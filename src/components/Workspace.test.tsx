@@ -97,15 +97,30 @@ describe('Workspace', () => {
     expect(radio(/edges/i).getAttribute('aria-checked')).toBe('true')
   })
 
-  it('the speed segmented control selects slow / fast / max (default fast)', () => {
+  it('the speed segmented control selects step / slow / fast (default slow)', () => {
     render(<Workspace />)
     const group = within(screen.getByRole('radiogroup', { name: /run speed/i }))
     const radio = (name: RegExp) => group.getByRole('radio', { name }) as HTMLButtonElement
-    expect(radio(/fast/i).getAttribute('aria-checked')).toBe('true')
-    fireEvent.click(radio(/max/i))
-    expect(radio(/max/i).getAttribute('aria-checked')).toBe('true')
-    fireEvent.click(radio(/slow/i))
     expect(radio(/slow/i).getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(radio(/fast/i))
+    expect(radio(/fast/i).getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(radio(/step/i))
+    expect(radio(/step/i).getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('step mode initializes a run (grid locks), disables continuous Play, and Stop frees it', () => {
+    render(<Workspace />)
+    const stepRadio = within(screen.getByRole('radiogroup', { name: /run speed/i })).getByRole('radio', { name: /step/i })
+    const slider = () => screen.getByRole('slider', { name: /grid size/i }) as HTMLInputElement
+    const play = () => screen.getByRole('button', { name: /^play/i }) as HTMLButtonElement
+    fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Place' }))
+    fireEvent.click(stepRadio) // first click initializes the run without "playing"
+    expect(slider().disabled).toBe(true) // runLive !== null -> grid locked
+    expect(play().disabled).toBe(true) // continuous Play is off in step mode
+    fireEvent.click(stepRadio) // a further click advances one tick (still no error)
+    fireEvent.click(screen.getByRole('button', { name: /^stop/i }))
+    expect(slider().disabled).toBe(false)
   })
 
   it('locks grid resize during an active run (Play + Pause), frees it on Stop', () => {
