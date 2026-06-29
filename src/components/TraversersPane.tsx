@@ -48,7 +48,7 @@ export function TraversersPane({
         <HelpButton title="Traversers">
           <p>
             A <strong>traverser</strong> is a walker on the tiling. A definition is a little program,
-            run <strong>top-to-bottom every tick</strong>: <code>if &lt;condition&gt; then &lt;action&gt;</code>{' '}
+            run <strong>top-to-bottom every tick</strong>: <code>if &lt;predicate&gt; then &lt;action&gt;</code>{' '}
             lines (a bare action always fires).
           </p>
           <p>
@@ -64,7 +64,7 @@ export function TraversersPane({
             <code>[A, B]</code> to sum). Read another tile with <code>@</code>:{' '}
             <code>if visited &gt; 0 @ r1 then move l1</code>. Reference a saved predicate by name. Also:{' '}
             <code>morph &lt;name&gt; …</code>, <code>update max-split 2</code>, and{' '}
-            <code>directive move always forbid if &lt;condition&gt;</code> / <code>reset directives</code>.
+            <code>directive if &lt;predicate&gt; always forbid move</code> / <code>reset directives</code>.
           </p>
           <p>
             Each tick reads the board <strong>as it was at the start of the tick</strong> (a walker doesn’t

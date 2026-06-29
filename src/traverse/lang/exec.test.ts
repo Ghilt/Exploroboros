@@ -75,11 +75,33 @@ describe('traverser program execution', () => {
     expect(run('if visited > 0 @ straight then move l1').branches).toHaveLength(0)
   })
 
-  it('honours a forbid directive over following moves', () => {
+  it('honours a forbid directive on the destination (@ target) over following moves', () => {
     const overlay = addVisits(new Map(), ['sq:2,3'], 0)
-    const src = 'directive move always forbid if visited > 0\nmove straight'
-    expect(run(src, 'sq:2,2', overlay).branches).toHaveLength(0) // east visited -> forbidden
+    const src = 'directive if visited > 0 @ target always forbid move\nmove straight'
+    expect(run(src, 'sq:2,2', overlay).branches).toHaveLength(0) // east (destination) visited -> forbidden
     expect(run(src).branches).toHaveLength(1) // east unvisited -> allowed
+  })
+
+  it('an undecorated directive tests the CURRENT tile, not the destination', () => {
+    // Only the current tile is visited; the destination (east) is not.
+    const here = addVisits(new Map(), ['sq:2,2'], 0)
+    const src = 'directive if visited > 0 always forbid move\nmove straight'
+    expect(run(src, 'sq:2,2', here).branches).toHaveLength(0) // standing on a visited tile -> all moves forbidden
+    expect(run(src).branches).toHaveLength(1) // current tile unvisited -> move allowed regardless of the destination
+  })
+
+  it('a @ target rule guard filters each candidate of the move', () => {
+    // east (straight, sq:2,3) and north (l1, sq:3,2) visited; west (r... ) not.
+    const overlay = addVisits(new Map(), ['sq:2,3', 'sq:3,2'], 0)
+    const res = run('max-split = 3\nif visited > 0 @ target then move [straight, l1, r1]', 'sq:2,2', overlay)
+    // straight + l1 land on visited tiles (kept); r1 (south, sq:1,2) is unvisited (dropped).
+    expect(res.branches.map((b) => b.tile).sort()).toEqual(['sq:2,3', 'sq:3,2'])
+  })
+
+  it('forbid wins when an allow and a forbid directive both match the destination', () => {
+    const overlay = addVisits(new Map(), ['sq:2,3'], 0)
+    const src = 'directive if visited > 0 @ target always allow move\ndirective if visited > 0 @ target always forbid move\nmove straight'
+    expect(run(src, 'sq:2,2', overlay).branches).toHaveLength(0)
   })
 
   it('morph keeps registers and switches the definition', () => {

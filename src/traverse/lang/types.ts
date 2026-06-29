@@ -24,9 +24,13 @@ export type Chain = ReadonlyArray<EdgeRef> // length >= 1
 // A move target: one chain, or a set of chains that split (capped by max-split).
 export type EdgeTarget = ReadonlyArray<Chain> // length 1 = single move; >1 = split
 
-// Points a decorated predicate/expression at another tile: a neighbour across an edge, or a tile by
-// its number. A missing target (boundary / out of range) makes the predicate false / the value 0.
-export type Decoration = { kind: 'edge'; edge: EdgeRef } | { kind: 'tile'; index: number }
+// Points a decorated predicate/expression at another tile instead of the current one:
+//  - edge:   the neighbour across an edge (relative to the walker)
+//  - tile:   a tile by its absolute number
+//  - target: the DESTINATION of the move being gated — dynamic, resolved per candidate. Meaningful in
+//            a directive or a move/morph rule guard; elsewhere it falls back to the current tile.
+// A missing target (boundary / out of range) makes the predicate false / the value 0.
+export type Decoration = { kind: 'edge'; edge: EdgeRef } | { kind: 'tile'; index: number } | { kind: 'target' }
 
 // A guard predicate: written inline, or a reference to a saved predicate by name (resolved to inline
 // at compile). Either may carry a decoration.
@@ -49,8 +53,10 @@ export type Action =
   | { kind: 'update'; setting: SettingName; value: number | Movement }
 
 export type Rule = { kind: 'rule'; guard?: Guard; action: Action }
-// A directive gates ALL following move/morph actions: a move to a target is allowed only if it passes
-// every active `allow` and no active `forbid` (forbid wins). `reset` clears the active directives.
+// A directive gates ALL following move/morph actions: a candidate destination is allowed only if it
+// passes every active `allow` and no active `forbid` (forbid wins). Like any guard the predicate reads
+// the CURRENT tile by default; decorate it with `@ target` to test the destination instead. `reset`
+// clears the active directives. Surface grammar: `directive if <guard> always forbid|allow move`.
 export type Directive = { kind: 'directive'; allow: boolean; guard: Guard }
 export type Reset = { kind: 'reset' }
 export type Stmt = Rule | Directive | Reset

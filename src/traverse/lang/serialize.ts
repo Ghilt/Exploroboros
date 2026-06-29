@@ -34,7 +34,9 @@ function target(t: EdgeTarget): string {
 }
 
 function decoration(d: Decoration): string {
-  return d.kind === 'tile' ? ` @ tile ${d.index}` : ` @ ${edgeRef(d.edge)}`
+  if (d.kind === 'target') return ' @ target'
+  if (d.kind === 'tile') return ` @ tile ${d.index}`
+  return ` @ ${edgeRef(d.edge)}`
 }
 
 function guard(g: Guard): string {
@@ -70,7 +72,7 @@ function stmt(s: Stmt): string {
     case 'reset':
       return 'reset directives'
     case 'directive':
-      return `directive move always ${s.allow ? 'allow' : 'forbid'} if ${guard(s.guard)}`
+      return `directive if ${guard(s.guard)} always ${s.allow ? 'allow' : 'forbid'} move`
     case 'rule':
       return s.guard ? `if ${guard(s.guard)} then ${action(s.action)}` : action(s.action)
   }

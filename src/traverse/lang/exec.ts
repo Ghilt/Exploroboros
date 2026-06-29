@@ -80,53 +80,59 @@ export function runProgram(input: ExecInput): ExecResult {
     const node = nodeById(tiling, tileId)
     return node ? { node, tiling, overlay, indexById, traverser: traverserAttrs() } : null
   }
-  // The tile a decoration points at (current tile when none), or null if it doesn't exist.
-  const targetTile = (at?: Decoration): string | null => {
+  // The tile a decoration points at, or null if it doesn't exist. No decoration -> the current tile.
+  // `@ target` -> the move destination under consideration (`dest`); outside a move context (dest
+  // null) it falls back to the current tile, so a stray `@ target` is never silently always-false.
+  const decoratedTile = (at: Decoration | undefined, dest: string | null): string | null => {
     if (!at) return walker.tile
+    if (at.kind === 'target') return dest ?? walker.tile
     if (at.kind === 'tile') return tileByIndex[at.index] ?? null
     return resolveRef(tiling, overlay, walker.tile, self.heading, self.movement, at.edge)?.tile ?? null
   }
 
-  const evalGuardOn = (baseTile: string, guard: Guard): boolean => {
-    const tileId = guard.at ? targetTile(guard.at) : baseTile
+  const evalGuard = (guard: Guard, dest: string | null): boolean => {
+    const tileId = decoratedTile(guard.at, dest)
     if (tileId === null) return false // boundary / missing -> false
     const ctx = ctxFor(tileId)
     if (!ctx || guard.pred.kind === 'named') return false // named should be resolved at compile
     return evalPredicate(guard.pred.pred, ctx)
   }
   const evalDExpr = (d: DExpr): number => {
-    const tileId = targetTile(d.at)
+    const tileId = decoratedTile(d.at, null)
     if (tileId === null) return 0
     const ctx = ctxFor(tileId)
     return ctx ? evalNumber(d.expr, ctx) : 0
   }
 
-  // A destination passes the active directives: every `allow` guard true AND no `forbid` guard true.
-  const moveAllowed = (dest: string): boolean => {
+  // A candidate destination passes if it clears the rule's own per-target guard (if any) and every
+  // active directive: each `allow` guard true AND no `forbid` guard true (forbid wins). Each guard's
+  // predicate reads the current tile unless it carries `@ target`, which points it at `dest`.
+  const moveAllowed = (dest: string, perTarget?: Guard): boolean => {
+    if (perTarget && !evalGuard(perTarget, dest)) return false
     for (const d of directives) {
-      const g = evalGuardOn(dest, d.guard)
+      const g = evalGuard(d.guard, dest)
       if (d.allow ? !g : g) return false
     }
     return true
   }
 
-  const addMoves = (target: EdgeTarget, morphDef?: string) => {
+  const addMoves = (target: EdgeTarget, perTarget?: Guard, morphDef?: string) => {
     for (const chain of target) {
       if (branches.length >= self.maxSplit) break
       const hop = resolveChain(tiling, overlay, walker.tile, self.heading, self.movement, chain)
       if (!hop) continue
-      if (!moveAllowed(hop.tile)) continue
+      if (!moveAllowed(hop.tile, perTarget)) continue
       branches.push({ tile: hop.tile, heading: hop.heading, morphDef })
     }
   }
 
-  const applyAction = (a: Action) => {
+  const applyAction = (a: Action, perTarget?: Guard) => {
     switch (a.kind) {
       case 'move':
-        addMoves(a.target)
+        addMoves(a.target, perTarget)
         return
       case 'morph':
-        addMoves(a.target, a.def)
+        addMoves(a.target, perTarget, a.def)
         return
       case 'put': {
         const v = evalDExpr(a.value)
@@ -164,8 +170,13 @@ export function runProgram(input: ExecInput): ExecResult {
       directives.push({ allow: stmt.allow, guard: stmt.guard })
       continue
     }
-    if (stmt.guard && !evalGuardOn(walker.tile, stmt.guard)) continue
-    applyAction(stmt.action)
+    // A `@ target` guard on a move/morph filters each candidate destination (like an inline directive);
+    // any other guard gates the whole statement up front against the current/decorated tile.
+    const g = stmt.guard
+    const isMove = stmt.action.kind === 'move' || stmt.action.kind === 'morph'
+    const perTarget = !!g && g.at?.kind === 'target' && isMove
+    if (g && !perTarget && !evalGuard(g, null)) continue
+    applyAction(stmt.action, perTarget ? g : undefined)
   }
 
   return {

@@ -14,18 +14,19 @@ export type PrototypePort = { name: string; text: string }
 // seams at several scales (a Sierpinski-carpet-like weave). Prototype lines → app DSL:
 //   nav = relative                            → (the app default; omitted)
 //   max-split = 3                             → max-split = 3
-//   only move if visited == 0                 → directive move always allow if visited == 0
-//   only move if adjacent-visited-unique == 1 → directive move always allow if visited-neighbors == 1
+//   only move if visited == 0                 → directive if visited == 0 @ target always allow move
+//   only move if adjacent-visited-unique == 1 → directive if visited-neighbors == 1 @ target always allow move
 //   move rel 0 / 1 / 7 / 2 / 6                → move straight / r1 / l1 / r2 / l2
 // A prototype `only move if PRED` filters every following move by its TARGET tile, which the app's
-// `directive move always allow if PRED` does exactly (the guard is tested on the destination). The
-// five moves are tried in that priority order, branching on each that passes the gate until max-split
-// is reached. `visited-neighbors` is the app's canonical keyword for the prototype's
-// `adjacent-visited-unique` (distinct visited neighbour tiles). The walker is placed + aimed and run
-// from the canvas; relative moves make the start heading a rotation of the whole pattern.
+// `directive if PRED @ target always allow move` does exactly (the `@ target` decoration tests the
+// destination; without it the guard would read the current tile). The five moves are tried in that
+// priority order, branching on each that passes the gate until max-split is reached.
+// `visited-neighbors` is the app's canonical keyword for the prototype's `adjacent-visited-unique`
+// (distinct visited neighbour tiles). The walker is placed + aimed and run from the canvas; relative
+// moves make the start heading a rotation of the whole pattern.
 const GASKET = `max-split = 3
-directive move always allow if visited == 0
-directive move always allow if visited-neighbors == 1
+directive if visited == 0 @ target always allow move
+directive if visited-neighbors == 1 @ target always allow move
 move straight
 move r1
 move l1

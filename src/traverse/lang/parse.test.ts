@@ -61,12 +61,39 @@ describe('traverser DSL parser', () => {
 
   it('parses morph, update, directives and reset', () => {
     const p = ok(
-      'morph spinner straight\nupdate max-split 4\ndirective move always forbid if visited > 0\nreset directives',
+      'morph spinner straight\nupdate max-split 4\ndirective if visited > 0 always forbid move\nreset directives',
     )
     expect(p.statements[0]).toEqual({ kind: 'rule', action: { kind: 'morph', def: 'spinner', target: [[{ kind: 'straight' }]] } })
     expect(p.statements[1]).toEqual({ kind: 'rule', action: { kind: 'update', setting: 'max-split', value: 4 } })
-    expect(p.statements[2].kind).toBe('directive')
+    expect(p.statements[2]).toMatchObject({ kind: 'directive', allow: false })
     expect(p.statements[3]).toEqual({ kind: 'reset' })
+  })
+
+  it('parses a directive with a @ target decoration (gate the destination)', () => {
+    const p = ok('directive if visited > 0 @ target always forbid move')
+    const d = p.statements[0]
+    expect(d.kind).toBe('directive')
+    if (d.kind === 'directive') {
+      expect(d.allow).toBe(false)
+      expect(d.guard.at).toEqual({ kind: 'target' })
+      expect(d.guard.pred.kind).toBe('inline')
+    }
+  })
+
+  it('parses a @ target guard on a move rule', () => {
+    const p = ok('if visited > 0 @ target then move [r1, l1]')
+    const r = p.statements[0]
+    if (r.kind !== 'rule') throw new Error('expected rule')
+    expect(r.guard?.at).toEqual({ kind: 'target' })
+    expect(r.action).toEqual({
+      kind: 'move',
+      target: [[{ kind: 'turn', dir: 'r', n: 1 }], [{ kind: 'turn', dir: 'l', n: 1 }]],
+    })
+  })
+
+  it('reports an error for a directive missing the always/move tail', () => {
+    expect(parseProgram('directive if visited > 0 forbid move').ok).toBe(false)
+    expect(parseProgram('directive if visited > 0 always forbid').ok).toBe(false)
   })
 
   it('ignores comments and blank lines', () => {

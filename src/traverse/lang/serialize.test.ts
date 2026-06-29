@@ -18,7 +18,9 @@ describe('traverser program serialization', () => {
       'put A = visited + 1',
       'increase Q by 2',
       'morph spinner straight',
-      'movement = absolute\ndirective move always forbid if visited > 0\nreset directives\nmove nearest-unvisited',
+      'movement = absolute\ndirective if visited > 0 @ target always forbid move\nreset directives\nmove nearest-unvisited',
+      'directive if visited == 0 @ target always allow move',
+      'if visited > 0 @ target then move [r1, l1, straight]',
       'update heading 90',
     ]
     for (const s of samples) {
@@ -33,5 +35,11 @@ describe('traverser program serialization', () => {
 
   it('keeps a named-predicate reference by name', () => {
     expect(roundTrip('if isCrowded then move l1')).toBe('if isCrowded then move l1')
+  })
+
+  it('serializes a directive predicate-first with the always/move tail', () => {
+    expect(roundTrip('directive if visited > 0 @ target always forbid move')).toBe(
+      'directive if visited > 0 @ target always forbid move',
+    )
   })
 })

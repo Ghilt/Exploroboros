@@ -27,7 +27,7 @@ export function Guide() {
         <a href="#settings">Settings</a>
         <a href="#tiles">Tiles &amp; attributes</a>
         <a href="#moving">Moving</a>
-        <a href="#conditions">Conditions</a>
+        <a href="#predicates">Predicates</a>
         <a href="#registries">Registries</a>
         <a href="#directives">Directives</a>
         <a href="#morph">Morph &amp; update</a>
@@ -42,7 +42,7 @@ export function Guide() {
         </p>
         <pre className="guide-code">{`max-split = 2                  # a settings header line (optional)
 
-if visited > 0 then move l1    # a rule — runs only when its condition holds
+if visited > 0 then move l1    # a rule — runs only when its predicate holds
 move straight                  # a bare action — always runs`}</pre>
         <p>Reading it line by line:</p>
         <ul>
@@ -52,7 +52,7 @@ move straight                  # a bare action — always runs`}</pre>
           </li>
           <li>
             <code>if visited &gt; 0 then move l1</code> is a <strong>rule</strong> — the shape is{' '}
-            <code>if &lt;condition&gt; then &lt;action&gt;</code>, and it fires only when the condition is
+            <code>if &lt;predicate&gt; then &lt;action&gt;</code>, and it fires only when the predicate is
             true. (Here: "if the tile I'm on has been visited, turn left.")
           </li>
           <li>
@@ -144,8 +144,8 @@ move straight                  # a bare action — always runs`}</pre>
 
         <h3>Tile attributes you can read</h3>
         <p>
-          Use any of these in a condition or a formula. They report on the tile being asked about — the one
-          you're on, or a neighbour if you add <code>@ &lt;edge&gt;</code> (see <a href="#conditions">Conditions</a>).
+          Use any of these in a predicate or a formula. They report on the tile being asked about — the one
+          you're on, or a neighbour if you add <code>@ &lt;edge&gt;</code> (see <a href="#predicates">Predicates</a>).
         </p>
 
         <p className="guide-subhead"><strong>Visit state</strong></p>
@@ -210,43 +210,76 @@ move straight                  # a bare action — always runs`}</pre>
       <section className="guide-section" id="moving">
         <h2>Moving</h2>
         <p>
-          You move by naming an <strong>edge</strong>. Edges are relative to your heading:{' '}
-          <code>straight</code> continues forward, <code>r1</code>/<code>r2</code>/… turn right
-          (clockwise) by increasing amounts, and <code>l1</code>/<code>l2</code>/… turn left. This works
+          A move command is <code>move &lt;edge&gt;</code>. There is <strong>one vocabulary for naming an
+          edge</strong>, used everywhere a move (or a <a href="#predicates">decoration</a>) names a
+          direction. By default an edge is relative to your <strong>heading</strong>, so the same rule works
           on any tile shape without you tracking edge numbers.
         </p>
+
+        <p className="guide-subhead"><strong>Naming an edge</strong></p>
+        <table className="guide-table">
+          <thead>
+            <tr><th>Name</th><th>The edge it picks</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>straight</code></td><td>Continues your heading — the least-turn edge. (<code>s</code> for short.)</td></tr>
+            <tr><td><code>r1</code>, <code>r2</code>, …</td><td>Turn <strong>right</strong> (clockwise): the 1st, 2nd, … edge to the right of straight.</td></tr>
+            <tr><td><code>l1</code>, <code>l2</code>, …</td><td>Turn <strong>left</strong> (counter-clockwise): the 1st, 2nd, … edge to the left.</td></tr>
+            <tr><td><code>edge N</code></td><td>The <strong>absolute</strong> edge by its <em>clockwise-from-top</em> number (0 at the top), regardless of heading.</td></tr>
+            <tr><td><code>nearest-unvisited</code></td><td>The closest-by-heading neighbour you haven't visited yet (great for carving mazes).</td></tr>
+          </tbody>
+        </table>
         <EdgeFanDiagram />
-        <p>Other ways to name an edge:</p>
+
+        <p className="guide-subhead"><strong>Combining edges</strong></p>
         <ul>
           <li>
-            <code>edge N</code> — the absolute edge by its <em>clockwise-from-top</em> number (0 at the top),
-            regardless of heading.
+            <strong>Split</strong> — <code>[a, b, …]</code> branches the walker, one branch per edge (capped
+            by <code>max-split</code>).
           </li>
           <li>
-            <code>nearest-unvisited</code> — the closest-by-heading neighbour you haven't visited yet (the
-            built-in "Walker" uses this; great for carving mazes).
+            <strong>Chain</strong> — <code>a -&gt; b -&gt; …</code> hops several edges in a single tick; only
+            the <em>final</em> tile is visited (the ones passed through are not).
           </li>
         </ul>
-        <p>
-          Two combinations: a <strong>set</strong> <code>[a, b]</code> <strong>splits</strong> the walker
-          (one branch per edge, capped by <code>max-split</code>), and a <strong>chain</strong>{' '}
-          <code>a -&gt; b</code> hops several edges in a single tick — only the <em>final</em> tile is
-          visited; the ones passed through are not.
-        </p>
         <SplitChainDiagram />
+
+        <p className="guide-subhead"><strong>Move commands</strong></p>
+        <table className="guide-table">
+          <thead>
+            <tr><th>Command</th><th>What it does</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>move straight</code></td><td>Step forward one tile.</td></tr>
+            <tr><td><code>move r1</code></td><td>Turn right and step.</td></tr>
+            <tr><td><code>move l2</code></td><td>Take the second edge to the left.</td></tr>
+            <tr><td><code>move edge 0</code></td><td>Cross the top edge, whatever your heading.</td></tr>
+            <tr><td><code>move nearest-unvisited</code></td><td>Step to the closest unvisited neighbour — the built-in Walker.</td></tr>
+            <tr><td><code>move [straight, r1, l1]</code></td><td>Split: branch forward, right and left at once.</td></tr>
+            <tr><td><code>move straight -&gt; r1</code></td><td>Hop two edges in one tick; only the final tile is visited.</td></tr>
+            <tr><td><code>if visited == 0 @ target then move [r1, l1, straight]</code></td><td>A <a href="#predicates">predicate</a> gates the move: split three ways, but keep only the branches landing on an <em>unvisited</em> tile (<code>@ target</code> tests each destination).</td></tr>
+          </tbody>
+        </table>
+        <p className="guide-note">
+          <code>straight</code>/<code>r</code>/<code>l</code> are framed by your heading; <code>edge N</code> is
+          always absolute. Set <code>movement = absolute</code> in the header to frame <em>all</em> of them by
+          north instead.
+        </p>
       </section>
 
-      <section className="guide-section" id="conditions">
-        <h2>Conditions</h2>
+      <section className="guide-section" id="predicates">
+        <h2>Predicates</h2>
         <p>
-          A rule's guard is a yes/no test, written two ways (mix freely):
+          A <strong>predicate</strong> is the yes/no test in a rule's <code>if</code> (and in a{' '}
+          <a href="#directives">directive</a>). Write it two ways, mixed freely:
         </p>
         <ul>
           <li>
             <strong>Inline</strong>: <code>visited &gt; 0</code>, <code>visited-neighbors == 1</code>,{' '}
             <code>tile-type == triangle</code> — any <a href="#tiles">tile attribute</a> combined with{' '}
             <code>and</code> / <code>or</code> / <code>not</code> and arithmetic. This is the same language
-            (and the same attributes) as the Predicates pane.
+            (and the same attributes) as the <strong>Predicates</strong> pane. (<code>==</code> and{' '}
+            <code>=</code> both mean "equals".)
           </li>
           <li>
             <strong>By name</strong>: write the name of a predicate you saved in the Predicates pane, e.g.{' '}
@@ -254,12 +287,22 @@ move straight                  # a bare action — always runs`}</pre>
           </li>
         </ul>
         <p>
-          By default a condition asks about the tile you're <em>on</em>. Add <code>@ &lt;edge&gt;</code>{' '}
-          (or <code>@ tile N</code>) to ask about a <strong>different</strong> tile instead — the one
-          across that edge.
+          A predicate reads the tile you're <strong>on</strong> by default. A <strong>decoration</strong>{' '}
+          redirects the <em>whole</em> predicate to another tile:
         </p>
+        <table className="guide-table">
+          <thead>
+            <tr><th>Decoration</th><th>Asks about…</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>@ &lt;edge&gt;</code></td><td>The neighbour across that edge — e.g. <code>@ r1</code>, <code>@ straight</code> (any <a href="#moving">edge name</a>).</td></tr>
+            <tr><td><code>@ tile N</code></td><td>The tile with absolute number <code>N</code>.</td></tr>
+            <tr><td><code>@ target</code></td><td>The tile a move is <strong>heading to</strong>. Dynamic: with a split it's tested <em>per branch</em>, so it filters which branches survive. This is how a <a href="#directives">directive</a> gates moves.</td></tr>
+          </tbody>
+        </table>
         <DecorationDiagram />
-        <pre className="guide-code">{`if visited > 0 @ r1 then move l1   # "if the tile to my right is visited, turn left"`}</pre>
+        <pre className="guide-code">{`if visited > 0 @ r1 then move l1                        # if the tile to my right is visited, turn left
+if visited == 0 @ target then move [r1, l1, straight]   # split, but only onto unvisited tiles`}</pre>
       </section>
 
       <section className="guide-section" id="registries">
@@ -299,27 +342,30 @@ if [A, B] > 0 then ...  # true when A + B is positive`}</pre>
       <section className="guide-section" id="directives">
         <h2>Directives</h2>
         <p>
-          A <strong>directive</strong> is a standing rule about <em>all</em> moves that come after it —
-          a way to gate movement without repeating a condition on every <code>move</code>. The form is:
+          A <strong>directive</strong> is a standing rule about <em>all</em> moves that come after it — a way
+          to gate movement without repeating a <a href="#predicates">predicate</a> on every <code>move</code>.
+          The form puts the predicate first:
         </p>
-        <pre className="guide-code">{`directive move always forbid if <condition>
-directive move always allow  if <condition>
+        <pre className="guide-code">{`directive if <predicate> always forbid move
+directive if <predicate> always allow  move
 reset directives`}</pre>
         <p>
-          When a walker tries to move onto a tile, every active directive is checked against that{' '}
-          <strong>destination</strong>: the move is taken only if it passes every <code>allow</code> and
-          trips no <code>forbid</code> (<strong>forbid wins</strong>). Directives stack as the program runs
+          Each candidate destination of a following move must pass every active directive: it's taken only if
+          no <code>forbid</code> predicate holds and every <code>allow</code> predicate holds
+          (<strong>forbid wins</strong>). Like any predicate the test reads the tile you're{' '}
+          <strong>on</strong> by default — so to gate by where you're <em>going</em>, decorate it with{' '}
+          <code>@ target</code> (almost always what you want). Directives stack as the program runs
           top-to-bottom; <code>reset directives</code> clears them so later moves are unconstrained again.
         </p>
         <DirectiveDiagram />
-        <pre className="guide-code">{`directive move always forbid if visited > 0   # never step onto a visited tile…
-move [straight, r1, l1, r2, l2]               # …try these, the directive filters them
+        <pre className="guide-code">{`directive if visited > 0 @ target always forbid move   # never step onto a visited tile…
+move [straight, r1, l1, r2, l2]                        # …try these, the directive filters them
 
-reset directives                              # from here on, moves are unfiltered again
+reset directives                                       # from here on, moves are unfiltered again
 move straight`}</pre>
         <p className="guide-note">
-          A directive only constrains the <code>move</code>/<code>morph</code> lines that follow it in the
-          program — not the ones above it.
+          A directive is just an <code>@ target</code> guard made standing: it constrains the{' '}
+          <code>move</code>/<code>morph</code> lines that <em>follow</em> it — never the ones above.
         </p>
       </section>
 
@@ -345,7 +391,7 @@ move straight`}</pre>
 
         <h3>Self-avoiding splitter</h3>
         <pre className="guide-code">{`max-split = 3
-directive move always forbid if visited > 0
+directive if visited > 0 @ target always forbid move
 move [straight, r1, l1]`}</pre>
         <p>Branches forward/left/right, but never onto a visited tile — branches die as they run out of room, leaving a tree.</p>
 
@@ -445,7 +491,7 @@ function SplitChainDiagram() {
   )
 }
 
-// Decoration: a condition with @ r1 asks about the neighbour, not the current tile.
+// Decoration: a predicate with @ r1 asks about the neighbour, not the current tile.
 function DecorationDiagram() {
   return (
     <figure className="guide-figure">
@@ -481,7 +527,7 @@ function DirectiveDiagram() {
         <text x={205} y={28} textAnchor="middle" className="gd-caption gd-no-text">forbidden (visited)</text>
       </svg>
       <figcaption>
-        <code>directive move always forbid if visited &gt; 0</code> drops any following move whose
+        <code>directive if visited &gt; 0 @ target always forbid move</code> drops any following move whose
         destination is visited.
       </figcaption>
     </figure>

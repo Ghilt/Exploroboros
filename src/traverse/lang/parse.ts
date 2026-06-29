@@ -163,12 +163,16 @@ function parseEdgeTarget(line: Line): EdgeTarget {
   return [parseChain(line)]
 }
 
-// Parse a decoration from tokens [from, to): `tile <n>` or an edge ref. Must consume the whole range.
+// Parse a decoration from tokens [from, to): `target`, `tile <n>`, or an edge ref. Must consume the
+// whole range.
 function parseDecorationRange(line: Line, from: number, to: number): Decoration {
   const saved = line.pos
   line.pos = from
   let dec: Decoration
-  if (line.isWord('tile')) {
+  if (line.isWord('target')) {
+    line.pos += 1
+    dec = { kind: 'target' }
+  } else if (line.isWord('tile')) {
     line.pos += 1
     const num = line.next()
     if (num.kind !== 'num') throw new ParseFail('expected a tile number, e.g. @ tile 12', { start: num.start, end: num.end })
@@ -291,16 +295,29 @@ function parseLine(line: Line, settings: Settings, statements: Stmt[]): void {
     return
   }
   if (w === 'directive') {
+    // Grammar: `directive if <guard> always forbid|allow move`. The guard reads the current tile by
+    // default; `@ target` in it redirects to the move's destination (see exec.ts).
     line.pos += 1
-    line.expectWord('move')
+    line.expectWord('if')
+    let alwaysIdx = -1
+    for (let k = line.pos; k < line.toks.length; k += 1) {
+      if (line.toks[k].kind === 'word' && line.toks[k].text === 'always') {
+        alwaysIdx = k
+        break
+      }
+    }
+    if (alwaysIdx === -1) {
+      throw new ParseFail('expected "always forbid move" / "always allow move" after the predicate', line.endSpan())
+    }
+    const guard = parseGuardRange(line, line.pos, alwaysIdx)
+    line.pos = alwaysIdx
     line.expectWord('always')
     const t = line.word('expected "allow" or "forbid"')
     if (t.text !== 'allow' && t.text !== 'forbid') {
       throw new ParseFail('expected "allow" or "forbid"', { start: t.start, end: t.end })
     }
-    line.expectWord('if')
-    const guard = parseGuardRange(line, line.pos, line.toks.length)
-    line.pos = line.toks.length
+    line.expectWord('move')
+    line.expectEnd()
     statements.push({ kind: 'directive', allow: t.text === 'allow', guard })
     return
   }

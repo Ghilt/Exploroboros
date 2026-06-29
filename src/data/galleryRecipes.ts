@@ -4,7 +4,7 @@
 // prototype's own render) to verify the port.
 //
 // Prototype → our DSL:
-//   `only move if PRED`                  → `directive move always allow if PRED` (gates the destination)
+//   `only move if PRED`                  → `directive if PRED @ target always allow move` (gates the destination)
 //   rel 0 / 1 / 7 / 2 / 6 / 3             → move straight / r1 / l1 / r2 / l2 / r3
 //   `adjacent-visited-unique`             → visited-neighbors   (distinct visited neighbour tiles)
 //   `adjacent-visited`                    → visited-edges       (a two-edge neighbour counts twice)
@@ -113,19 +113,19 @@ const recipe = (background: string, seeds: RecipeSeed[], traverser: StoredTraver
 // Shared move lists.
 const XOR_5 = ['move straight', 'move r1', 'move l1', 'move r2', 'move l2'] // the five-way fan
 const XOR_3 = ['move straight', 'move r1', 'move l1'] // three-way fan
-const GATE_UNVISITED = 'directive move always allow if visited == 0'
-const GATE_XOR1 = 'directive move always allow if visited-neighbors == 1' // Rule-90 birth
-const GATE_TOTALISTIC = 'directive move always allow if visited-neighbors == 1 or visited-neighbors == 3'
+const GATE_UNVISITED = 'directive if visited == 0 @ target always allow move'
+const GATE_XOR1 = 'directive if visited-neighbors == 1 @ target always allow move' // Rule-90 birth
+const GATE_TOTALISTIC = 'directive if visited-neighbors == 1 or visited-neighbors == 3 @ target always allow move'
 
 // --- traverser definitions ---
 const GASKET = def('gasket', ['max-split = 3', GATE_UNVISITED, GATE_XOR1, ...XOR_5])
-const OCTA_XOR = def('octa-xor', ['max-split = 5', GATE_UNVISITED, 'directive move always allow if tile-type == octagon', GATE_XOR1, ...XOR_5])
+const OCTA_XOR = def('octa-xor', ['max-split = 5', GATE_UNVISITED, 'directive if tile-type == octagon @ target always allow move', GATE_XOR1, ...XOR_5])
 const CARPET = def('carpet', ['max-split = 5', GATE_UNVISITED, GATE_XOR1, ...XOR_5])
-const OCTA_CARPET = def('octa-carpet', ['max-split = 5', GATE_UNVISITED, 'directive move always allow if tile-type == octagon', GATE_XOR1, ...XOR_5])
+const OCTA_CARPET = def('octa-carpet', ['max-split = 5', GATE_UNVISITED, 'directive if tile-type == octagon @ target always allow move', GATE_XOR1, ...XOR_5])
 // labyrinth-2 navigates wedges by turns; when the wedge "straight" pairing changed (so straight crosses
 // the body to a different octagon), the pure-turn walk trapped early. Appending `move straight` as a
 // fallback + seeding south restores a ~43% maze (was ~41%). Thumbnail will drift — re-verify in a gallery pass.
-const LABYRINTH = def('labyrinth-2', ['max-split = 2', GATE_UNVISITED, 'directive move always allow if visited-edges == 1', 'move r1', 'move l1', 'move r2', 'move l2', 'move straight'])
+const LABYRINTH = def('labyrinth-2', ['max-split = 2', GATE_UNVISITED, 'directive if visited-edges == 1 @ target always allow move', 'move r1', 'move l1', 'move r2', 'move l2', 'move straight'])
 const NESTED = def('nested-rings', ['max-split = 3', GATE_UNVISITED, GATE_XOR1, ...XOR_3])
 const SIERP_GASKET = def('sierp-gasket', ['max-split = 3', GATE_UNVISITED, GATE_XOR1, ...XOR_3]) // sierp-shape + sierp-3 share this
 const PULSE = def('pulse', ['max-split = 3', GATE_UNVISITED, GATE_TOTALISTIC, ...XOR_3])
@@ -137,15 +137,15 @@ const XOR_SLOW = def('xor-slow', ['max-split = 3', GATE_UNVISITED, GATE_XOR1, 'm
 const XOR_DENSE = def('xor-dense', ['max-split = 3', GATE_UNVISITED, GATE_XOR1, 'move straight', 'if steps % 3 == 0 then move r1', 'if steps % 3 == 0 then move l1'])
 const VEINS = def('veins', ['max-split = 2', GATE_UNVISITED, 'if steps % 7 == 0 then move r1', 'if steps % 7 == 0 then move l1', 'move straight'])
 const BRANCH_SLOW = def('branch-slow', ['max-split = 2', GATE_UNVISITED, 'move straight', 'if steps % 6 == 0 then move r1'])
-const SHAPE_MAZE = def('shape-maze', ['max-split = 2', GATE_UNVISITED, 'directive move always allow if visited-neighbors <= 1', 'if tile-type == octagon then move r1', 'if tile-type == octagon then move l1', 'if tile-type == wedge then move r2', 'if tile-type == wedge then move l2', 'move straight'])
+const SHAPE_MAZE = def('shape-maze', ['max-split = 2', GATE_UNVISITED, 'directive if visited-neighbors <= 1 @ target always allow move', 'if tile-type == octagon then move r1', 'if tile-type == octagon then move l1', 'if tile-type == wedge then move r2', 'if tile-type == wedge then move l2', 'move straight'])
 const SHAPE_ROUTER = def('shape-router', ['max-split = 2', GATE_UNVISITED, 'if tile-type == octagon then move r1', 'if tile-type == octagon then move l1', 'if tile-type == wedge then move r2', 'if tile-type == wedge then move l2'])
-const TWO_PHASE = def('two-phase', ['max-split = 2', GATE_UNVISITED, 'directive move always allow if tile-type == wedge', 'move r1', 'move l1', 'reset directives', GATE_UNVISITED, 'directive move always allow if visited-neighbors <= 1', 'move straight', 'move r2'])
+const TWO_PHASE = def('two-phase', ['max-split = 2', GATE_UNVISITED, 'directive if tile-type == wedge @ target always allow move', 'move r1', 'move l1', 'reset directives', GATE_UNVISITED, 'directive if visited-neighbors <= 1 @ target always allow move', 'move straight', 'move r2'])
 const FROST = def('frost-wedge', ['max-split = 5', GATE_UNVISITED, GATE_XOR1, ...XOR_5])
-const FERN = def('fern', ['max-split = 9', GATE_UNVISITED, 'directive move always allow if visited-neighbors <= 1', 'move straight', 'if steps % 4 == 0 and tile-type == octagon then move [edge 0, edge 1, edge 2, edge 3, edge 4, edge 5, edge 6, edge 7]'])
-const SPEED_VIS = def('speed-vis', ['max-split = 8', GATE_UNVISITED, 'directive move always allow if visited-neighbors <= 1', 'move [edge 0, edge 1, edge 2, edge 3, edge 4, edge 5, edge 6, edge 7]'])
+const FERN = def('fern', ['max-split = 9', GATE_UNVISITED, 'directive if visited-neighbors <= 1 @ target always allow move', 'move straight', 'if steps % 4 == 0 and tile-type == octagon then move [edge 0, edge 1, edge 2, edge 3, edge 4, edge 5, edge 6, edge 7]'])
+const SPEED_VIS = def('speed-vis', ['max-split = 8', GATE_UNVISITED, 'directive if visited-neighbors <= 1 @ target always allow move', 'move [edge 0, edge 1, edge 2, edge 3, edge 4, edge 5, edge 6, edge 7]'])
 // classic-2 — relative-nav XOR maze, four turns, only onto OCTAGONS. No rotation routing, so it ports
 // cleanly (it was wrongly grouped with the absolute-nav fractals).
-const CLASSIC2 = def('classic-2', ['max-split = 2', GATE_UNVISITED, 'directive move always allow if visited-edges == 1', 'directive move always allow if tile-type == octagon', 'move r1', 'move l1', 'move r2', 'move l2'])
+const CLASSIC2 = def('classic-2', ['max-split = 2', GATE_UNVISITED, 'directive if visited-edges == 1 @ target always allow move', 'directive if tile-type == octagon @ target always allow move', 'move r1', 'move l1', 'move r2', 'move l2'])
 // classic — relative-nav XOR maze: an octagon "bounces" r2/l2 off a wedge straight ahead, and a wedge
 // crosses STRAIGHT to the octagon on the other side. The prototype hand-coded the wedge crossing as a
 // per-rotation turn (rot 0/180 → r1, 90/270 → l1); our wedge "straight" now IS that crossing (the
@@ -156,7 +156,7 @@ const CLASSIC2 = def('classic-2', ['max-split = 2', GATE_UNVISITED, 'directive m
 const CLASSIC = def('classic', [
   'max-split = 2',
   GATE_UNVISITED,
-  'directive move always allow if visited-edges == 1',
+  'directive if visited-edges == 1 @ target always allow move',
   'if tile-type == wedge @ straight then move r2',
   'if tile-type == wedge @ straight then move l2',
   'if tile-type == wedge then move straight',
@@ -195,7 +195,7 @@ const WEDGE_SEEK = def('wedge-seek', [
   'max-split = 2',
   'movement = absolute',
   GATE_UNVISITED,
-  'directive move always allow if visited-neighbors == 1',
+  'directive if visited-neighbors == 1 @ target always allow move',
   ...EDGES_0_7.map((k) => `if tile-type == wedge @ edge ${k} then move edge ${k}`),
   ...EDGES_0_7.map((k) => `if tile-type == octagon @ edge ${k} then move edge ${k}`),
 ])
