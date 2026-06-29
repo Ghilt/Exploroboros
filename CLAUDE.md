@@ -349,6 +349,11 @@ in-session task tracker.
     pick favourites with the owner before building
   - [ ] Tile numbering as a canvas control — user-selectable scheme/origin (debug view currently numbers by generation order)
   - [ ] Visualise edge numbering + opposite edges for the user — show each tile's clockwise-from-top edge numbers and which edges are opposite (engine support exists: `clockwiseEdgeOrder`, `opposite`)
+  - [ ] **Tiling cheat-sheet info popup** — a little info popup that prints nice, helpful **edge guides** for
+    the current tiling, especially the more **advanced tiles** (octagon + wedge, the dodecagon/triangle
+    tilings, etc.): what each edge name/number points to, which edges are opposite, the wedge "straight"
+    through-pairing, and the `orientation` variants. The user-facing companion to the edge-numbering
+    visualisation above — help people reason about moves on tricky shapes *(owner, 2026-06-29)*
 - [x] **Tile-predicate DSL + Predicate pane + Coloring pane** *(§5)* — pure `src/dsl/` engine
   (lex/parse/serialize/eval + attribute registry: numeric attrs, arithmetic, comparisons, and/or/not,
   grouping, required defaults, `tile-type == <shape>`, `rotation`); a Predicate pane (presets + persisted
@@ -370,6 +375,10 @@ in-session task tracker.
     + slow/fast/max speed chip, **authored seeds vs live run** (Stop restores the placement — the savable
     starting state; Reset removes), Inspect Place/aim/Remove (locked during a run), lime heading arrow in stats,
     grid-resize locked while running, mobile header wraps *(verified 2026-06-27, `064cfc7`)*
+  - [ ] **Overhaul the Play / Pause / Stop / step transport** — the run controls don't make sense as they
+    stand and are too cumbersome *(owner, 2026-06-29)*. Rethink the whole transport as one coherent thing:
+    how Play / Pause / Stop, the **step** button, and the slow/fast speeds relate (e.g. step disabling Play
+    feels awkward; Stop vs Pause vs Reset is muddy). Aim for an obvious, low-friction control.
   - [ ] DSL-driven traversers — custom rules in the Traversers pane (paint / move along edge refs / visit /
     split / guards / state terms, §5), reusing the predicate DSL; replaces the one hardcoded behaviour
   - [x] Prototype-port loader (debug) — a "Load prototype ports" button at the bottom of the Traversers
@@ -415,6 +424,10 @@ in-session task tracker.
     *(verified 2026-06-28, `0d939f7`; classic-2 `41cc510`; classic/ringlare/wedge-seek `f6e64a8`)*
   - [ ] **User-saved gallery** — let the user save their own exports into the gallery (recipe rides in the
     PNG metadata); persist across reloads (IndexedDB) + a "watch it grow" replay.
+- [ ] **Debug features + a run log** — add developer-facing debug aids, including some kind of **log**
+  *(owner, 2026-06-29)*: e.g. a per-tick / per-run log of what the traversers do (moves, splits, deaths,
+  guard/directive decisions) surfaced in a panel or the console, to make authoring + debugging DSL
+  traversers tractable. Scope the exact set with the owner.
 - [ ] **Deploy to Vercel**
 
 ## 9. Dev loop & operational notes (gotchas)
