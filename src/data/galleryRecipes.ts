@@ -149,10 +149,11 @@ const CLASSIC2 = def('classic-2', ['max-split = 2', GATE_UNVISITED, 'directive m
 // classic — relative-nav XOR maze routed by WEDGE rotation (via the tiling-agnostic `orientation`
 // attribute) plus an octagon "bounce" toward a wedge straight ahead. The orientation→turn map (from the
 // orientation.test.ts probe + the kalleboda slot→rot table): wedge orientation 0/2 → r1, 1/3 → l1.
-// `tile-type == wedge` gates the orientation rules (octagons are also orientation 0). Seeded on the
-// centre WEDGE facing 45° (π/4): the `visited-edges == 1` gate only threads single-edge adjacencies
-// (kalleboda is mostly two-edged), so the start is heading-sensitive — 45° grows ~36%, others stall
-// (found by a one-off seed-heading probe).
+// `tile-type == wedge` gates the orientation rules (octagons are also orientation 0). A trailing
+// `move straight` is a fallback so the pure-turn walk doesn't trap under the wedge through-pairing (the
+// same fix labyrinth-2 needed). Seeded on the centre WEDGE facing 45° (π/4): the `visited-edges == 1`
+// gate only threads single-edge adjacencies (kalleboda is mostly two-edged), so the start is
+// heading-sensitive — 45° grows ~21%, others stall (found by a one-off seed-heading probe).
 const CLASSIC = def('classic', [
   'max-split = 2',
   GATE_UNVISITED,
@@ -161,6 +162,7 @@ const CLASSIC = def('classic', [
   'if tile-type == wedge @ straight then move l2',
   'if tile-type == wedge and (orientation == 0 or orientation == 2) then move r1',
   'if tile-type == wedge and (orientation == 1 or orientation == 3) then move l1',
+  'move straight', // fallback so the pure-turn walk doesn't trap under the wedge through-pairing
 ])
 
 // ringlare — relative-nav single self-avoiding walker steered by how many visited EDGES the candidate
@@ -210,7 +212,7 @@ export const GALLERY_RECIPES: Readonly<Record<string, Recipe>> = {
   'labyrinth-2.webp': recipe('#0e0c18', [seed('labyrinth-2', 2, { heading: compass(4) })], LABYRINTH, [ring('labyrinth-2-c', 460, [stop('#9AD0FF', 0), stop('#7B5BF2', 220), stop('#E0509A', 460)])]),
   'classic-2.webp': recipe('#000000', [seed('classic-2', 2, { shape: 'octagon' })], CLASSIC2, [ring('classic-2-c', 350, [stop('#FAE9A0', 0), stop('#0070FA', 39), stop('#FAE9A0', 350)])]),
   'classic.webp': recipe('#000000', [seed('classic', 2, { shape: 'wedge', heading: Math.PI / 4 })], CLASSIC, [ring('classic-c', 35, [stop('#4AE9A0', 0), stop('#000000', 35)])]),
-  'ringlare.webp': recipe('#04060c', [seed('ringlare', 1)], RINGLARE, [ring('ringlare-c', 400, [stop('#00FFC8', 0), stop('#FF00A0', 200)])]),
+  'ringlare.webp': recipe('#04060c', [seed('ringlare', 1, { heading: (3 * Math.PI) / 4 })], RINGLARE, [ring('ringlare-c', 400, [stop('#00FFC8', 0), stop('#FF00A0', 200)])]),
   'wedge-seek.webp': recipe('#0c0604', [seed('wedge-seek', 2, { shape: 'octagon' })], WEDGE_SEEK, [ring('wedge-seek-c', 720, [stop('#FFD0A0', 0), stop('#E0602E', 240), stop('#5A1E2A', 480)])]),
   'nested-rings.webp': recipe('#060006', [seed('nested-rings', 3)], NESTED, [ring('nested-rings-c', 60, [stop('#FFFFFF', 0), stop('#2A0E4A', 5), stop('#FF4DA0', 40)])]),
   'sierp-shape.webp': recipe('#060406', [seed('sierp-gasket', 3)], SIERP_GASKET, [
