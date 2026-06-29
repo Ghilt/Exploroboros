@@ -146,23 +146,20 @@ const SPEED_VIS = def('speed-vis', ['max-split = 8', GATE_UNVISITED, 'directive 
 // classic-2 — relative-nav XOR maze, four turns, only onto OCTAGONS. No rotation routing, so it ports
 // cleanly (it was wrongly grouped with the absolute-nav fractals).
 const CLASSIC2 = def('classic-2', ['max-split = 2', GATE_UNVISITED, 'directive move always allow if visited-edges == 1', 'directive move always allow if tile-type == octagon', 'move r1', 'move l1', 'move r2', 'move l2'])
-// classic — relative-nav XOR maze routed by WEDGE rotation (via the tiling-agnostic `orientation`
-// attribute) plus an octagon "bounce" toward a wedge straight ahead. The orientation→turn map (from the
-// orientation.test.ts probe + the kalleboda slot→rot table): wedge orientation 0/2 → r1, 1/3 → l1.
-// `tile-type == wedge` gates the orientation rules (octagons are also orientation 0). A trailing
-// `move straight` is a fallback so the pure-turn walk doesn't trap under the wedge through-pairing (the
-// same fix labyrinth-2 needed). Seeded on the centre WEDGE facing 45° (π/4): the `visited-edges == 1`
-// gate only threads single-edge adjacencies (kalleboda is mostly two-edged), so the start is
-// heading-sensitive — 45° grows ~21%, others stall (found by a one-off seed-heading probe).
+// classic — relative-nav XOR maze: an octagon "bounces" r2/l2 off a wedge straight ahead, and a wedge
+// crosses STRAIGHT to the octagon on the other side. The prototype hand-coded the wedge crossing as a
+// per-rotation turn (rot 0/180 → r1, 90/270 → l1); our wedge "straight" now IS that crossing (the
+// owner-specified through-pairing — edges.ts), so `move straight` reproduces it directly and the
+// rotation routing (and the `orientation` attribute) is no longer needed here. Seeded on the centre
+// WEDGE facing 45° (π/4): the `visited-edges == 1` gate only threads single-edge adjacencies (kalleboda
+// is mostly two-edged), so the start is heading-sensitive — 45° grows ~36%, others stall (probe).
 const CLASSIC = def('classic', [
   'max-split = 2',
   GATE_UNVISITED,
   'directive move always allow if visited-edges == 1',
   'if tile-type == wedge @ straight then move r2',
   'if tile-type == wedge @ straight then move l2',
-  'if tile-type == wedge and (orientation == 0 or orientation == 2) then move r1',
-  'if tile-type == wedge and (orientation == 1 or orientation == 3) then move l1',
-  'move straight', // fallback so the pure-turn walk doesn't trap under the wedge through-pairing
+  'if tile-type == wedge then move straight',
 ])
 
 // ringlare — relative-nav single self-avoiding walker steered by how many visited EDGES the candidate
