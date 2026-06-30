@@ -49,7 +49,7 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
   const [height, setHeight] = useState(2048)
   // Chain lock: when linked, editing one dimension scales the other to keep the aspect ratio.
   const [linked, setLinked] = useState(true)
-  const [background, setBackground] = useState<Background>('white')
+  const [background, setBackground] = useState<Background>('black')
   const [edges, setEdges] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
 
