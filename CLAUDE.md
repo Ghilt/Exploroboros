@@ -293,6 +293,8 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-28 | classic / ringlare / wedge-seek ported to the gallery (3 of the 4 rotation-routed fractals; sierpinski still deferred — its absolute-compass wedge routing doesn't map onto our ~22.5°-rotated frame). classic crosses wedges with `move straight` (the wedge through-pairing), ringlare steers by visited-edge counts, wedge-seek is a shape fan — none ended up needing the `orientation` attribute (the through-pairing subsumed classic's rotation routing) | ✅ yes | owner reviewed the gallery regenerations on 5238 and approved; each grows to a natural stop in the headless grow-check (classic 36%, ringlare 11% single-walker rings, wedge-seek 53%); classic re-derived against the new wedge "straight" | `f6e64a8` |
 | 2026-06-29 | Traverser DSL — directives flipped to **predicate-first** (`directive if <predicate> always forbid\|allow move`); new **`@ target`** decoration (the move's destination) so predicates read the CURRENT tile by default everywhere and gate the destination only when decorated; `@ target` also filters a move/morph rule's candidates per-branch (`if visited > 0 @ target then move [...]`). Guide reworked: single "Naming an edge" table + a compact "Move commands" examples table, "Conditions" → "Predicates" w/ a decoration table, new Directives grammar. Gallery + prototype-port directives migrated to `@ target` (behaviour preserved); no recipe migration (dev state — saved PNGs hand-fixed) | ✅ yes | owner reviewed on this worktree's preview (5553) and said "this seems good, please commit"; build / lint / **431 tests** (7 new: `@ target` directive, per-target rule guard, current-tile directive, parse/serialize round-trips) + served-source & DOM checks (guide renders the new sections; no old grammar anywhere in src) | `76dc35a` |
 | 2026-06-29 | Traverse speed control → **step / slow / fast** (was slow/fast/max). `step` is manual — each click advances exactly one tick (the first click on a stopped run places the seeds, like Play's first beat); the continuous ▶ is disabled in step mode (advance via the step button). `slow` = 90ms (old "fast"), `fast` = one tick per frame (old "max"); default `slow`; the old 300ms slow dropped | ✅ yes | owner reviewed on this worktree's preview (5553) and said "please commit"; build / lint / **432 tests** (updated the speed-control test + a new step-mode test) + DOM check (control renders step/slow/fast with `slow` selected; the click behaviour is covered by the jsdom test since the headless tab doesn't fire React clicks) | `dc9f53a` |
+| 2026-06-30 | **Debug mode** — a per-tick traverser **decision log** (toggle in the canvas bar → wide right "Debug" dock): per walker, the statements run + each candidate move and **why it was skipped/rejected**, a loud "no move" banner; **hovering a log row highlights the tiles on the grid** (current / the tile a guard *reads* via `@ edge`/`@ target` / chosen / rejected), click to pin; bounded tick-history scrubber; pairs with the **step** speed. Opt-in pure `TickTrace` (`stepTraversersTraced`) → **zero cost when off** (export path byte-identical) | ✅ yes | owner used it on this worktree's preview (5593) to pin down a long-standing edge bug (next row); build / lint / tests green (16 new: engine trace + the pure highlight mapper) | `58fd0b6` |
+| 2026-06-30 | **Fix — edge numbering off-by-one at the 0/360 seam** (the bug the debug log surfaced). `clockwiseEdgeOrder` sorted purely by clockwise-from-top key, so a tile whose top edge sits just **west** of north — a float hair on flat-top octagons (the **slot-0 kalleboda** octagon) or tens of degrees on the chiral snubs — wrapped to ~359° and sorted LAST, rotating the numbering by one so `edge 0` pointed NE. Now **anchors edge 0 on the genuinely most-north edge**, then clockwise | ✅ yes | owner reproduced it via the debug log (`move edge 0` stepping NE off slot-0 octagons) + confirmed the fix on 5593; build / lint / **460 tests** (kalleboda "north = edge 0" regression + a general most-north-is-edge-0 invariant across all 12 tilings) | `e2ffb30` |
 | 2026-06-30 | **sierpinski** ported to the gallery — the 4th/last rotation-routed fractal, a nested triangular Sierpinski gasket; finally exercises the `orientation` attribute (each wedge orientation relays a *different* absolute octagon edge). The octagon-fan edge order (`2,3,4,5,6,7,0,1`) **and** the orientation→edge map were found EMPIRICALLY: the two-edge octagon–wedge adjacency makes a low-first `edge 0..7` fan spend both max-split slots on ONE wedge (the walk marches single-file), so the order is tuned to hit two *distinct* wedges. Owner ported it by hand; I wired their version in (new `@ target` directive syntax) | ✅ yes | owner recreated the gasket themselves + said "commit all this to main"; build / lint / **432 tests** + headless grow-check (66 ticks, ~8% from a centre-wedge seed, natural stop) + ASCII confirming the recursive triangular voids | `27a7205` |
 | 2026-06-30 | Export dialog defaults to a **black** background (fractals read best on black, matching the prototype renders); white / transparent still available | ✅ yes | owner asked for it + said "commit all this to main"; build / lint / 432 tests green | `9969914` |
 
@@ -428,10 +430,13 @@ in-session task tracker.
     *(verified 2026-06-28, `0d939f7`; classic-2 `41cc510`; classic/ringlare/wedge-seek `f6e64a8`; sierpinski `27a7205`)*
   - [ ] **User-saved gallery** — let the user save their own exports into the gallery (recipe rides in the
     PNG metadata); persist across reloads (IndexedDB) + a "watch it grow" replay.
-- [ ] **Debug features + a run log** — add developer-facing debug aids, including some kind of **log**
-  *(owner, 2026-06-29)*: e.g. a per-tick / per-run log of what the traversers do (moves, splits, deaths,
-  guard/directive decisions) surfaced in a panel or the console, to make authoring + debugging DSL
-  traversers tractable. Scope the exact set with the owner.
+- [x] **Debug features + a run log** — a per-tick traverser **decision log** (Debug pane, behind a
+  canvas-bar toggle): per walker, the statements run + each candidate move and why it survived/was
+  rejected, a "no move" banner; **hovering a row highlights the tiles it concerns on the grid** (current
+  / the tile a guard reads / chosen / rejected), click to pin; a bounded tick-history scrubber; driven by
+  an **opt-in pure `TickTrace`** (zero cost when off). Surfaced + fixed a real edge-numbering bug on first
+  use *(owner, 2026-06-29; done & verified 2026-06-30, `58fd0b6`)*. A console / log-to-file aid stays a
+  possible follow-up.
 - [ ] **Deploy to Vercel**
 
 ## 9. Dev loop & operational notes (gotchas)
@@ -569,6 +574,16 @@ Hard-won; read before fighting the tooling again.
   re-add a header or a fixed page height there.
 - Edge numbering has **two layers**: internal **local CCW side index** (geometry/winding) vs the
   user-facing **clockwise-from-top** number (`clockwiseEdgeOrder`). Don't conflate them.
+  **The 0/360 seam is at north**, so `clockwiseEdgeOrder` **anchors edge 0 on the most-north edge** then
+  sweeps clockwise — sorting by the raw key alone put a top edge sitting a hair (float round-off on
+  flat-top octagons) or tens of degrees (the chiral snubs) *west* of north at ~359° → LAST, rotating the
+  numbering by one (the slot-0 kalleboda octagon bug, where `edge 0` pointed NE). `src/tiling/edge-order.test.ts`
+  asserts "edge 0 = the most-north edge" on every tile of every tiling; don't regress it.
+- **Debug mode** lives in `src/components/DebugPane.tsx` (+ `.css`) with the pure trace→tiles mapper in
+  `src/debug/highlights.ts` (Konva-free, unit-tested). It reads the engine's **opt-in** `TickTrace`
+  (`src/traverse/trace.ts`, built only by `stepTraversersTraced`). A canvas-bar **toggle** in `Workspace`
+  gates it: off → no trace is built and `TilingCanvas`'s `highlightGroups` is undefined (nothing drawn);
+  the role-coloured outline overlay is `drawHighlights` in `TilingCanvas`.
 
 **Running commands (tool shells):** `node`/`npm.cmd`/`npx.cmd` are NOT on PATH here — prepend it
 every command: `$env:Path = 'C:\Program Files\nodejs;' + $env:Path; npx.cmd vitest run`
