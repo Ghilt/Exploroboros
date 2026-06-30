@@ -50,6 +50,8 @@ type Palette = {
   visited: string
   accent: string
   accentStrong: string
+  accent2: string
+  accent3: string
   traverser: string
   mono: string
 }
@@ -63,6 +65,8 @@ const FALLBACK: Palette = {
   visited: '#c9551c',
   accent: '#e2682a',
   accentStrong: '#c9551c',
+  accent2: '#c0398e',
+  accent3: '#6d2b8f',
   // Traverser arrow — solid black (tiles are always white), so the head reads as "the walker" in
   // every display mode.
   traverser: '#000',
@@ -83,6 +87,17 @@ export type DragMode = 'paint' | 'select' | 'paintselect' | 'off'
 
 const NO_SELECTION: ReadonlyArray<string> = []
 
+// Debug highlighting (the decision-log hover): tiles to outline, grouped by their ROLE in a
+// traverser's decision so each draws in a distinct colour. Plain data (no Konva) so the mapper that
+// builds it stays pure + testable. See src/debug/highlights.ts and drawHighlights below.
+//  - current:   the tile the walker is on now
+//  - decorator: the tile a guard's `@ edge`/`@ tile`/`@ target` decoration read (a pointer target)
+//  - candidate: a destination still under consideration
+//  - chosen:    a destination that survived (a move/split target)
+//  - rejected:  a candidate that was rejected
+export type HighlightRole = 'current' | 'decorator' | 'candidate' | 'chosen' | 'rejected'
+export type HighlightGroups = ReadonlyArray<{ role: HighlightRole; ids: ReadonlyArray<string> }>
+
 type Props = {
   tiling: Tiling
   displayMode?: DisplayMode
@@ -95,6 +110,8 @@ type Props = {
   // Tile id -> heading (radians, world y-up) for each traverser, always drawn as an arrow (any
   // display mode) — and a tile with a traverser shows ONLY the arrow, no printed labels.
   traverserHeads?: ReadonlyMap<string, number>
+  // Debug overlay: tiles to outline by role (decision-log hover). Undefined / empty = nothing drawn.
+  highlightGroups?: HighlightGroups
   tileNumber?: (id: string) => number
   onSelect?: (id: string) => void
   onSelectTiles?: (ids: string[]) => void
@@ -114,6 +131,7 @@ export function TilingCanvas({
   overlay,
   colorFor,
   traverserHeads,
+  highlightGroups,
   tileNumber,
   onSelect,
   onSelectTiles,
@@ -206,6 +224,8 @@ export function TilingCanvas({
         visited: v('--accent-strong', FALLBACK.visited),
         accent: v('--accent', FALLBACK.accent),
         accentStrong: v('--accent-strong', FALLBACK.accentStrong),
+        accent2: v('--accent-2', FALLBACK.accent2),
+        accent3: v('--accent-3', FALLBACK.accent3),
         mono: v('--mono', FALLBACK.mono),
       }
       redraw()
@@ -542,6 +562,10 @@ export function TilingCanvas({
           <Layer ref={uiLayerRef} listening={false}>
             <Shape
               listening={false}
+              sceneFunc={(ctx) => drawHighlights(ctx, tiling, viewRef.current, paletteRef.current, highlightGroups)}
+            />
+            <Shape
+              listening={false}
               sceneFunc={(ctx) => drawSelection(ctx, tiling, viewRef.current, paletteRef.current, selectedSet)}
             />
             <Shape
@@ -825,4 +849,61 @@ function drawPaintFlash(
     ctx.stroke()
   }
   ctx.restore()
+}
+
+// Per-role stroke style for the debug highlight overlay. Reuses the brand accents (no new colours):
+// orange = current/chosen (the focus), purple-dashed = a decoration pointer, magenta = a candidate,
+// faded red-dashed = a rejected candidate. Kept distinct by colour + dash + weight so they read in
+// both themes.
+type HiStyle = { stroke: string; lineWidth: number; dash?: number[]; fillAlpha?: number; alpha?: number }
+function roleStyle(role: HighlightRole, pal: Palette): HiStyle {
+  switch (role) {
+    case 'current':
+      return { stroke: pal.accent, lineWidth: 3, fillAlpha: 0.12 }
+    case 'decorator':
+      return { stroke: pal.accent3, lineWidth: 2.5, dash: [6, 4] }
+    case 'candidate':
+      return { stroke: pal.accent2, lineWidth: 2.5 }
+    case 'chosen':
+      return { stroke: pal.accent, lineWidth: 3.5, fillAlpha: 0.16 }
+    case 'rejected':
+      return { stroke: pal.accentStrong, lineWidth: 1.5, dash: [3, 3], alpha: 0.65 }
+  }
+}
+
+// The debug decision-log highlight: outline each group's tiles in its role colour. A hover lights a
+// handful of tiles, so no viewport culling (mirrors drawPaintFlash). Undefined/empty = nothing drawn.
+function drawHighlights(
+  ctx: Konva.Context,
+  tiling: Tiling,
+  view: View,
+  pal: Palette,
+  groups: HighlightGroups | undefined,
+): void {
+  if (!groups || groups.length === 0) return
+  for (const { role, ids } of groups) {
+    if (ids.length === 0) continue
+    const s = roleStyle(role, pal)
+    ctx.save()
+    if (s.alpha !== undefined) ctx.setAttr('globalAlpha', s.alpha)
+    ctx.setAttr('strokeStyle', s.stroke)
+    ctx.setAttr('lineWidth', s.lineWidth)
+    ctx.setAttr('lineJoin', 'round')
+    if (s.dash) ctx.setLineDash(s.dash)
+    for (const id of ids) {
+      const node = nodeById(tiling, id)
+      if (!node) continue
+      traceTile(ctx, node.vertices, view)
+      if (s.fillAlpha) {
+        ctx.save()
+        ctx.setAttr('globalAlpha', (s.alpha ?? 1) * s.fillAlpha)
+        ctx.setAttr('fillStyle', s.stroke)
+        ctx.fill()
+        ctx.restore()
+      }
+      ctx.stroke()
+    }
+    if (s.dash) ctx.setLineDash([])
+    ctx.restore()
+  }
 }

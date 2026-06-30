@@ -5,6 +5,7 @@ import { serialize as serializePred, serializeExpr } from '../../dsl'
 import { DEFAULT_SETTINGS } from './types'
 import type {
   Action,
+  Chain,
   Decoration,
   DExpr,
   EdgeRef,
@@ -28,24 +29,30 @@ function edgeRef(r: EdgeRef): string {
   }
 }
 
+// One move chain as text (`edge 0`, `straight -> r1`) — the destination-naming part of a move, used
+// by the debug trace to label a candidate.
+export function serializeChain(c: Chain): string {
+  return c.map(edgeRef).join(' -> ')
+}
+
 function target(t: EdgeTarget): string {
-  const chains = t.map((c) => c.map(edgeRef).join(' -> '))
+  const chains = t.map(serializeChain)
   return chains.length === 1 ? chains[0] : `[${chains.join(', ')}]`
 }
 
-function decoration(d: Decoration): string {
-  if (d.kind === 'target') return ' @ target'
-  if (d.kind === 'tile') return ` @ tile ${d.index}`
-  return ` @ ${edgeRef(d.edge)}`
+export function serializeDecoration(d: Decoration): string {
+  if (d.kind === 'target') return '@ target'
+  if (d.kind === 'tile') return `@ tile ${d.index}`
+  return `@ ${edgeRef(d.edge)}`
 }
 
-function guard(g: Guard): string {
+export function serializeGuard(g: Guard): string {
   const head = g.pred.kind === 'named' ? g.pred.name : serializePred(g.pred.pred)
-  return head + (g.at ? decoration(g.at) : '')
+  return head + (g.at ? ` ${serializeDecoration(g.at)}` : '')
 }
 
 function dexpr(d: DExpr): string {
-  return serializeExpr(d.expr) + (d.at ? decoration(d.at) : '')
+  return serializeExpr(d.expr) + (d.at ? ` ${serializeDecoration(d.at)}` : '')
 }
 
 function isLiteralOne(d: DExpr): boolean {
@@ -67,14 +74,14 @@ function action(a: Action): string {
   }
 }
 
-function stmt(s: Stmt): string {
+export function serializeStmt(s: Stmt): string {
   switch (s.kind) {
     case 'reset':
       return 'reset directives'
     case 'directive':
-      return `directive if ${guard(s.guard)} always ${s.allow ? 'allow' : 'forbid'} move`
+      return `directive if ${serializeGuard(s.guard)} always ${s.allow ? 'allow' : 'forbid'} move`
     case 'rule':
-      return s.guard ? `if ${guard(s.guard)} then ${action(s.action)}` : action(s.action)
+      return s.guard ? `if ${serializeGuard(s.guard)} then ${action(s.action)}` : action(s.action)
   }
 }
 
@@ -88,5 +95,5 @@ function settingLines(s: Settings): string[] {
 }
 
 export function serializeProgram(prog: Program): string {
-  return [...settingLines(prog.settings), ...prog.statements.map(stmt)].join('\n')
+  return [...settingLines(prog.settings), ...prog.statements.map(serializeStmt)].join('\n')
 }

@@ -1,0 +1,190 @@
+/* The debug decision-log pane. Compact, mono for data, a thin-bordered tree (walker → statement →
+   candidate). Colours reuse the canvas highlight roles so the legend matches what lights up. */
+
+.dbg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  font-size: 0.82rem;
+}
+
+/* Legend — the four highlight roles. */
+.dbg-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.dbg-leg {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.dbg-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+.dbg-dot--current { background: var(--accent); }
+.dbg-dot--decorator { background: var(--accent-3); }
+.dbg-dot--chosen { background: var(--accent); opacity: 0.6; outline: 2px solid var(--accent); outline-offset: -2px; }
+.dbg-dot--rejected { background: var(--accent-strong); opacity: 0.55; }
+
+/* inline coloured keyword in the help dialog */
+.dbg-key { font-weight: 700; }
+.dbg-key--current { color: var(--accent); }
+.dbg-key--decorator { color: var(--accent-3); }
+.dbg-key--chosen { color: var(--accent-strong); }
+.dbg-key--rejected { color: var(--accent-strong); opacity: 0.85; }
+
+/* History header. */
+.dbg-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.dbg-tick {
+  min-width: 4.5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.dbg-latest {
+  border: var(--bw-1) solid var(--line);
+  background: transparent;
+  color: var(--accent);
+  border-radius: var(--radius-sm);
+  height: var(--control-h);
+  padding-inline: var(--space-3);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.dbg-latest:hover { border-color: var(--accent); }
+
+.dbg-walkers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* One walker's block. */
+.dbg-walker {
+  border: var(--bw-1) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.dbg-walker-sum {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  list-style: none;
+}
+.dbg-walker-sum::-webkit-details-marker { display: none; }
+.dbg-walker-sum:hover { background: var(--surface-2); }
+.dbg-id {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--accent-strong);
+}
+.dbg-cur { font-family: var(--mono); }
+.dbg-outcome { margin-left: auto; color: var(--muted); }
+.dbg-outcome.is-dead { color: var(--accent-strong); font-weight: 600; }
+
+/* "Why didn't it move" banner. */
+.dbg-banner {
+  margin: 0 var(--space-3) var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--accent-strong);
+  background: var(--surface-2);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  color: var(--fg);
+  font-size: 0.78rem;
+}
+
+/* Statements: a thin tree to the left, indented under the walker. */
+.dbg-stmts {
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--space-3) var(--space-2) var(--space-3);
+  border-left: 2px solid var(--line);
+  margin-left: var(--space-3);
+}
+.dbg-stmt-group { display: contents; }
+.dbg-stmt {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.dbg-stmt:hover { background: var(--surface-2); }
+.dbg-src { font-family: var(--mono); font-size: 0.78rem; word-break: break-word; }
+.dbg-detail {
+  padding: 0 var(--space-2) var(--space-1) var(--space-4);
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+.dbg-detail code { font-family: var(--mono); }
+.dbg-empty { margin: var(--space-1) 0; color: var(--muted); font-size: 0.76rem; }
+
+/* Verdict chips (pills — reuse accent / muted, no green/red). */
+.dbg-chip {
+  margin-left: auto;
+  flex: 0 0 auto;
+  padding: 0.05rem 0.45rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: lowercase;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.dbg-chip--fire { background: var(--accent); color: var(--on-accent); }
+.dbg-chip--skip { background: var(--surface-2); color: var(--muted); }
+.dbg-chip--dir { background: var(--surface-2); color: var(--accent-3); }
+
+/* Candidate rows. */
+.dbg-cands {
+  list-style: none;
+  margin: 0 0 var(--space-1);
+  padding: 0 0 0 var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.dbg-cand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 0.1rem var(--space-2);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.76rem;
+}
+.dbg-cand:hover { background: var(--surface-2); }
+.dbg-cand.is-reject { color: var(--muted); }
+.dbg-chain { font-family: var(--mono); color: var(--fg); }
+.dbg-dest { font-family: var(--mono); }
+.dbg-verdict { margin-left: auto; font-weight: 700; }
+.dbg-verdict.is-ok { color: var(--accent-strong); }
+.dbg-verdict.is-no { color: var(--muted); font-weight: 600; }
+
+/* Pinned row — a persistent left marker so you can see which highlight is frozen. */
+.dbg-stmt.is-pinned,
+.dbg-cand.is-pinned {
+  background: var(--surface-2);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.dbg-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-style: italic;
+}

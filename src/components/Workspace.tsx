@@ -20,13 +20,15 @@ import {
   MANUAL_STEP,
 } from '../canvas'
 import type { TileClip, TileState, Registry, PaintTarget } from '../canvas'
-import { stepTraversers, headingOptions, rotateHeading, compileProgram, DEFAULT_SETTINGS, type Traverser, type Program } from '../traverse'
-import { TilingCanvas, type DisplayMode, type DragMode } from './TilingCanvas'
+import { stepTraversers, stepTraversersTraced, headingOptions, rotateHeading, compileProgram, DEFAULT_SETTINGS, type Traverser, type Program, type TickTrace } from '../traverse'
+import { TilingCanvas, type DisplayMode, type DragMode, type HighlightGroups } from './TilingCanvas'
 import { TilingPicker } from './TilingPicker'
 import { Panel } from './Panel'
 import { HelpButton } from './HelpButton'
 import { SegmentedControl } from './SegmentedControl'
+import { Toggle } from './Toggle'
 import { Stepper } from './Stepper'
+import { DebugPane } from './DebugPane'
 import { PredicatePane } from './PredicatePane'
 import { TraversersPane } from './TraversersPane'
 import { ColoringPane } from './ColoringPane'
@@ -45,6 +47,10 @@ import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
 
 const GRID_MIN = 10
 const GRID_MAX = 140
+
+// Debug log: keep at most this many recent ticks' decision traces (a ring) — plenty to scrub back
+// through while step-debugging, but bounded so a fast run can't grow it without limit.
+const TRACE_HISTORY = 64
 
 // Traverser clock speeds. 'slow' is an interval (ms between ticks); 'fast' runs one tick per
 // animation frame (as fast as the machine paints); 'step' is manual — one tick per click, no timer.
@@ -102,6 +108,24 @@ export function Workspace() {
   const [step, setStep] = useState(0)
   const [speed, setSpeed] = useState<RunSpeed>('slow')
   const traverserSeq = useRef(0)
+  // Debug mode: a per-tick decision log (the Debug pane) + canvas highlighting of the tiles a hovered
+  // log row is about. Off by default — when off the trace isn't built and nothing extra is drawn.
+  const [debug, setDebug] = useState(false)
+  // Recent ticks' decision traces (a bounded ring) and which one the log is viewing (null = follow the
+  // latest). `hoveredHighlight` (a log-row hover) wins over `pinned` (a clicked row) for the canvas.
+  const [traceHistory, setTraceHistory] = useState<TickTrace[]>([])
+  const [viewedStep, setViewedStep] = useState<number | null>(null)
+  const [hoveredHighlight, setHoveredHighlight] = useState<HighlightGroups | null>(null)
+  const [pinned, setPinned] = useState<{ key: string; groups: HighlightGroups } | null>(null)
+  const pushTrace = (t: TickTrace) => setTraceHistory((h) => [...h, t].slice(-TRACE_HISTORY))
+  // Clear the debug log + any highlight — on a fresh run, a stop/reset, or a tiling/recipe switch.
+  const clearDebug = () => {
+    setTraceHistory([])
+    setViewedStep(null)
+    setHoveredHighlight(null)
+    setPinned(null)
+  }
+  const highlightGroups = hoveredHighlight ?? pinned?.groups
   // Tile display: edged outline / no outline / outline + printed stats (number + visited + counters).
   const [displayMode, setDisplayMode] = useState<DisplayMode>('edges')
   // Mobile only: Fit / Reset / grid-size live behind a "⋯" button; this toggles that dropdown.
@@ -300,6 +324,7 @@ export function Workspace() {
     setStep(0)
     setSelectedIds([])
     setViewingId(null)
+    clearDebug()
     const editGrid = Math.max(GRID_MIN, Math.min(GRID_MAX, Math.round(recipe.gridN)))
     setTilingId(recipe.tilingId)
     setGridInput(editGrid)
@@ -363,14 +388,24 @@ export function Workspace() {
   // The clock. A reassigned ref keeps the interval calling the LATEST state each tick (the
   // copyRef/pasteRef pattern below), so listeners attach once yet never read stale state. The tick
   // itself is the pure stepTraversers; we auto-pause when every walker has died.
-  const tickRef = useRef<() => void>(() => {})
-  tickRef.current = () => {
-    if (runLive === null) return
-    const result = stepTraversers({ tiling, overlay, traversers: runLive, step, defs, indexById })
+  // One tick of the live run, debug-aware: when debug is on it records the tick's decision trace into
+  // the history (and only then — plain stepTraversers is used otherwise, so `fast` mode pays nothing).
+  // Returns the surviving walkers (or null when not running). Shared by the clock and the manual step.
+  const advanceOneTick = (): Traverser[] | null => {
+    if (runLive === null) return null
+    const input = { tiling, overlay, traversers: runLive, step, defs, indexById }
+    const result = debug ? stepTraversersTraced(input) : stepTraversers(input)
+    if (debug) pushTrace((result as ReturnType<typeof stepTraversersTraced>).trace)
     setOverlay(result.overlay)
     setRunLive(result.traversers)
     setStep(result.step)
-    if (result.traversers.length === 0) setRunning(false) // every walker died -> auto-pause
+    return result.traversers
+  }
+
+  const tickRef = useRef<() => void>(() => {})
+  tickRef.current = () => {
+    const next = advanceOneTick()
+    if (next && next.length === 0) setRunning(false) // every walker died -> auto-pause
   }
   useEffect(() => {
     if (!running || speed === 'step') return // step mode advances manually — no timer
@@ -445,6 +480,7 @@ export function Workspace() {
   // restore): refresh each walker's settings/registers from its current definition (so editing a def
   // before Play takes effect), then mark each starting tile visited at step 0.
   const initRun = () => {
+    clearDebug() // a fresh run starts a fresh log
     const live = seeds.map((s) => {
       const set = defs.get(s.def)?.settings ?? DEFAULT_SETTINGS
       return { ...s, steps: 0, splits: 0, p: 0, q: 0, r: 0, maxSplit: set.maxSplit, maxSteps: set.maxSteps, movement: set.movement }
@@ -467,6 +503,7 @@ export function Workspace() {
     setRunLive(null)
     setStep(0)
     setOverlay((prev) => clearTraverserVisits(prev))
+    clearDebug()
   }
   // Full Reset: wipe everything (painting + placed walkers) and end any run.
   const resetAll = () => {
@@ -475,6 +512,7 @@ export function Workspace() {
     setSeeds([])
     setStep(0)
     setOverlay(new Map())
+    clearDebug()
   }
 
   // Manual single-step (the `step` speed). The first click on a stopped run just initializes it
@@ -486,10 +524,7 @@ export function Workspace() {
       initRun()
       return
     }
-    const result = stepTraversers({ tiling, overlay, traversers: runLive, step, defs, indexById })
-    setOverlay(result.overlay)
-    setRunLive(result.traversers)
-    setStep(result.step)
+    advanceOneTick()
   }
   // Speed selection: slow/fast pick the continuous rate (Play drives them); `step` is manual —
   // choosing it pauses any run and advances one tick, and clicking it again steps once more.
@@ -594,6 +629,7 @@ export function Workspace() {
       setRunLive(null)
       setSeeds([])
       setStep(0)
+      clearDebug()
     }
     setTilingId(id)
   }
@@ -685,6 +721,10 @@ export function Workspace() {
             { value: 'stats', label: 'stats', title: 'numbers + heading arrows inside tiles' },
           ]}
         />
+        <label className="canvas-debug" title="Debug mode — show the per-tick decision log and highlight what a traverser is reading">
+          <span>debug</span>
+          <Toggle checked={debug} onChange={setDebug} label="Debug mode — show the per-tick decision log" />
+        </label>
         <div className="canvas-more-wrap" ref={moreRef}>
           <button type="button" className="canvas-btn canvas-more" onClick={() => setToolsOpen((o) => !o)} aria-label="more controls" aria-expanded={toolsOpen} title="More controls">⋯</button>
           <div className={`canvas-extra${toolsOpen ? ' is-open' : ''}`}>
@@ -742,6 +782,7 @@ export function Workspace() {
               overlay={overlay}
               colorFor={colorFor}
               traverserHeads={traverserHeads}
+              highlightGroups={debug ? highlightGroups : undefined}
               tileNumber={(id) => indexById.get(id) ?? -1}
               onSelect={(id) => setSelectedIds([id])}
               onSelectTiles={setSelectedIds}
@@ -801,6 +842,20 @@ export function Workspace() {
           <p className="pane-hint">Click a tile to inspect it — or switch drag to “select” and box a group.</p>
         )}
       </Panel>
+
+      {debug && (
+        <Panel title="Debug" side="right" wide>
+          <DebugPane
+            history={traceHistory}
+            viewedStep={viewedStep}
+            onViewStep={setViewedStep}
+            tileNumber={(id) => indexById.get(id) ?? -1}
+            onHover={setHoveredHighlight}
+            pinnedKey={pinned?.key ?? null}
+            onPinToggle={(key, groups) => setPinned((cur) => (cur?.key === key ? null : { key, groups }))}
+          />
+        </Panel>
+      )}
       </div>
     </div>
   )

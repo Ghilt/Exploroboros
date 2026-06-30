@@ -9,6 +9,7 @@ import { nodeById, across, clockwiseEdgeOrder } from '../tiling'
 import { tileState, visitCount, addVisits, applyRegistryWrites, EMPTY_TILE_STATE, type TileState, type RegWrite } from '../canvas'
 import { runProgram, type TileWrite, type WalkerState } from './lang'
 import type { Traverser, TraverseState, TickResult } from './types'
+import type { TickTrace, TraverserTrace } from './trace'
 
 const TWO_PI = Math.PI * 2
 
@@ -74,7 +75,7 @@ export function chooseMove(
 // stepTraversers (immutable) and stepTraversersInto (mutable) build on this, so their decisions match.
 type TickCore = { next: Traverser[]; tileWrites: RegWrite[]; destinations: string[]; nextStep: number }
 
-function computeTick(state: TraverseState): TickCore {
+function computeTick(state: TraverseState, sink?: TickTrace): TickCore {
   const { tiling, overlay, traversers, step, defs, indexById } = state
   const nextStep = step + 1
   const tileByIndex = tiling.nodes.map((n) => n.id)
@@ -83,7 +84,11 @@ function computeTick(state: TraverseState): TickCore {
   const tileWrites: RegWrite[] = []
   for (const tr of traversers) {
     const program = defs.get(tr.def)
-    if (!program) continue // unknown definition -> can't act -> drop
+    if (!program) {
+      // unknown definition -> can't act -> drop. Still trace it so the log can say "unknown def".
+      if (sink) sink.traversers.push(traceHeader(tiling, tr, true))
+      continue
+    }
     const walker: WalkerState = {
       tile: tr.tile,
       heading: tr.heading,
@@ -96,7 +101,12 @@ function computeTick(state: TraverseState): TickCore {
       q: tr.q,
       r: tr.r,
     }
-    const res = runProgram({ tiling, overlay, indexById, tileByIndex, walker, program })
+    const trTrace = sink ? traceHeader(tiling, tr, false) : undefined
+    const res = runProgram({ tiling, overlay, indexById, tileByIndex, walker, program }, trTrace)
+    if (trTrace) {
+      trTrace.branches = res.branches.map((b) => ({ tile: b.tile, heading: b.heading, morphDef: b.morphDef }))
+      sink!.traversers.push(trTrace)
+    }
     for (const w of res.tileWrites as TileWrite[]) tileWrites.push(w)
     const split = res.branches.length > 1
     res.branches.forEach((b, i) => {
@@ -117,19 +127,53 @@ function computeTick(state: TraverseState): TickCore {
     })
   }
 
-  // Coalesce identical branches; then drop walkers past their max-steps.
-  const seen = new Set<string>()
+  // Coalesce identical branches; then drop walkers past their max-steps. (`seen` is a Map only so the
+  // trace can name the survivor a merged branch folded into — the dedup decisions are unchanged.)
+  const seen = new Map<string, string>()
   const next: Traverser[] = []
   for (const b of spawned) {
     const key = `${b.def}|${b.tile}|${Math.round(b.heading * 1000)}|${b.p}|${b.q}|${b.r}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    if (b.steps > b.maxSteps) continue
+    const survivor = seen.get(key)
+    if (survivor !== undefined) {
+      if (sink) sink.coalesced.push({ key, survivorId: survivor, mergedId: b.id })
+      continue
+    }
+    seen.set(key, b.id)
+    if (b.steps > b.maxSteps) {
+      if (sink) sink.dropped.push({ id: b.id, steps: b.steps, maxSteps: b.maxSteps })
+      continue
+    }
     next.push(b)
   }
 
   const destinations = [...new Set(next.map((b) => b.tile))]
+  if (sink) {
+    sink.step = step
+    sink.nextStep = nextStep
+    sink.destinations = destinations
+  }
   return { next, tileWrites, destinations, nextStep }
+}
+
+// A trace header snapshot of a walker's tick-start state (the statements/branches are filled by
+// runProgram / the caller). Only built when tracing.
+function traceHeader(tiling: Tiling, tr: Traverser, missingDef: boolean): TraverserTrace {
+  return {
+    id: tr.id,
+    def: tr.def,
+    tile: tr.tile,
+    tileType: nodeById(tiling, tr.tile)?.shape ?? '?',
+    heading: tr.heading,
+    movement: tr.movement,
+    steps: tr.steps,
+    splits: tr.splits,
+    p: tr.p,
+    q: tr.q,
+    r: tr.r,
+    ...(missingDef ? { missingDef: true } : {}),
+    statements: [],
+    branches: [],
+  }
 }
 
 // Advance one tick, returning a FRESH overlay (the immutable form the live React run uses).
@@ -138,6 +182,24 @@ export function stepTraversers(state: TraverseState): TickResult {
   let nextOverlay = applyRegistryWrites(state.overlay, core.tileWrites)
   nextOverlay = addVisits(nextOverlay, core.destinations, core.nextStep)
   return { overlay: nextOverlay, traversers: core.next, step: core.nextStep }
+}
+
+// Same as stepTraversers, but ALSO returns a per-tick decision TRACE (the debug log's data). The
+// debug-mode path the live run uses when the user is stepping with the log open; the trace adds work
+// only here — plain stepTraversers / the export run never build it.
+export function stepTraversersTraced(state: TraverseState): TickResult & { trace: TickTrace } {
+  const trace: TickTrace = {
+    step: state.step,
+    nextStep: state.step + 1,
+    traversers: [],
+    coalesced: [],
+    dropped: [],
+    destinations: [],
+  }
+  const core = computeTick(state, trace)
+  let nextOverlay = applyRegistryWrites(state.overlay, core.tileWrites)
+  nextOverlay = addVisits(nextOverlay, core.destinations, core.nextStep)
+  return { overlay: nextOverlay, traversers: core.next, step: core.nextStep, trace }
 }
 
 // Advance one tick, applying the writes INTO `overlay` in place (no per-tick copy). Same decisions as

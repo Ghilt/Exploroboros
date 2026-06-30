@@ -111,6 +111,17 @@
   row-gap: 0.4rem;
 }
 
+/* Debug-mode toggle in the bar (label + switch), aligned with the other controls. */
+.canvas-debug {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: var(--control-h);
+  font-size: 0.78rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
 /* Dropdown / menu triggers in the canvas bar — tiling picker, drag, export — share ONE look. They
    open popups, so they're dropdown buttons (rounded-rect), NOT status-chip pills (see
    docs/VISUAL-LANGUAGE.md §5/§6). Matches .tiling-picker-trigger so all three are identical. */
