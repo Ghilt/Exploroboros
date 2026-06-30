@@ -293,6 +293,8 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-28 | classic / ringlare / wedge-seek ported to the gallery (3 of the 4 rotation-routed fractals; sierpinski still deferred — its absolute-compass wedge routing doesn't map onto our ~22.5°-rotated frame). classic crosses wedges with `move straight` (the wedge through-pairing), ringlare steers by visited-edge counts, wedge-seek is a shape fan — none ended up needing the `orientation` attribute (the through-pairing subsumed classic's rotation routing) | ✅ yes | owner reviewed the gallery regenerations on 5238 and approved; each grows to a natural stop in the headless grow-check (classic 36%, ringlare 11% single-walker rings, wedge-seek 53%); classic re-derived against the new wedge "straight" | `f6e64a8` |
 | 2026-06-29 | Traverser DSL — directives flipped to **predicate-first** (`directive if <predicate> always forbid\|allow move`); new **`@ target`** decoration (the move's destination) so predicates read the CURRENT tile by default everywhere and gate the destination only when decorated; `@ target` also filters a move/morph rule's candidates per-branch (`if visited > 0 @ target then move [...]`). Guide reworked: single "Naming an edge" table + a compact "Move commands" examples table, "Conditions" → "Predicates" w/ a decoration table, new Directives grammar. Gallery + prototype-port directives migrated to `@ target` (behaviour preserved); no recipe migration (dev state — saved PNGs hand-fixed) | ✅ yes | owner reviewed on this worktree's preview (5553) and said "this seems good, please commit"; build / lint / **431 tests** (7 new: `@ target` directive, per-target rule guard, current-tile directive, parse/serialize round-trips) + served-source & DOM checks (guide renders the new sections; no old grammar anywhere in src) | `76dc35a` |
 | 2026-06-29 | Traverse speed control → **step / slow / fast** (was slow/fast/max). `step` is manual — each click advances exactly one tick (the first click on a stopped run places the seeds, like Play's first beat); the continuous ▶ is disabled in step mode (advance via the step button). `slow` = 90ms (old "fast"), `fast` = one tick per frame (old "max"); default `slow`; the old 300ms slow dropped | ✅ yes | owner reviewed on this worktree's preview (5553) and said "please commit"; build / lint / **432 tests** (updated the speed-control test + a new step-mode test) + DOM check (control renders step/slow/fast with `slow` selected; the click behaviour is covered by the jsdom test since the headless tab doesn't fire React clicks) | `dc9f53a` |
+| 2026-06-30 | **sierpinski** ported to the gallery — the 4th/last rotation-routed fractal, a nested triangular Sierpinski gasket; finally exercises the `orientation` attribute (each wedge orientation relays a *different* absolute octagon edge). The octagon-fan edge order (`2,3,4,5,6,7,0,1`) **and** the orientation→edge map were found EMPIRICALLY: the two-edge octagon–wedge adjacency makes a low-first `edge 0..7` fan spend both max-split slots on ONE wedge (the walk marches single-file), so the order is tuned to hit two *distinct* wedges. Owner ported it by hand; I wired their version in (new `@ target` directive syntax) | ✅ yes | owner recreated the gasket themselves + said "commit all this to main"; build / lint / **432 tests** + headless grow-check (66 ticks, ~8% from a centre-wedge seed, natural stop) + ASCII confirming the recursive triangular voids | `27a7205` |
+| 2026-06-30 | Export dialog defaults to a **black** background (fractals read best on black, matching the prototype renders); white / transparent still available | ✅ yes | owner asked for it + said "commit all this to main"; build / lint / 432 tests green | `9969914` |
 
 ## 8. Todo list (working backlog)
 
@@ -419,9 +421,11 @@ in-session task tracker.
   - [x] **Gallery — real ported recipes** — the fake placeholder recipes are replaced by **27 prototype
     fractals ported to our DSL** (traverser + colour), each image wired to its recipe by filename and slimmed
     to WebP. classic crosses wedges via the wedge through-pairing (`move straight`); ringlare steers by
-    visited-edge counts; wedge-seek is a shape fan. Deferred: sierpinski (absolute-compass wedge routing
-    doesn't map to our frame), the move-to-lowest / kill / hunger fractals, etc. — see `src/data/galleryRecipes.ts`
-    *(verified 2026-06-28, `0d939f7`; classic-2 `41cc510`; classic/ringlare/wedge-seek `f6e64a8`)*
+    visited-edge counts; wedge-seek is a shape fan; **sierpinski** is the rotation-routed nested gasket
+    (orientation-routed, with an empirically-tuned octagon-fan edge order — the two-edge adjacency makes
+    fan order matter). All four rotation-routed fractals are now ported. Deferred: the move-to-lowest /
+    kill / hunger fractals, etc. — see `src/data/galleryRecipes.ts`
+    *(verified 2026-06-28, `0d939f7`; classic-2 `41cc510`; classic/ringlare/wedge-seek `f6e64a8`; sierpinski `27a7205`)*
   - [ ] **User-saved gallery** — let the user save their own exports into the gallery (recipe rides in the
     PNG metadata); persist across reloads (IndexedDB) + a "watch it grow" replay.
 - [ ] **Debug features + a run log** — add developer-facing debug aids, including some kind of **log**
@@ -691,6 +695,19 @@ there); where a component test needs the canvas, **`vi.mock` it** — `Workspace
 `./TilingCanvas` with a tiny DOM stand-in that exposes the `onSelect` callback, so the
 selection→inspect / paint / copy-paste wiring is testable without a canvas. The interactive feel is
 verified on a real device.
+
+**Gallery thumbnails look "broken" on a fresh dev server — it's vite-imagetools, not the app.** On a
+freshly-started dev server with a COLD imagetools cache (a worktree's own server, or right after a restart),
+the Gallery renders all ~29 thumbnails at once and vite-imagetools transforms them on-demand, concurrently.
+Past ~10 concurrent cold transforms it returns **`Content-Type: image/undefined`** (valid WebP bytes, wrong
+MIME) for the overflow, so the browser won't render them → `naturalWidth: 0` → broken-image icon. It's a
+race (the broken set shifts each reload — ~17–19 of 29) and doesn't heal on retry within a session
+(Vite 8 + vite-imagetools 10). **Dev-only: the production `build` emits every gallery image as a real hashed
+file with the correct type — verified via a `vite preview` of `dist/` (0 broken).** A long-running checkout
+(the main repo) hides it because its cache is warm. To eyeball the gallery on a branch, use a **build
+preview** (`npm.cmd run build`, then a `vite preview` launch config — e.g. `preview-<suffix>` on its own
+port) rather than the dev server. Don't chase it as an app bug — `vite.config.ts` / `src/data/gallery.ts`
+are unchanged, and dropping the `format=webp` glob directive does NOT fix it (it's concurrency, not format).
 
 **Web Worker (the export worker) — two speed bumps.** (1) **Keep it pure.** `exportWorker.ts` must import
 only pure modules; a stray React/Konva import balloons (and breaks) its bundle. Verify after a `build`: the
