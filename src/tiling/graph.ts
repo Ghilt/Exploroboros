@@ -75,9 +75,19 @@ export function opposite(tiling: Tiling, tile: string, side: number): number[] {
 // most northward is index 0, then clockwise. This is the canonical, tiling-agnostic edge
 // numbering shown to the user; it does not depend on the internal CCW winding.
 export function clockwiseEdgeOrder(node: TileNode): number[] {
-  return node.sides
-    .map((s) => ({ side: s.geometry.localIndex, key: clockwiseFromTopKey(s.geometry.normalAngle) }))
-    .sort((a, b) => a.key - b.key)
+  const sides = node.sides.map((s) => ({ side: s.geometry.localIndex, key: clockwiseFromTopKey(s.geometry.normalAngle) }))
+  // Anchor index 0 at the edge whose normal points MOST northward (smallest distance to straight up,
+  // either side of it), then sweep clockwise. Sorting by the raw clockwise-from-top key alone breaks
+  // when a tile's topmost edge sits just WEST of north (key ~359, the far side of the 0/360 seam): it
+  // sorts LAST instead of first, rotating the whole numbering by one. That happens by a floating-point
+  // hair on flat-top octagons (the slot-0 kalleboda bug) and by tens of degrees on the chiral snub
+  // tilings. Anchoring on the most-north edge makes "edge 0 = the top edge" hold for every tile.
+  const distToNorth = (key: number) => Math.min(key, 360 - key)
+  let anchor = sides[0]
+  for (const s of sides) if (distToNorth(s.key) < distToNorth(anchor.key)) anchor = s
+  return sides
+    .map((s) => ({ side: s.side, rel: (s.key - anchor.key + 360) % 360 }))
+    .sort((a, b) => a.rel - b.rel)
     .map((e) => e.side)
 }
 

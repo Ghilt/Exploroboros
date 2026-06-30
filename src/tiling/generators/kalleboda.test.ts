@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { kallebodaTiling, neighborEdges, uniqueNeighbors, isBoundary, opposite, across } from '../index'
+import { kallebodaTiling, neighborEdges, uniqueNeighbors, isBoundary, opposite, across, clockwiseEdgeOrder } from '../index'
 
 describe('kalleboda (octagon + wedge) tiling', () => {
   it('builds without throwing and mixes octagons and wedges', () => {
@@ -70,6 +70,19 @@ describe('kalleboda (octagon + wedge) tiling', () => {
     for (let k = 0; k < 8; k += 1) {
       const o = opposite(t, wedge.id, k)[0]
       expect(across(t, wedge.id, o)!.tile, `side ${k} -> opp ${o}`).not.toBe(across(t, wedge.id, k)!.tile)
+    }
+  })
+
+  it('every octagon numbers its due-north edge as edge 0 (0/360 seam robustness)', () => {
+    // Regression: a flat-top octagon's north edge normal can compute to a hair over 90° (atan2
+    // round-off / weld drift); the old clockwiseFromTopKey wrapped that to ~359.999 and sorted it
+    // LAST, so slot-0 octagons numbered their edges rotated by one (`edge 0` pointed NE, not N).
+    const t = kallebodaTiling(20)
+    for (const node of t.nodes) {
+      if (node.shape !== 'octagon') continue
+      const edge0 = node.sides[clockwiseEdgeOrder(node)[0]]
+      const deg = (edge0.geometry.normalAngle * 180) / Math.PI
+      expect(Math.abs(deg - 90), `octagon ${node.id} edge 0 normal ${deg.toFixed(4)}°`).toBeLessThan(1)
     }
   })
 
