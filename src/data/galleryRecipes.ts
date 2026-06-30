@@ -21,14 +21,13 @@
 // advance (a flat wash). `ring()` keeps each ramp's stop COLOURS and relative spacing but compresses
 // the modulo to RING_MOD, so the palette cycles into concentric rings like the prototype — see §9.
 //
-// The rotation-routed family is now mostly ported via the tiling-agnostic `orientation` attribute:
-// classic (wedge rotation → r1/l1), ringlare (visited-count steering), and wedge-seek (shape fan) all
-// grow below. STILL DEFERRED — sierpinski: it routes each wedge to ONE specific ABSOLUTE compass edge
-// (`move edge 1/6/5/2 if rot==0/90/180/270`), and on our ~22.5°-rotated frame the wedge's
-// octagon-neighbour edges sit at different bearings than the prototype's compass (e.g. the orientation
-// that wants compass-W has a boundary, not an octagon, at our 270°). So the gasket's per-orientation
-// octagon-edge routing isn't a direct map — it needs working out from the gasket geometry (a focused
-// follow-up; the `orientation` attribute is the groundwork). Also skipped: ember/accrete/bw-rings
+// The rotation-routed family is now fully ported via the tiling-agnostic `orientation` attribute:
+// classic (wedge rotation → r1/l1), ringlare (visited-count steering), wedge-seek (shape fan), and
+// sierpinski — the nested triangular gasket that finally exercises `orientation` (each wedge orientation
+// relays a DIFFERENT absolute octagon edge). sierpinski's orientation→edge map AND the octagon-fan edge
+// order were found EMPIRICALLY (the literal compass-bearing map doesn't transfer to our welded wedge
+// seating, and the fan order matters because of the two-edge octagon–wedge adjacency — see its comment).
+// Also skipped: ember/accrete/bw-rings
 // (`move to lowest`), prune (`kill`), twin-spiral (`hunger`/`starve`) — genuinely missing DSL features;
 // weave-3/rift (`col`/`num` with no clean lattice equivalent); compass-paint/eddy (colour-by-heading —
 // we don't record per-tile heading); quiz (malformed source). carve/carve-2 and xor-wide/tangle (no
@@ -200,6 +199,33 @@ const WEDGE_SEEK = def('wedge-seek', [
   ...EDGES_0_7.map((k) => `if tile-type == octagon @ edge ${k} then move edge ${k}`),
 ])
 
+// sierpinski — absolute-nav XOR-UNIQUE birth, rotation-routed through wedges (the prototype's
+// "classic-3"): a genuine nested triangular Sierpinski gasket in fire tones. An octagon fans to its
+// neighbouring wedges; each wedge relays to ONE octagon in an absolute direction fixed by its
+// `orientation`; the unique-birth gate (`visited-neighbors == 1`) carves the relay tree into the
+// recursive triangular voids. This is the one ported fractal that genuinely needs the tiling-agnostic
+// `orientation` attribute (each wedge orientation relays a DIFFERENT absolute way). max-split is the
+// prototype's 2. Two details the owner pinned down porting this by hand:
+//  - FAN ORDER MATTERS. An octagon touches each wedge across TWO edges, so a low-first `edge 0..7` fan
+//    spends both max-split slots on the SAME (lowest-numbered) wedge — the walk marches single-file and
+//    never makes the 2-D gasket. Listing the fan 2,3,4,5,6,7,0,1 picks a DIFFERENT pair of edges to win
+//    the two slots, landing on two DISTINCT wedges so the tree branches.
+//  - the orientation→edge relay map (2→1,3→6,0→5,1→2) is coupled to that fan order (a different order
+//    needs a different map — our welded wedge seating differs from the prototype's, so the literal
+//    compass bearings don't transfer). Found empirically. Result is oriented/mirrored vs the prototype
+//    render, but the same gasket: ~8% fill from the centre WEDGE seed, natural stop.
+const SIERPINSKI = def('sierpinski', [
+  'movement = absolute',
+  'max-split = 2',
+  GATE_UNVISITED,
+  GATE_XOR1,
+  'if orientation == 2 and tile-type == wedge then move edge 1',
+  'if orientation == 3 and tile-type == wedge then move edge 6',
+  'if orientation == 0 and tile-type == wedge then move edge 5',
+  'if orientation == 1 and tile-type == wedge then move edge 2',
+  ...[2, 3, 4, 5, 6, 7, 0, 1].map((k) => `if tile-type == wedge @ edge ${k} then move edge ${k}`),
+])
+
 // Image filename (in src/assets/gallery/) → its recipe.
 export const GALLERY_RECIPES: Readonly<Record<string, Recipe>> = {
   'gasket.webp': recipe('#0a0410', [seed('gasket', 3)], GASKET, [ring('gasket-c', 600, [stop('#FFE08A', 0), stop('#FF6A3D', 200), stop('#B5179E', 500)])]),
@@ -211,6 +237,7 @@ export const GALLERY_RECIPES: Readonly<Record<string, Recipe>> = {
   'classic.webp': recipe('#000000', [seed('classic', 2, { shape: 'wedge', heading: Math.PI / 4 })], CLASSIC, [ring('classic-c', 35, [stop('#4AE9A0', 0), stop('#000000', 35)])]),
   'ringlare.webp': recipe('#04060c', [seed('ringlare', 1, { heading: (3 * Math.PI) / 4 })], RINGLARE, [ring('ringlare-c', 400, [stop('#00FFC8', 0), stop('#FF00A0', 200)])]),
   'wedge-seek.webp': recipe('#0c0604', [seed('wedge-seek', 2, { shape: 'octagon' })], WEDGE_SEEK, [ring('wedge-seek-c', 720, [stop('#FFD0A0', 0), stop('#E0602E', 240), stop('#5A1E2A', 480)])]),
+  'sierpinski.webp': recipe('#000000', [seed('sierpinski', 2, { shape: 'wedge' })], SIERPINSKI, [ring('sierpinski-c', 50, [stop('#FFE68C', 0), stop('#FF9628', 25), stop('#DC3C28', 49)])]),
   'nested-rings.webp': recipe('#060006', [seed('nested-rings', 3)], NESTED, [ring('nested-rings-c', 60, [stop('#FFFFFF', 0), stop('#2A0E4A', 5), stop('#FF4DA0', 40)])]),
   'sierp-shape.webp': recipe('#060406', [seed('sierp-gasket', 3)], SIERP_GASKET, [
     inlineRing('sierp-shape-oct', 'tile-type == octagon', 400, [stop('#FFE08A', 0), stop('#FF6A3D', 200)]),
