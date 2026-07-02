@@ -24,6 +24,7 @@ import { stepTraversers, stepTraversersTraced, headingOptions, rotateHeading, co
 import { TilingCanvas, type DisplayMode, type DragMode, type HighlightGroups } from './TilingCanvas'
 import { TilingPicker } from './TilingPicker'
 import { Panel } from './Panel'
+import { TileMini } from './TileMini'
 import { HelpButton } from './HelpButton'
 import { SegmentedControl } from './SegmentedControl'
 import { Toggle } from './Toggle'
@@ -934,8 +935,29 @@ function InspectContent({
     (id) => visitCount(tileState(overlay, id)) > 0,
   ).length
 
+  // Shapes with a hand-crafted straight-through pairing (the wedge) get dotted lines in the mini
+  // linking each opposite-edge pair (deduped to one line per pair).
+  const shapeDef = tiling.shapes[node.shape]
+  const straightPairs: Array<[number, number]> | undefined = shapeDef?.straightThroughOpposite
+    ? shapeDef.oppositeSides
+        .map((opp, k) => [Math.min(k, opp[0]), Math.max(k, opp[0])] as [number, number])
+        .filter(([a, b], i, arr) => arr.findIndex((p) => p[0] === a && p[1] === b) === i)
+    : undefined
+
   return (
     <div className="tile-stats">
+      <TileMini node={node} heading={traverserHeading} straightPairs={straightPairs} />
+      {node.shape === 'wedge' ? (
+        <p className="straightness">
+          <strong>Straightness:</strong> the dotted lines link the wedge’s hand-crafted opposite edges —
+          going <em>straight</em> enters one edge and leaves by the edge it’s linked to.
+        </p>
+      ) : node.shape === 'triangle' ? (
+        <p className="straightness">
+          <strong>Straightness:</strong> right-handed — a triangle has no edge directly opposite, so going{' '}
+          <em>straight</em> takes the right-hand (clockwise) of the two forward edges.
+        </p>
+      ) : null}
       <h3 className="stat-head">Tile #{number}</h3>
 
       <div className="tile-traverser">

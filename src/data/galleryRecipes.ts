@@ -210,19 +210,21 @@ const WEDGE_SEEK = def('wedge-seek', [
 //    spends both max-split slots on the SAME (lowest-numbered) wedge — the walk marches single-file and
 //    never makes the 2-D gasket. Listing the fan 2,3,4,5,6,7,0,1 picks a DIFFERENT pair of edges to win
 //    the two slots, landing on two DISTINCT wedges so the tree branches.
-//  - the orientation→edge relay map (2→1,3→6,0→5,1→2) is coupled to that fan order (a different order
+//  - the orientation→edge relay map (2→7,3→7,0→5,1→4) is coupled to that fan order (a different order
 //    needs a different map — our welded wedge seating differs from the prototype's, so the literal
-//    compass bearings don't transfer). Found empirically. Result is oriented/mirrored vs the prototype
-//    render, but the same gasket: ~8% fill from the centre WEDGE seed, natural stop.
+//    compass bearings don't transfer). Found empirically; then re-mapped 1:1 to the same physical wedge
+//    edges when wedge edge numbering switched to clockwise-perimeter order (old 2→1,3→6,0→5,1→2). Result
+//    is oriented/mirrored vs the prototype render, but the same gasket: ~8% fill from the centre WEDGE
+//    seed, natural stop. (The octagon→wedge fan below uses octagon edges, unaffected by that switch.)
 const SIERPINSKI = def('sierpinski', [
   'movement = absolute',
   'max-split = 2',
   GATE_UNVISITED,
   GATE_XOR1,
-  'if orientation == 2 and tile-type == wedge then move edge 1',
-  'if orientation == 3 and tile-type == wedge then move edge 6',
+  'if orientation == 2 and tile-type == wedge then move edge 7',
+  'if orientation == 3 and tile-type == wedge then move edge 7',
   'if orientation == 0 and tile-type == wedge then move edge 5',
-  'if orientation == 1 and tile-type == wedge then move edge 2',
+  'if orientation == 1 and tile-type == wedge then move edge 4',
   ...[2, 3, 4, 5, 6, 7, 0, 1].map((k) => `if tile-type == wedge @ edge ${k} then move edge ${k}`),
 ])
 

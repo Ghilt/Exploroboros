@@ -48,10 +48,18 @@ describe('edge numbering: edge 0 is the most-north edge on every tile', () => {
       const t = gen(12)
       for (const node of t.nodes) {
         const order = clockwiseEdgeOrder(node)
+        const n = node.sides.length
         const edge0 = northness(node.sides[order[0]].geometry.normalAngle)
         for (const s of node.sides) {
           // No side is more north than edge 0 (tolerance covers a ties-at-north tile + float noise).
           expect(northness(s.geometry.normalAngle), `${id} ${node.id}`).toBeGreaterThanOrEqual(edge0 - 1e-3)
+        }
+        // Consecutive edge numbers walk the boundary clockwise — each is the next local side round the
+        // perimeter (CCW winding → clockwise = decreasing index). So the numbering stays monotonic around
+        // the boundary even on concave tiles (the wedge), instead of scattering by outward-normal angle.
+        for (let i = 0; i < n; i += 1) {
+          const step = (order[i] - order[(i + 1) % n] + n) % n
+          expect(step, `${id} ${node.id} edge ${i}->${i + 1} (sides ${order[i]}->${order[(i + 1) % n]})`).toBe(1)
         }
       }
     })

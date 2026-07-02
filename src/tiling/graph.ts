@@ -75,20 +75,26 @@ export function opposite(tiling: Tiling, tile: string, side: number): number[] {
 // most northward is index 0, then clockwise. This is the canonical, tiling-agnostic edge
 // numbering shown to the user; it does not depend on the internal CCW winding.
 export function clockwiseEdgeOrder(node: TileNode): number[] {
-  const sides = node.sides.map((s) => ({ side: s.geometry.localIndex, key: clockwiseFromTopKey(s.geometry.normalAngle) }))
+  const n = node.sides.length
   // Anchor index 0 at the edge whose normal points MOST northward (smallest distance to straight up,
-  // either side of it), then sweep clockwise. Sorting by the raw clockwise-from-top key alone breaks
-  // when a tile's topmost edge sits just WEST of north (key ~359, the far side of the 0/360 seam): it
-  // sorts LAST instead of first, rotating the whole numbering by one. That happens by a floating-point
-  // hair on flat-top octagons (the slot-0 kalleboda bug) and by tens of degrees on the chiral snub
-  // tilings. Anchoring on the most-north edge makes "edge 0 = the top edge" hold for every tile.
-  const distToNorth = (key: number) => Math.min(key, 360 - key)
-  let anchor = sides[0]
-  for (const s of sides) if (distToNorth(s.key) < distToNorth(anchor.key)) anchor = s
-  return sides
-    .map((s) => ({ side: s.side, rel: (s.key - anchor.key + 360) % 360 }))
-    .sort((a, b) => a.rel - b.rel)
-    .map((e) => e.side)
+  // either side), then walk the boundary CLOCKWISE. Sides are wound CCW, so clockwise = decreasing
+  // local index. Walking the PERIMETER (rather than sorting by outward-normal angle) keeps the numbers
+  // monotonic around the boundary even on CONCAVE tiles — the wedge's normals zig-zag, so a normal-angle
+  // sort scattered its numbering. For convex tiles the two agree. Anchoring on the most-north edge also
+  // sidesteps the 0/360 seam (a top edge just west of north, by a float hair on flat-top octagons — the
+  // slot-0 kalleboda bug — or tens of degrees on the chiral snubs). The custom straight-through pairing
+  // (a shape's oppositeSides) is independent of this numbering.
+  const distToNorth = (a: number) => {
+    const k = clockwiseFromTopKey(a)
+    return Math.min(k, 360 - k)
+  }
+  let anchor = 0
+  for (let k = 1; k < n; k += 1) {
+    if (distToNorth(node.sides[k].geometry.normalAngle) < distToNorth(node.sides[anchor].geometry.normalAngle)) anchor = k
+  }
+  const order: number[] = []
+  for (let i = 0; i < n; i += 1) order.push((anchor - i + n) % n)
+  return order
 }
 
 function otherEnd(edge: TilingEdge, tile: string, side: number): EdgeEnd | null {
