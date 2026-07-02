@@ -58,7 +58,7 @@ export type TraverserTrace = {
   def: string
   tile: string
   tileType: string
-  heading: number // radians, world y-up
+  heading: number // edge number (0 = top, clockwise) — the edge `straight` exits
   movement: Movement
   steps: number
   splits: number

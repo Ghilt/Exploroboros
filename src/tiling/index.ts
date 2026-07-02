@@ -38,6 +38,11 @@ export {
   uniqueNeighbors,
   opposite,
   clockwiseEdgeOrder,
+  headingArrowDir,
+  edgeToLocalSide,
+  localSideToEdge,
+  nearestEdge,
+  edgeNormalAngle,
 } from './graph'
 export { squareTiling } from './generators/square'
 export { kallebodaTiling } from './generators/kalleboda'

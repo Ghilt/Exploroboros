@@ -1,7 +1,7 @@
 import './Workspace.css'
 import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import type { Tiling, TileNode } from '../tiling'
-import { nodeById, neighborEdges, uniqueNeighbors, tileOrientation } from '../tiling'
+import { nodeById, neighborEdges, uniqueNeighbors, tileOrientation, headingArrowDir } from '../tiling'
 import {
   buildTiling,
   canPaste,
@@ -20,7 +20,7 @@ import {
   MANUAL_STEP,
 } from '../canvas'
 import type { TileClip, TileState, Registry, PaintTarget } from '../canvas'
-import { stepTraversers, stepTraversersTraced, headingOptions, rotateHeading, compileProgram, DEFAULT_SETTINGS, type Traverser, type Program, type TickTrace } from '../traverse'
+import { stepTraversers, stepTraversersTraced, rotateHeading, compileProgram, DEFAULT_SETTINGS, type Traverser, type Program, type TickTrace } from '../traverse'
 import { TilingCanvas, type DisplayMode, type DragMode, type HighlightGroups } from './TilingCanvas'
 import { TilingPicker } from './TilingPicker'
 import { Panel } from './Panel'
@@ -542,12 +542,14 @@ export function Workspace() {
   // Authoring the initial state (only while stopped): place / remove / aim walkers. These edit
   // `seeds`, the savable starting position — never the live run. Placement records no visit; the
   // walk records visits once it runs.
-  // Build a seed walker for a tile from the chosen definition: heading from the def's header (degrees,
-  // 0 = east) or the tile's first edge direction; counters/registers start at zero; the settings
-  // snapshot the def (refreshed at Play so a later edit to the def takes effect).
+  // Build a seed walker for a tile from the chosen definition: heading is an edge NUMBER — the def's
+  // header value if it sets one (wrapped to the tile's edge count), else edge 0 (the north edge).
+  // Counters/registers start at zero; the settings snapshot the def (refreshed at Play so a later edit
+  // to the def takes effect).
   const makeSeed = (tile: string): Traverser => {
     const set = defs.get(effectiveDef)?.settings ?? DEFAULT_SETTINGS
-    const heading = set.heading !== undefined ? (set.heading * Math.PI) / 180 : headingOptions(tiling, tile)[0] ?? 0
+    const n = nodeById(tiling, tile)?.sides.length ?? 0
+    const heading = set.heading !== undefined && n > 0 ? (((Math.round(set.heading) % n) + n) % n) : 0
     return {
       id: `tr${(traverserSeq.current += 1)}`,
       tile,
@@ -907,7 +909,7 @@ function InspectContent({
   number: number
   overlay: ReadonlyMap<string, TileState>
   clip: TileClip | null
-  // The heading (radians) of the walker on this tile, or null if there isn't one here.
+  // The heading (edge number) of the walker on this tile, or null if there isn't one here.
   traverserHeading: number | null
   // Whether placements can be edited — only while stopped (a run owns the walkers).
   canEditTraverser: boolean
@@ -997,7 +999,7 @@ function InspectContent({
               ↺
             </button>
             <span className="seg-item trav-arrow">
-              <HeadingArrow heading={traverserHeading} />
+              <HeadingArrow node={node} heading={traverserHeading} />
             </span>
             <button
               type="button"
@@ -1197,10 +1199,12 @@ function MultiInspectContent({
   )
 }
 
-// A small arrow showing a walker's heading. Heading is radians, world y-up (a side's outward
-// normal); screen is y-down, so the on-screen rotation negates it — matching the canvas arrow.
-function HeadingArrow({ heading }: { heading: number }) {
-  const deg = (-heading * 180) / Math.PI
+// A small arrow showing a walker's heading — points at the heading EDGE (headingArrowDir), matching
+// the canvas head + the Inspect tile mini. Heading is an edge number; the SVG arrow points east by
+// default, so rotate it to the edge direction (world y-up → screen y-down negates y).
+function HeadingArrow({ node, heading }: { node: TileNode; heading: number }) {
+  const dir = headingArrowDir(node, heading)
+  const deg = (Math.atan2(-dir.y, dir.x) * 180) / Math.PI
   return (
     <svg
       className="heading-arrow"

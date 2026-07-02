@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Stage, Layer, Shape } from 'react-konva'
 import Konva from 'konva'
 import type { Tiling, Vec2 } from '../tiling'
-import { nodeById, scaleAround } from '../tiling'
+import { nodeById, scaleAround, headingArrowDir } from '../tiling'
 import {
   fitToView,
   worldToScreen,
@@ -789,9 +789,9 @@ function drawSelection(ctx: Konva.Context, tiling: Tiling, view: View, pal: Pale
   ctx.stroke()
 }
 
-// A traverser's head: a solid, pointy triangle through the tile centre, apex pointing along its
-// heading. Heading is radians world y-up; the world->screen flip means the screen direction is
-// (cos h, -sin h) — read straight off the mapping's uniform |scale| on both axes. Always drawn (any
+// A traverser's head: a solid, pointy triangle through the tile centre, apex pointing at the edge the
+// walker faces (headingArrowDir — the raw heading on convex tiles, the faced edge's midpoint on the
+// concave wedge). Heading is radians world y-up; the world->screen flip negates y. Always drawn (any
 // display mode); a tile with a head suppresses its printed labels (drawTiles).
 function drawTraverserHeads(
   ctx: Konva.Context,
@@ -810,8 +810,9 @@ function drawTraverserHeads(
     const node = nodeById(tiling, id)
     if (!node) continue
     const c = worldToScreen(node.centroid, view)
-    const dx = Math.cos(heading)
-    const dy = -Math.sin(heading) // world y-up -> screen y-down (unit vector)
+    const dir = headingArrowDir(node, heading) // points AT the faced edge on a concave wedge
+    const dx = dir.x
+    const dy = -dir.y // world y-up -> screen y-down (unit vector)
     const px = -dy // perpendicular (unit), for the base corners
     const py = dx
     const tip = { x: c.x + dx * len * 0.6, y: c.y + dy * len * 0.6 }

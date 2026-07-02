@@ -4,6 +4,7 @@
 // IDENTICALLY to the live run. Pure & isomorphic, so it runs in the worker and under Vitest.
 
 import type { Tiling } from '../tiling'
+import { nodeById, nearestEdge } from '../tiling'
 import type { TileState } from '../canvas'
 import { compileProgram, type Program, type Traverser } from '../traverse'
 import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
@@ -63,16 +64,19 @@ export function buildDefs(
 
 // Remap the recipe's portable seeds onto the export tiling. maxSplit/maxSteps/movement are seeded from
 // the recipe but get refreshed from the def at run start (runToCompletion.startRun), matching the live
-// Play. Seeds whose offset can't be placed are dropped.
+// Play. Seeds whose offset can't be placed are dropped. The recipe stores the seed's aim as an ANGLE
+// (tiling-independent); the engine runs on an edge NUMBER, so convert here on the placed tile — the
+// edge whose outward normal is closest to the stored angle.
 export function remapSeeds(seeds: Recipe['seeds'], tiling: Tiling): Traverser[] {
   const out: Traverser[] = []
   seeds.forEach((s, i) => {
     const tile = placeOffset(tiling, s.offset, s.shape)
     if (!tile) return
+    const node = nodeById(tiling, tile)!
     out.push({
       id: `seed${i}`,
       tile,
-      heading: s.heading,
+      heading: nearestEdge(node, s.heading),
       def: s.def,
       steps: 0,
       splits: 0,

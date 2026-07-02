@@ -8,7 +8,9 @@ import type { Program } from './types'
 const tiling = squareTiling(5, 5)
 const indexById = new Map(tiling.nodes.map((n, i) => [n.id, i] as const))
 const tileByIndex = tiling.nodes.map((n) => n.id)
-const EAST = 0
+// heading is an EDGE NUMBER (0 = north, clockwise): on a square, edge 1 = east. Aiming east keeps
+// `straight` -> the east neighbour, l1 -> north, r1 -> south — the frame these cases were written in.
+const EAST = 1
 
 function compile(src: string): Program {
   const r = parseProgram(src)
@@ -91,7 +93,7 @@ describe('traverser program execution', () => {
   })
 
   it('a @ target rule guard filters each candidate of the move', () => {
-    // east (straight, sq:2,3) and north (l1, sq:3,2) visited; west (r... ) not.
+    // facing east: straight = east (sq:2,3), l1 = north (sq:3,2), r1 = south (sq:1,2).
     const overlay = addVisits(new Map(), ['sq:2,3', 'sq:3,2'], 0)
     const res = run('max-split = 3\nif visited > 0 @ target then move [straight, l1, r1]', 'sq:2,2', overlay)
     // straight + l1 land on visited tiles (kept); r1 (south, sq:1,2) is unvisited (dropped).

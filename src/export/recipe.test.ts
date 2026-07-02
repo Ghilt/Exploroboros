@@ -7,7 +7,8 @@ import { buildRecipe, parseRecipe, migrateRecipe, RECIPE_SCHEMA_VERSION, APP_VER
 const tiling = buildTiling('square', 6)
 
 function seed(tile: string): Traverser {
-  return { id: 'w', tile, heading: 0.5, def: 'Walker', steps: 0, splits: 0, maxSplit: 2, maxSteps: 1234, movement: 'relative', p: 0, q: 0, r: 0 }
+  // heading is an EDGE NUMBER; buildRecipe serialises it as that edge's outward-normal angle.
+  return { id: 'w', tile, heading: 1, def: 'Walker', steps: 0, splits: 0, maxSplit: 2, maxSteps: 1234, movement: 'relative', p: 0, q: 0, r: 0 }
 }
 
 const rule: ColoringRule = {

@@ -1,73 +1,100 @@
-// Resolving an EdgeRef to a concrete move. The shorthands (straight / r1 / l2 / edge N / unvisited)
-// are turned into "which adjacent tile do I step to, facing which way" off the tile's own geometry —
-// per-tile, so the same rule works on any polygon without the user tracking edge numbers.
+// Resolving an EdgeRef to a concrete move, in EDGE-NUMBER space.
 //
-// Direction frame: a side's clockwise-from-top key (0 at the top, increasing CLOCKWISE) matches the
-// user-facing edge numbering and the Inspect rotate buttons. So a positive signed turn = clockwise =
-// RIGHT, negative = left — `r1` is the first edge right of straight, `l1` the first to the left.
+// A walker's `heading` is the clockwise-from-top edge NUMBER that `straight` exits — 0 = the north
+// edge, increasing clockwise. Relative commands are then pure ring arithmetic on that number, and
+// behave identically on EVERY tile, the concave wedge included:
+//
+//   straight -> heading        r{k} -> heading + k        l{k} -> heading - k     (mod side-count)
+//   edge k   -> k              (absolute — ignores the heading)
+//   nearest-unvisited -> the unvisited neighbour reached by the least turn (smallest edge-number
+//                        distance) from the heading
+//
+// In `absolute` movement the turns are measured from north (edge 0) instead of the heading.
+//
+// A hop returns the destination tile AND its NEW heading (an edge number ON THAT tile): on ARRIVAL the
+// heading is recomputed as the straight-through partner of the edge just crossed — the opposite edge on
+// a normal tile, the shape's hand-crafted pairing on the wedge (both via the shape's `oppositeSides`).
+// That is the ONLY place the wedge pairing enters the system; rotating a placed walker in the editor is
+// plain +1/-1 and never touches it. Because the pairing lives at arrival, there is no "is this the
+// first step" special case: a placed walker simply exits the edge it is aimed at.
 
 import type { Tiling, TileNode } from '../../tiling'
-import { across, clockwiseEdgeOrder, clockwiseFromTopKey, nodeById, opposite } from '../../tiling'
+import { across, edgeToLocalSide, localSideToEdge, nodeById, opposite } from '../../tiling'
 import { tileState, visitCount, type TileState } from '../../canvas'
 import type { EdgeRef, Movement } from './types'
 
-const TWO_PI = Math.PI * 2
-
-// Where a single hop lands: the tile stepped onto, and the new heading (the exit edge's outward
-// normal — the direction of travel), or null at a boundary / when the ref has no such edge.
+// Where a single hop lands: the destination tile, and the new heading (an edge number on that tile),
+// or null at a boundary / when the ref names no such edge.
 export type Hop = { tile: string; heading: number } | null
 
-// Signed turn from the reference key to an edge key, in (-180, 180]. Positive = clockwise (right).
-function signedTurn(refKey: number, edgeKey: number): number {
-  let d = ((edgeKey - refKey) % 360 + 360) % 360
-  if (d > 180) d -= 360
-  return d
+// Distance around the edge ring in [0, floor(n/2)].
+function ringDist(a: number, b: number, n: number): number {
+  const d = (((a - b) % n) + n) % n
+  return Math.min(d, n - d)
 }
 
-function smallestAngle(a: number, b: number): number {
-  let d = Math.abs(a - b) % TWO_PI
-  if (d > Math.PI) d = TWO_PI - d
-  return d
+// The edge NUMBER that `straight` exits when a walker ENTERED via `entryEdge` — the straight-through
+// partner. Normal tiles: the opposite edge. The wedge: its hand-crafted pairing (both come from the
+// shape's `oppositeSides`, read via opposite()). Odd-sided tiles have two "opposite" edges (the spot
+// opposite an edge is a vertex), so pick the lower-numbered one deterministically.
+export function straightPartner(tiling: Tiling, node: TileNode, entryEdge: number): number {
+  const local = edgeToLocalSide(node, entryEdge)
+  const opp = opposite(tiling, node.id, local).map((l) => localSideToEdge(node, l))
+  return opp.length === 1 ? opp[0] : Math.min(...opp)
 }
 
-// The least-turn UNVISITED neighbour — the built-in walker move (mirrors step.ts's chooseMove).
-function resolveUnvisited(tiling: Tiling, overlay: ReadonlyMap<string, TileState>, tile: string, heading: number): Hop {
+// Step out a chosen local side: the neighbour, and the heading it arrives with (the straight-through
+// partner of the edge crossed into). null at a boundary.
+function stepLocal(tiling: Tiling, tile: string, localSide: number): Hop {
+  const end = across(tiling, tile, localSide)
+  if (!end) return null
+  const nb = nodeById(tiling, end.tile)!
+  return { tile: end.tile, heading: straightPartner(tiling, nb, localSideToEdge(nb, end.side)) }
+}
+
+// The unvisited neighbour reached by the least turn from `heading` (smallest edge-number distance);
+// ties break to the lower edge number. null when every neighbour is visited (the walker is trapped).
+function resolveUnvisited(
+  tiling: Tiling,
+  overlay: ReadonlyMap<string, TileState>,
+  tile: string,
+  heading: number,
+): Hop {
   const node = nodeById(tiling, tile)
   if (!node) return null
-  let best: { tile: string; heading: number; turn: number } | null = null
-  for (const side of clockwiseEdgeOrder(node)) {
-    const end = across(tiling, tile, side)
-    if (!end) continue
-    if (visitCount(tileState(overlay, end.tile)) > 0) continue
-    const normal = node.sides[side].geometry.normalAngle
-    const turn = smallestAngle(heading, normal)
-    if (!best || turn < best.turn - 1e-9) best = { tile: end.tile, heading: normal, turn }
-  }
-  return best ? { tile: best.tile, heading: best.heading } : null
-}
-
-// The local side a walker arrived THROUGH: its outward normal points back the way it came, i.e. most
-// opposite to the heading (the heading is the direction of travel). The wedge's edges have distinct
-// normals, so this is unambiguous. Used to make "straight" the edge opposite the entry edge.
-function entrySide(node: TileNode, heading: number): number {
-  let best = node.sides[0].geometry.localIndex
-  let bestDiff = -1
-  for (const s of node.sides) {
-    const diff = smallestAngle(s.geometry.normalAngle, heading)
-    if (diff > bestDiff) {
-      bestDiff = diff
-      best = s.geometry.localIndex
+  const n = node.sides.length
+  let bestLocal = -1
+  let bestDist = Infinity
+  for (let e = 0; e < n; e += 1) {
+    const local = edgeToLocalSide(node, e)
+    const end = across(tiling, tile, local)
+    if (!end) continue // boundary edge
+    if (visitCount(tileState(overlay, end.tile)) > 0) continue // already visited
+    const dist = ringDist(e, heading, n)
+    if (dist < bestDist) {
+      bestDist = dist
+      bestLocal = local
     }
   }
-  return best
+  return bestLocal < 0 ? null : stepLocal(tiling, tile, bestLocal)
 }
 
-// Step across a chosen local side: the neighbour + the exit edge's normal as the new heading.
-function step(tiling: Tiling, tile: string, side: number): Hop {
-  const end = across(tiling, tile, side)
-  if (!end) return null
-  const node = nodeById(tiling, tile)!
-  return { tile: end.tile, heading: node.sides[side].geometry.normalAngle }
+// The edge NUMBER a fixed-edge ref resolves to on `node`. straight/turn are relative to the heading;
+// in ABSOLUTE movement they are relative to north (edge 0). `unvisited` returns null (it needs the
+// overlay and is handled separately).
+function targetEdge(n: number, heading: number, movement: Movement, ref: EdgeRef): number | null {
+  const base = movement === 'absolute' ? 0 : heading
+  const wrap = (e: number) => ((e % n) + n) % n
+  switch (ref.kind) {
+    case 'edge':
+      return wrap(ref.index)
+    case 'straight':
+      return wrap(base)
+    case 'turn':
+      return wrap(base + (ref.dir === 'r' ? ref.n : -ref.n))
+    case 'unvisited':
+      return null
+  }
 }
 
 export function resolveRef(
@@ -81,48 +108,15 @@ export function resolveRef(
   if (ref.kind === 'unvisited') return resolveUnvisited(tiling, overlay, tile, heading)
   const node = nodeById(tiling, tile)
   if (!node) return null
-  const order = clockwiseEdgeOrder(node)
-
-  if (ref.kind === 'edge') {
-    const side = order[ref.index]
-    return side === undefined ? null : step(tiling, tile, side)
-  }
-
-  // straight / turn: rank the sides by signed turn from the reference direction.
-  const refKey = movement === 'absolute' ? 0 : clockwiseFromTopKey(heading)
-  const entries = order.map((side) => ({
-    side,
-    sd: signedTurn(refKey, clockwiseFromTopKey(node.sides[side].geometry.normalAngle)),
-  }))
-  // straight = the least-turn edge (ties resolved by clockwise order, which `order` already is).
-  let straight = entries[0]
-  for (const e of entries) if (Math.abs(e.sd) < Math.abs(straight.sd) - 1e-9) straight = e
-
-  // ...except a concave shape that declares its own through-pairing (the wedge): there "straight" is
-  // the edge OPPOSITE the one entered, which the shape defines by hand, because its normals point in
-  // visually-surprising directions and the least-turn edge lands somewhere a human wouldn't call
-  // straight. Relative movement only — absolute "straight" stays the north-most edge (no entry edge).
-  const shape = tiling.shapes[node.shape]
-  if (movement === 'relative' && shape?.straightThroughOpposite) {
-    const opp = opposite(tiling, tile, entrySide(node, heading))[0]
-    const viaOpp = entries.find((e) => e.side === opp)
-    if (viaOpp) straight = viaOpp
-  }
-
-  if (ref.kind === 'straight') return step(tiling, tile, straight.side)
-
-  const others = entries.filter((e) => e !== straight)
-  let pick: { side: number; sd: number } | undefined
-  if (ref.dir === 'r') {
-    pick = others.filter((e) => e.sd > 0).sort((a, b) => a.sd - b.sd)[ref.n - 1]
-  } else {
-    pick = others.filter((e) => e.sd < 0).sort((a, b) => b.sd - a.sd)[ref.n - 1]
-  }
-  return pick ? step(tiling, tile, pick.side) : null
+  const edge = targetEdge(node.sides.length, heading, movement, ref)
+  if (edge === null) return null
+  return stepLocal(tiling, tile, edgeToLocalSide(node, edge))
 }
 
 // Follow a chain of refs from a starting tile/heading; only the FINAL tile is the destination (the
-// intermediate tiles are passed through, not visited). null if any hop hits a boundary / dead ref.
+// intermediate tiles are passed through, not visited). Each hop re-aims along the edge it crossed, so
+// a later ref in the chain turns relative to the freshly-updated heading. null if any hop hits a
+// boundary / dead ref.
 export function resolveChain(
   tiling: Tiling,
   overlay: ReadonlyMap<string, TileState>,

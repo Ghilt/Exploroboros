@@ -63,7 +63,7 @@ export type Stmt = Rule | Directive | Reset
 
 export type Settings = {
   maxSplit: number
-  heading?: number // default heading in degrees; overridable when placed
+  heading?: number // default heading as an edge NUMBER (0 = top, clockwise); overridable when placed
   movement: Movement
   maxSteps: number
 }

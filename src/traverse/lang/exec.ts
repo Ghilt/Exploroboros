@@ -49,9 +49,8 @@ export type ExecResult = {
   next: { maxSplit: number; maxSteps: number; movement: Movement; p: number; q: number; r: number }
 }
 
-const TWO_PI = Math.PI * 2
-const radToDeg = (rad: number) => ((((rad * 180) / Math.PI) % 360) + 360) % 360
-const degToRad = (deg: number) => (deg * Math.PI) / 180
+// Wrap an edge-number heading into 0..n-1 for a tile with `n` sides.
+const wrapEdge = (edge: number, n: number) => (n > 0 ? (((Math.round(edge) % n) + n) % n) : 0)
 
 // `trace`, when given, is filled with this walker's per-statement decisions (what each guard read,
 // every candidate move and why it survived/was rejected). It's the only debug-mode cost: when
@@ -73,11 +72,12 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
   const tileWrites: TileWrite[] = []
   const directives: Array<{ allow: boolean; guard: Guard }> = []
 
-  // The walker attributes the DSL sees (heading in degrees). Rebuilt each read so it reflects mutations.
+  // The walker attributes the DSL sees (heading = the edge number `straight` exits). Rebuilt each read
+  // so it reflects mutations.
   const traverserAttrs = () => ({
     steps: walker.steps,
     splits: walker.splits,
-    heading: radToDeg(self.heading),
+    heading: self.heading,
     p: self.p,
     q: self.q,
     r: self.r,
@@ -203,7 +203,7 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
       case 'update':
         if (a.setting === 'max-split') self.maxSplit = Math.max(0, Math.round(a.value as number))
         else if (a.setting === 'max-steps') self.maxSteps = Math.max(1, Math.round(a.value as number))
-        else if (a.setting === 'heading') self.heading = ((degToRad(a.value as number) % TWO_PI) + TWO_PI) % TWO_PI
+        else if (a.setting === 'heading') self.heading = wrapEdge(a.value as number, nodeById(tiling, walker.tile)?.sides.length ?? 0)
         else self.movement = a.value as Movement
         return
     }

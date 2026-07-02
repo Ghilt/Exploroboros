@@ -147,11 +147,14 @@ const SPEED_VIS = def('speed-vis', ['max-split = 8', GATE_UNVISITED, 'directive 
 const CLASSIC2 = def('classic-2', ['max-split = 2', GATE_UNVISITED, 'directive if visited-edges == 1 @ target always allow move', 'directive if tile-type == octagon @ target always allow move', 'move r1', 'move l1', 'move r2', 'move l2'])
 // classic — relative-nav XOR maze: an octagon "bounces" r2/l2 off a wedge straight ahead, and a wedge
 // crosses STRAIGHT to the octagon on the other side. The prototype hand-coded the wedge crossing as a
-// per-rotation turn (rot 0/180 → r1, 90/270 → l1); our wedge "straight" now IS that crossing (the
-// owner-specified through-pairing — edges.ts), so `move straight` reproduces it directly and the
-// rotation routing (and the `orientation` attribute) is no longer needed here. Seeded on the centre
-// WEDGE facing 45° (π/4): the `visited-edges == 1` gate only threads single-edge adjacencies (kalleboda
-// is mostly two-edged), so the start is heading-sensitive — 45° grows ~36%, others stall (probe).
+// per-rotation turn (rot 0/180 → r1, 90/270 → l1); our wedge "straight" IS that crossing for a walker
+// that ENTERED the wedge (the owner-specified through-pairing — edges.ts), so `move straight` reproduces
+// it directly once the walk is underway; rotation routing (and `orientation`) isn't needed here. Seeded
+// on the centre WEDGE facing NORTH (π/2 = edge 0): a just-placed walker has no entry edge, so its FIRST
+// `move straight` leaves via the edge it faces (edge 0), which is the same octagon the old through-pairing
+// seed crossed to — so the walk is byte-identical from step 1, then transits wedges by the pairing. The
+// `visited-edges == 1` gate only threads single-edge adjacencies (kalleboda is mostly two-edged), so the
+// start is heading-sensitive — edge 0 (the through-exit) grows ~36%, other aims stall.
 const CLASSIC = def('classic', [
   'max-split = 2',
   GATE_UNVISITED,
@@ -236,7 +239,7 @@ export const GALLERY_RECIPES: Readonly<Record<string, Recipe>> = {
   'octa-carpet.webp': recipe('#0a0a04', [seed('octa-carpet', 5, { shape: 'octagon' })], OCTA_CARPET, [ring('octa-carpet-c', 60, [stop('#FFFFC8', 0), stop('#FF6428', 20), stop('#781E5A', 50)])]),
   'labyrinth-2.webp': recipe('#0e0c18', [seed('labyrinth-2', 2, { heading: compass(4) })], LABYRINTH, [ring('labyrinth-2-c', 460, [stop('#9AD0FF', 0), stop('#7B5BF2', 220), stop('#E0509A', 460)])]),
   'classic-2.webp': recipe('#000000', [seed('classic-2', 2, { shape: 'octagon' })], CLASSIC2, [ring('classic-2-c', 350, [stop('#FAE9A0', 0), stop('#0070FA', 39), stop('#FAE9A0', 350)])]),
-  'classic.webp': recipe('#000000', [seed('classic', 2, { shape: 'wedge', heading: Math.PI / 4 })], CLASSIC, [ring('classic-c', 35, [stop('#4AE9A0', 0), stop('#000000', 35)])]),
+  'classic.webp': recipe('#000000', [seed('classic', 2, { shape: 'wedge', heading: Math.PI / 2 })], CLASSIC, [ring('classic-c', 35, [stop('#4AE9A0', 0), stop('#000000', 35)])]),
   'ringlare.webp': recipe('#04060c', [seed('ringlare', 1, { heading: (3 * Math.PI) / 4 })], RINGLARE, [ring('ringlare-c', 400, [stop('#00FFC8', 0), stop('#FF00A0', 200)])]),
   'wedge-seek.webp': recipe('#0c0604', [seed('wedge-seek', 2, { shape: 'octagon' })], WEDGE_SEEK, [ring('wedge-seek-c', 720, [stop('#FFD0A0', 0), stop('#E0602E', 240), stop('#5A1E2A', 480)])]),
   'sierpinski.webp': recipe('#000000', [seed('sierpinski', 2, { shape: 'wedge' })], SIERPINSKI, [ring('sierpinski-c', 50, [stop('#FFE68C', 0), stop('#FF9628', 25), stop('#DC3C28', 49)])]),

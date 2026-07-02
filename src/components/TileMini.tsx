@@ -1,6 +1,6 @@
 import './TileMini.css'
 import type { TileNode } from '../tiling'
-import { clockwiseEdgeOrder } from '../tiling'
+import { clockwiseEdgeOrder, headingArrowDir } from '../tiling'
 
 // A small upright drawing of the selected tile in its ON-CANVAS orientation (world y-up → SVG y-down,
 // the same flip the canvas uses), with every edge labelled by its user-facing clockwise-from-top
@@ -51,10 +51,13 @@ export function TileMini({
   const z1 = flip(zero.geometry.b)
 
   // A walker's heading pointer (only when one sits on this tile), matching the canvas head triangle.
+  // The direction comes from headingArrowDir, so on a concave wedge the arrow points AT the aimed edge
+  // (its midpoint) rather than off along the raw normal, which would visually miss the edge it names.
   let head: string | null = null
   if (heading != null) {
-    const hx = Math.cos(heading)
-    const hy = -Math.sin(heading)
+    const dir = headingArrowDir(node, heading)
+    const hx = dir.x
+    const hy = -dir.y // world y-up -> SVG y-down
     const px = -hy
     const py = hx
     const tip = { x: c.x + hx * span * 0.36, y: c.y + hy * span * 0.36 }

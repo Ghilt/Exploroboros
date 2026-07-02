@@ -93,8 +93,8 @@ move straight                  # a bare action — always runs`}</pre>
             </tr>
             <tr>
               <td><code>heading</code></td>
-              <td>—</td>
-              <td>Starting heading in degrees (0 = east, 90 = up). Overridable when you place it.</td>
+              <td><code>0</code></td>
+              <td>Starting heading as an <strong>edge number</strong> (0 = the top edge, going clockwise) — the edge <code>straight</code> exits. Overridable when you place it.</td>
             </tr>
             <tr>
               <td><code>movement</code></td>
@@ -202,7 +202,7 @@ move straight                  # a bare action — always runs`}</pre>
         <ul>
           <li><code>steps</code> — how many ticks this walker has taken.</li>
           <li><code>splits</code> — how many times it has split.</li>
-          <li><code>heading</code> — its current heading in degrees (0 = east, 90 = up).</li>
+          <li><code>heading</code> — the edge number its <code>straight</code> currently exits (0 = the top edge, clockwise).</li>
           <li><code>P</code> / <code>Q</code> / <code>R</code> — its own registries that travel with it (see <a href="#registries">Registries</a>).</li>
         </ul>
       </section>
@@ -212,8 +212,10 @@ move straight                  # a bare action — always runs`}</pre>
         <p>
           A move command is <code>move &lt;edge&gt;</code>. There is <strong>one vocabulary for naming an
           edge</strong>, used everywhere a move (or a <a href="#predicates">decoration</a>) names a
-          direction. By default an edge is relative to your <strong>heading</strong>, so the same rule works
-          on any tile shape without you tracking edge numbers.
+          direction. Every tile's edges are numbered <em>clockwise from the top</em> (0, 1, 2, …); your
+          <strong> heading</strong> is simply the edge number <code>straight</code> exits, and the turns
+          step that number around the ring — so the same rule works on any tile shape, the concave wedge
+          included.
         </p>
 
         <p className="guide-subhead"><strong>Naming an edge</strong></p>
@@ -222,14 +224,21 @@ move straight                  # a bare action — always runs`}</pre>
             <tr><th>Name</th><th>The edge it picks</th></tr>
           </thead>
           <tbody>
-            <tr><td><code>straight</code></td><td>Continues your heading — the least-turn edge. (<code>s</code> for short.)</td></tr>
-            <tr><td><code>r1</code>, <code>r2</code>, …</td><td>Turn <strong>right</strong> (clockwise): the 1st, 2nd, … edge to the right of straight.</td></tr>
-            <tr><td><code>l1</code>, <code>l2</code>, …</td><td>Turn <strong>left</strong> (counter-clockwise): the 1st, 2nd, … edge to the left.</td></tr>
+            <tr><td><code>straight</code></td><td>The edge you're heading at — the heading edge itself. (<code>s</code> for short.)</td></tr>
+            <tr><td><code>r1</code>, <code>r2</code>, …</td><td>Turn <strong>right</strong> (clockwise): heading <strong>+1</strong>, +2, … around the edge ring.</td></tr>
+            <tr><td><code>l1</code>, <code>l2</code>, …</td><td>Turn <strong>left</strong> (counter-clockwise): heading <strong>−1</strong>, −2, … around the ring.</td></tr>
             <tr><td><code>edge N</code></td><td>The <strong>absolute</strong> edge by its <em>clockwise-from-top</em> number (0 at the top), regardless of heading.</td></tr>
-            <tr><td><code>nearest-unvisited</code></td><td>The closest-by-heading neighbour you haven't visited yet (great for carving mazes).</td></tr>
+            <tr><td><code>nearest-unvisited</code></td><td>The unvisited neighbour the fewest edges around from your heading (great for carving mazes).</td></tr>
           </tbody>
         </table>
         <EdgeFanDiagram />
+        <p className="guide-note">
+          Every move <strong>re-aims</strong> you: you arrive on the next tile already facing "straight
+          ahead", so chaining <code>move straight</code> keeps going in a line. On the concave wedge that
+          straight-ahead follows the tile's built-in <em>straight-through</em> pairing (enter one edge,
+          leave the matching one) — which is why <code>straight</code> crosses a wedge cleanly while the
+          turns still count its edges one at a time.
+        </p>
 
         <p className="guide-subhead"><strong>Combining edges</strong></p>
         <ul>
@@ -379,7 +388,7 @@ move straight`}</pre>
         </p>
         <p>
           <code>update &lt;setting&gt; &lt;value&gt;</code> changes the walker's own setting from here on —
-          e.g. <code>update max-split 3</code>, <code>update heading 90</code>, <code>update movement absolute</code>.
+          e.g. <code>update max-split 3</code>, <code>update heading 2</code> (aim at edge 2), <code>update movement absolute</code>.
         </p>
       </section>
 

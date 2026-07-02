@@ -8,7 +8,7 @@
 // are deterministic, so the recipe alone re-runs to the same image — no baked overlay needed.
 
 import type { Vec2, Tiling, ShapeType } from '../tiling'
-import { nodeById } from '../tiling'
+import { nodeById, edgeNormalAngle } from '../tiling'
 import type { TileState } from '../canvas'
 import type { Movement, Traverser } from '../traverse'
 import type { ColoringRule } from '../colorizer'
@@ -32,6 +32,9 @@ export type RecipeSeed = {
   // The shape class the walker was placed on — preferred when remapping onto the export grid so a
   // multi-shape tiling keeps the walker on the same kind of tile. Optional (single-shape tilings).
   shape?: ShapeType
+  // The walker's aim as an ANGLE (radians, world y-up = a side's outward normal) — tiling-independent
+  // and stable across grid sizes. Converted to/from the engine's edge-number heading at the boundary
+  // (remapSeeds / buildRecipe), so old recipes keep loading and the on-disk format is unchanged.
   heading: number
   def: string
   maxSplit: number
@@ -90,7 +93,9 @@ export function buildRecipe(input: RecipeInput): Recipe {
     seeds.push({
       offset: { x: node.centroid.x - center.x, y: node.centroid.y - center.y },
       shape: node.shape,
-      heading: s.heading,
+      // The engine heading is an edge NUMBER; store the tiling-independent aim ANGLE (its outward
+      // normal) so the recipe stays portable and older/hand-made recipes keep loading.
+      heading: edgeNormalAngle(node, s.heading),
       def: s.def,
       maxSplit: s.maxSplit,
       maxSteps: s.maxSteps,

@@ -1,9 +1,11 @@
 // Query API over a stitched Tiling. Adjacency is derived on demand from sides + edges,
 // so the Tiling itself stays a plain serialisable structure.
 
-import type { EdgeEnd, ShapeDef, Tiling, TileNode, TilingEdge } from './types'
+import type { EdgeEnd, ShapeDef, Tiling, TileNode, TilingEdge, Vec2 } from './types'
 import { oppositeSides } from './shapes'
 import { clockwiseFromTopKey } from './geometry'
+
+const TWO_PI = Math.PI * 2
 
 // id -> node lookups are common; cache one map per Tiling without mutating the Tiling.
 const indexCache = new WeakMap<Tiling, Map<string, TileNode>>()
@@ -95,6 +97,63 @@ export function clockwiseEdgeOrder(node: TileNode): number[] {
   const order: number[] = []
   for (let i = 0; i < n; i += 1) order.push((anchor - i + n) % n)
   return order
+}
+
+// ---- edge-number <-> local-side helpers (the traverser "heading" is a clockwise-from-top edge NUMBER) ----
+
+// The local side backing a user-facing clockwise-from-top edge number (wraps, so heading+1 off the top
+// edge is always valid).
+export function edgeToLocalSide(node: TileNode, edge: number): number {
+  const order = clockwiseEdgeOrder(node)
+  const n = order.length
+  return order[((edge % n) + n) % n]
+}
+
+// Inverse: the clockwise-from-top edge number of a local side.
+export function localSideToEdge(node: TileNode, localSide: number): number {
+  return clockwiseEdgeOrder(node).indexOf(localSide)
+}
+
+// The clockwise-from-top edge number whose outward normal is closest to `angle`. Used once, at the
+// serialisation boundary, to turn a seed's stored aim ANGLE into the edge-index heading the engine runs on.
+export function nearestEdge(node: TileNode, angle: number): number {
+  const order = clockwiseEdgeOrder(node)
+  let best = 0
+  let bestDiff = Infinity
+  for (let e = 0; e < order.length; e += 1) {
+    const d = smallestAngle(node.sides[order[e]].geometry.normalAngle, angle)
+    if (d < bestDiff) {
+      bestDiff = d
+      best = e
+    }
+  }
+  return best
+}
+
+// The outward-normal angle (radians, world y-up) of a heading edge. Used once, at the serialisation
+// boundary, to turn the edge-index heading back into a stored aim ANGLE. Normalises -0 → 0 so the
+// stored value survives a JSON round-trip identically.
+export function edgeNormalAngle(node: TileNode, edge: number): number {
+  const a = node.sides[edgeToLocalSide(node, edge)].geometry.normalAngle
+  return a === 0 ? 0 : a
+}
+
+// Unit direction (world y-up, from the centroid) to draw a walker's heading arrow. The heading IS an
+// edge number, so the arrow always points at that edge's MIDPOINT — truthful on convex and concave
+// (wedge) tiles alike, with no special cases. (On a regular convex tile the midpoint direction equals
+// the edge's outward normal, so nothing there shifts.)
+export function headingArrowDir(node: TileNode, edge: number): Vec2 {
+  const m = node.sides[edgeToLocalSide(node, edge)].geometry.midpoint
+  const dx = m.x - node.centroid.x
+  const dy = m.y - node.centroid.y
+  const len = Math.hypot(dx, dy) || 1
+  return { x: dx / len, y: dy / len }
+}
+
+function smallestAngle(a: number, b: number): number {
+  let d = Math.abs(a - b) % TWO_PI
+  if (d > Math.PI) d = TWO_PI - d
+  return d
 }
 
 function otherEnd(edge: TilingEdge, tile: string, side: number): EdgeEnd | null {

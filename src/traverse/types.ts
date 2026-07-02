@@ -7,11 +7,12 @@ import type { Tiling } from '../tiling'
 import type { TileState } from '../canvas'
 import type { Movement, Program } from './lang'
 
-// One walker. `heading` is an absolute direction in radians, world y-up — the SAME convention as a
-// side's outward `normalAngle` — so it compares directly to the tile's edge directions and the
-// renderer can turn it into an arrow. `def` is the definition NAME it runs (also the morph target
-// key). The rest is per-walker mutable state the DSL reads/changes: tick count, split count, the
-// effective settings (initialised from the def, mutable via `update`), and its own registers P/Q/R.
+// One walker. `heading` is the clockwise-from-top edge NUMBER its `straight` move exits (0 = the north
+// edge, increasing clockwise, current-tile-relative) — so `r1` is heading+1, `l1` is heading-1, and the
+// renderer points the arrow at that edge. On every move the heading is recomputed as the straight-
+// through partner of the edge crossed into (see edges.ts). `def` is the definition NAME it runs (also
+// the morph target key). The rest is per-walker mutable state the DSL reads/changes: tick count, split
+// count, the effective settings (initialised from the def, mutable via `update`), and its registers P/Q/R.
 export type Traverser = {
   id: string
   tile: string

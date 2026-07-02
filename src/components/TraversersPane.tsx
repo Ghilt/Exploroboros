@@ -77,7 +77,7 @@ export function TraversersPane({
             <span className="help-readmore-note">(every keyword, with diagrams)</span>
           </p>
           <p>
-            Header settings (any order): <code>max-split</code>, <code>heading</code> (degrees),{' '}
+            Header settings (any order): <code>max-split</code>, <code>heading</code> (edge number),{' '}
             <code>movement = relative|absolute</code>, <code>max-steps</code>. Traversers only write data —
             colour comes from the <strong>Coloring</strong> pane reading it.
           </p>

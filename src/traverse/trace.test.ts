@@ -7,10 +7,11 @@ import type { Traverser, TraverseState } from './types'
 import type { StmtTrace } from './trace'
 
 // Same square-grid harness as exec.test.ts, but driving the full tick (stepTraversersTraced) so the
-// trace + coalesce/drop are exercised end to end. sq:r,c — r grows north, c grows east; EAST = 0 rad.
+// trace + coalesce/drop are exercised end to end. sq:r,c — r grows north, c grows east. heading is an
+// EDGE NUMBER (0 = north, clockwise); edge 1 = east, so aiming east keeps straight/l1/r1 = east/north/south.
 const tiling = squareTiling(5, 5)
 const indexById = new Map(tiling.nodes.map((n, i) => [n.id, i] as const))
-const EAST = 0
+const EAST = 1
 
 function compile(src: string): Program {
   const r = parseProgram(src)

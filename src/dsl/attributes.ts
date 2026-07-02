@@ -8,9 +8,9 @@ import type { TileState } from '../canvas'
 import { tileState, visitCount } from '../canvas'
 import type { AttrName, AttrScope } from './types'
 
-// A walker's own state, exposed to the traverser DSL's formulas/guards. `heading` is in DEGREES
-// (0 = east, CCW positive — the same frame as a side's normalAngle, converted from radians) for a
-// friendlier surface than the internal radians. Present only while a traverser is being evaluated.
+// A walker's own state, exposed to the traverser DSL's formulas/guards. `heading` is the edge NUMBER
+// the walker's `straight` move exits (0 = the north edge, increasing clockwise) — the same numbering
+// as `edge k`. Present only while a traverser is being evaluated.
 export type TraverserAttrs = {
   steps: number
   splits: number
