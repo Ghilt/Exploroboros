@@ -297,6 +297,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-30 | **Fix — edge numbering off-by-one at the 0/360 seam** (the bug the debug log surfaced). `clockwiseEdgeOrder` sorted purely by clockwise-from-top key, so a tile whose top edge sits just **west** of north — a float hair on flat-top octagons (the **slot-0 kalleboda** octagon) or tens of degrees on the chiral snubs — wrapped to ~359° and sorted LAST, rotating the numbering by one so `edge 0` pointed NE. Now **anchors edge 0 on the genuinely most-north edge**, then clockwise | ✅ yes | owner reproduced it via the debug log (`move edge 0` stepping NE off slot-0 octagons) + confirmed the fix on 5593; build / lint / **460 tests** (kalleboda "north = edge 0" regression + a general most-north-is-edge-0 invariant across all 12 tilings) | `e2ffb30` |
 | 2026-06-30 | **sierpinski** ported to the gallery — the 4th/last rotation-routed fractal, a nested triangular Sierpinski gasket; finally exercises the `orientation` attribute (each wedge orientation relays a *different* absolute octagon edge). The octagon-fan edge order (`2,3,4,5,6,7,0,1`) **and** the orientation→edge map were found EMPIRICALLY: the two-edge octagon–wedge adjacency makes a low-first `edge 0..7` fan spend both max-split slots on ONE wedge (the walk marches single-file), so the order is tuned to hit two *distinct* wedges. Owner ported it by hand; I wired their version in (new `@ target` directive syntax) | ✅ yes | owner recreated the gasket themselves + said "commit all this to main"; build / lint / **432 tests** + headless grow-check (66 ticks, ~8% from a centre-wedge seed, natural stop) + ASCII confirming the recursive triangular voids | `27a7205` |
 | 2026-06-30 | Export dialog defaults to a **black** background (fractals read best on black, matching the prototype renders); white / transparent still available | ✅ yes | owner asked for it + said "commit all this to main"; build / lint / 432 tests green | `9969914` |
+| 2026-07-02 | **Fix — edge numbering scrambled on concave tiles (wedge)**; **Inspect tile mini** — a small oriented diagram of the selected tile with every edge numbered, plus a "Straightness" blurb (wedge: dotted opposite-edge pairing; triangle: right-handed). The 0/360-seam fix (row above) anchored edge 0 correctly but still SORTED by outward-normal angle, which only walks the perimeter clockwise for convex shapes — the wedge is concave, so its normals zig-zag and the numbering scattered (rotate didn't cycle 0..7 in order). Replaced the sort with a perimeter **walk** from the anchor (CCW winding → clockwise = decreasing local index); convex tiles unchanged, concave/chiral ones fixed. sierpinski's hand-placed wedge edge refs re-tuned to match (grow-check unchanged) | ✅ yes | owner found the scrambled wedge rotate order, gave the exact wrong sequences per slot; fix verified by a new perimeter-adjacency invariant (`edge-order.test.ts`, all 12 tilings) + owner re-tested rotate on a freshly-uncached port (5601, after an earlier same-port retest was fooled by browser cache from a prior server instance) and confirmed 0→1→…→7; build / lint / **462 tests** | `7df7090` |
 
 ## 8. Todo list (working backlog)
 
@@ -352,7 +353,11 @@ in-session task tracker.
     beyond the 11 convex uniform + kalleboda (k-uniform, non-edge-to-edge, star/zero-angle forms, etc.) —
     pick favourites with the owner before building
   - [ ] Tile numbering as a canvas control — user-selectable scheme/origin (debug view currently numbers by generation order)
-  - [ ] Visualise edge numbering + opposite edges for the user — show each tile's clockwise-from-top edge numbers and which edges are opposite (engine support exists: `clockwiseEdgeOrder`, `opposite`)
+  - [x] Visualise edge numbering + opposite edges for the user — the Inspect **tile mini** (`TileMini`)
+    draws the selected tile's real vertices in its on-canvas orientation with every edge numbered as the
+    DSL sees it (`clockwiseEdgeOrder`), edge 0 accented, plus a **"Straightness"** blurb (wedges: dotted
+    lines linking the hand-crafted opposite-edge pairing; triangles: right-handed straight-through)
+    *(verified 2026-07-02, `7df7090`)*. The tiling-wide **cheat-sheet popup** below is still open.
   - [ ] **Tiling cheat-sheet info popup** — a little info popup that prints nice, helpful **edge guides** for
     the current tiling, especially the more **advanced tiles** (octagon + wedge, the dodecagon/triangle
     tilings, etc.): what each edge name/number points to, which edges are opposite, the wedge "straight"
@@ -575,10 +580,23 @@ Hard-won; read before fighting the tooling again.
 - Edge numbering has **two layers**: internal **local CCW side index** (geometry/winding) vs the
   user-facing **clockwise-from-top** number (`clockwiseEdgeOrder`). Don't conflate them.
   **The 0/360 seam is at north**, so `clockwiseEdgeOrder` **anchors edge 0 on the most-north edge** then
-  sweeps clockwise — sorting by the raw key alone put a top edge sitting a hair (float round-off on
-  flat-top octagons) or tens of degrees (the chiral snubs) *west* of north at ~359° → LAST, rotating the
-  numbering by one (the slot-0 kalleboda octagon bug, where `edge 0` pointed NE). `src/tiling/edge-order.test.ts`
-  asserts "edge 0 = the most-north edge" on every tile of every tiling; don't regress it.
+  **walks the perimeter clockwise from there** (CCW winding → clockwise = decreasing local index) —
+  NOT a sort by outward-normal angle. Two bugs, two fixes, both guarded by `src/tiling/edge-order.test.ts`
+  across all 12 tilings: (1) the raw clockwise-from-top key alone put a top edge sitting a hair (float
+  round-off on flat-top octagons) or tens of degrees (the chiral snubs) *west* of north at ~359° → LAST,
+  rotating the numbering by one (the slot-0 kalleboda octagon bug); anchoring on the most-north edge fixed
+  it. (2) Anchoring alone still **sorted by angle**, which only walks the perimeter clockwise for **convex**
+  shapes — the **wedge is concave**, so its normals zig-zag non-monotonically and the numbering scattered
+  (rotate didn't cycle 0..7 in order); the fix was to replace the sort with a perimeter **walk**. The test
+  file asserts both invariants: edge 0 = the most-north edge, AND consecutive edge numbers are
+  perimeter-adjacent (`order[i] - order[i+1] ≡ 1 mod n`) — don't regress either.
+- **Inspect tile mini (`src/components/TileMini.tsx` + `.css`)** — a small SVG diagram at the top of the
+  1-tile Inspect view: the selected tile's REAL vertices in its on-canvas orientation (world y-up flipped
+  to SVG y-down), every edge labelled with its `clockwiseEdgeOrder` number (edge 0 accented), a heading
+  arrow when a traverser sits there, and optional dotted `straightPairs` lines. Below it, a **"Straightness"**
+  blurb: wedges name the dotted lines as their hand-crafted opposite-edge pairing (`shape.oppositeSides`
+  where `straightThroughOpposite`); triangles just say right-handed (no edge is directly opposite on an
+  odd-sided shape). Pure/no-Konva component, Vitest-tested with jsdom (plain SVG, unlike `TilingCanvas`).
 - **Debug mode** lives in `src/components/DebugPane.tsx` (+ `.css`) with the pure trace→tiles mapper in
   `src/debug/highlights.ts` (Konva-free, unit-tested). It reads the engine's **opt-in** `TickTrace`
   (`src/traverse/trace.ts`, built only by `stepTraversersTraced`). A canvas-bar **toggle** in `Workspace`
@@ -631,6 +649,19 @@ serialize back through `preview_eval`), e.g. GET `/src/<a file your branch added
 That served-source fetch is the reliable proof because the headless preview tab is frequently
 non-interactive (React `onClick` never fires) and capture wedges — see the two "Preview-capture" /
 "Konva + HMR" notes below; don't loop on it, hand the interactive/visual check to the owner's device.
+
+**The owner's OWN BROWSER can still show stale code on a port that's proven correct via curl/XHR — a
+fresh port is the fix, not a harder proof.** Seen 2026-07-01: the served-source XHR check above (run from
+MY headless tab) confirmed a fix was live, and the owner even fully closed and reopened their browser and
+confirmed the footer's worktree name — yet their tab still showed the OLD scrambled behaviour. The
+headless tab's XHR check passes because it's a **separate browser profile with no history on that
+origin**; the owner's tab had visited that exact `localhost:<port>` origin against an EARLIER server
+instance (before the fix), and a full app close/reopen doesn't necessarily clear the HTTP/disk cache tied
+to that origin. No amount of re-proving the server is correct will convince a tab that's reading its own
+cache. **Fix: stand up a second `launch.json` config on a brand-new port the owner's browser has never
+visited** and have them switch to that URL — don't keep asking them to re-verify the same port. Worth
+doing pre-emptively whenever you land a fix on a port that's been iterated on for a while in the same
+session, rather than waiting for a second "still broken" report to reach for it.
 
 **Tell the owner, plainly and early — the owner does not read code and runs several sessions at once,
 so they will NOT know which is which unless you say so.** As soon as you know your setup, state in your
