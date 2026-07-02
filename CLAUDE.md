@@ -298,6 +298,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-30 | **sierpinski** ported to the gallery — the 4th/last rotation-routed fractal, a nested triangular Sierpinski gasket; finally exercises the `orientation` attribute (each wedge orientation relays a *different* absolute octagon edge). The octagon-fan edge order (`2,3,4,5,6,7,0,1`) **and** the orientation→edge map were found EMPIRICALLY: the two-edge octagon–wedge adjacency makes a low-first `edge 0..7` fan spend both max-split slots on ONE wedge (the walk marches single-file), so the order is tuned to hit two *distinct* wedges. Owner ported it by hand; I wired their version in (new `@ target` directive syntax) | ✅ yes | owner recreated the gasket themselves + said "commit all this to main"; build / lint / **432 tests** + headless grow-check (66 ticks, ~8% from a centre-wedge seed, natural stop) + ASCII confirming the recursive triangular voids | `27a7205` |
 | 2026-06-30 | Export dialog defaults to a **black** background (fractals read best on black, matching the prototype renders); white / transparent still available | ✅ yes | owner asked for it + said "commit all this to main"; build / lint / 432 tests green | `9969914` |
 | 2026-07-02 | **Fix — edge numbering scrambled on concave tiles (wedge)**; **Inspect tile mini** — a small oriented diagram of the selected tile with every edge numbered, plus a "Straightness" blurb (wedge: dotted opposite-edge pairing; triangle: right-handed). The 0/360-seam fix (row above) anchored edge 0 correctly but still SORTED by outward-normal angle, which only walks the perimeter clockwise for convex shapes — the wedge is concave, so its normals zig-zag and the numbering scattered (rotate didn't cycle 0..7 in order). Replaced the sort with a perimeter **walk** from the anchor (CCW winding → clockwise = decreasing local index); convex tiles unchanged, concave/chiral ones fixed. sierpinski's hand-placed wedge edge refs re-tuned to match (grow-check unchanged) | ✅ yes | owner found the scrambled wedge rotate order, gave the exact wrong sequences per slot; fix verified by a new perimeter-adjacency invariant (`edge-order.test.ts`, all 12 tilings) + owner re-tested rotate on a freshly-uncached port (5601, after an earlier same-port retest was fooled by browser cache from a prior server instance) and confirmed 0→1→…→7; build / lint / **462 tests** | `7df7090` |
+| 2026-07-02 | **Refactor — a traverser's heading is now a single edge NUMBER** (the edge its `straight` move exits; 0 = north, clockwise). Turns are pure ring arithmetic (`r1` = heading+1, `l1` = heading−1 mod sides), the arrow **always** points at the heading edge (no "just-placed / first-step" special case), and the wedge's concave straight-through pairing is layered on **only when a walker arrives** on a tile — never during editor rotation. Fixes the two reported wedge bugs: `move r1` aimed at edge 7 now exits **edge 0**, and the `move straight` arrow now points at the real destination edge. The recipe still stores heading as a portable **angle**, converted at the load/save boundary (`remapSeeds` angle→edge, `buildRecipe` edge→angle), so old saved PNGs reopen unchanged (no schema bump); `classic` re-seeded north to keep its first move identical. Removed the old angle-based `chooseMove` / `headingOptions` / angle-`headingArrowDir` | ✅ yes | owner reported the scrambled `move r1`-on-wedge + the wrong `move straight` arrow on-device, specified the edge-number model, approved the refactor + re-verify pass, then said "commit"; backed by build / lint / **464 tests** (edges / step / arrow / exec / trace / recipe rewritten to the edge frame + a new r1-on-wedge regression). **Follow-up:** ringlare / xor-tri / xor-dense regenerate sparser under the new turn arithmetic — gallery re-tune pending | `96ede11` |
 
 ## 8. Todo list (working backlog)
 
@@ -433,6 +434,11 @@ in-session task tracker.
     fan order matter). All four rotation-routed fractals are now ported. Deferred: the move-to-lowest /
     kill / hunger fractals, etc. — see `src/data/galleryRecipes.ts`
     *(verified 2026-06-28, `0d939f7`; classic-2 `41cc510`; classic/ringlare/wedge-seek `f6e64a8`; sierpinski `27a7205`)*
+  - [ ] **Re-tune ringlare / xor-tri / xor-dense to the edge-number heading** — the 2026-07-02 heading
+    refactor (`96ede11`) changed relative-turn arithmetic, so these three (single precise turns on wedges,
+    not broad fans) now regenerate much sparser than their thumbnails (ringlare 11%→0.9%, xor-tri 25.5%→2.6%,
+    xor-dense 28.3%→1.3%). Owner wanted a collaborative re-tune pass — re-derive their guarded turns against
+    the new frame (or re-shoot the thumbnails). The other ~25 gallery fractals were unaffected or still healthy.
   - [ ] **User-saved gallery** — let the user save their own exports into the gallery (recipe rides in the
     PNG metadata); persist across reloads (IndexedDB) + a "watch it grow" replay.
 - [x] **Debug features + a run log** — a per-tick traverser **decision log** (Debug pane, behind a
@@ -590,6 +596,17 @@ Hard-won; read before fighting the tooling again.
   (rotate didn't cycle 0..7 in order); the fix was to replace the sort with a perimeter **walk**. The test
   file asserts both invariants: edge 0 = the most-north edge, AND consecutive edge numbers are
   perimeter-adjacent (`order[i] - order[i+1] ≡ 1 mod n`) — don't regress either.
+- **A traverser's `heading` is an edge NUMBER, not an angle** (`src/traverse/types.ts`; refactored
+  2026-07-02, `96ede11`). It is the user-facing edge its `straight` move exits (0 = north, clockwise —
+  the `clockwiseEdgeOrder` layer above). So `r1` = `(heading+1) mod sides`, `l1` = `heading-1`, the
+  Inspect **rotate** is that same ring step (`rotateHeading` in `step.ts`), and the arrow just points at
+  that edge — there is **no** "just-placed / first-step" special case. The whole tick runs in edge
+  numbers; the **only** thing layered on top is the wedge's concave straight-through pairing
+  (`straightPartner` in `src/traverse/lang/edges.ts`, from `shape.oppositeSides` where
+  `straightThroughOpposite`), applied **only when a walker arrives** on a tile (to compute its new
+  heading) — never during rotation. The Recipe/PNG format still stores heading as a portable **angle**
+  for durability; convert at the boundary — `remapSeeds` (angle→`nearestEdge`) on load, `buildRecipe`
+  (`edgeNormalAngle`) on save — so old images round-trip. **Don't reintroduce angle math into the tick.**
 - **Inspect tile mini (`src/components/TileMini.tsx` + `.css`)** — a small SVG diagram at the top of the
   1-tile Inspect view: the selected tile's REAL vertices in its on-canvas orientation (world y-up flipped
   to SVG y-down), every edge labelled with its `clockwiseEdgeOrder` number (edge 0 accented), a heading
