@@ -712,17 +712,29 @@ worktree (it won't show in `git status` or commits; reverse with `--no-skip-work
 stays `v0.0.0 · phase 0`. (The edit still compiles + renders — skip-worktree only hides it from git, not
 from Vite. It's a *static* render, so it shows even when the headless tab's React events are dead.)
 
-**Phone tunnel (develop on the go).** This network **blocks `trycloudflare.com`** — `cloudflared
-tunnel --url …` fails with `context deadline exceeded` because TCP 443 to `api.trycloudflare.com` is
-dropped (ping/DNS resolve fine, so it *looks* like it should work; it won't). Don't retry cloudflared
-here. **`loca.lt` and `ngrok` endpoints ARE reachable** — use **localtunnel**: in a terminal *the owner
-keeps open* (with the dev server up on 5173), `npx.cmd localtunnel --port 5173 --subdomain exploroboros`
-→ `https://exploroboros.loca.lt` (drop `--subdomain` for a random URL if it's taken). The loca.lt
-reminder page's password is the dev machine's **public IPv4**. Two gotchas: (1) `vite.config.ts` needs
-`server: { allowedHosts: true }` or Vite returns "Blocked request" for the tunnel's Host header (added
-2026-06-27); (2) **never launch the tunnel as a tool background process** — it prints its URL then exits
-0 on stdio EOF within seconds; it must run in a real, persistent terminal. ngrok (free signup + authtoken)
-is the sturdier backup if loca.lt gets flaky.
+**Phone tunnel (develop on the go).** Use **ngrok** — the one that actually works here. In a terminal *the
+owner keeps open*: `ngrok http <port>` (e.g. `5173` for the Vite dev server). It comes up on the account's
+**reserved static domain `https://makeover-backless-helpline.ngrok-free.dev`** (same URL every run — nice for
+on-the-go); on the phone, tap ngrok's one-time **"Visit Site"** button. ngrok's interstitial gates only the top
+document, *not* the JS, so the SPA loads. Gotchas hit in practice:
+- `vite.config.ts` needs `server: { allowedHosts: true }` or Vite returns "Blocked request" for the tunnel's
+  Host header (added 2026-06-27).
+- **`ngrok` → "The system cannot find the file specified"** = a broken **WindowsApps App Execution Alias**
+  (0-byte reparse stub at `%LOCALAPPDATA%\Microsoft\WindowsApps\ngrok.exe`) shadowing the real binary on PATH.
+  Fix: delete that stub (user-owned; re-creatable via Settings → App execution aliases) — `ngrok` then resolves
+  to `…\WinGet\Packages\Ngrok.Ngrok_…\ngrok.exe`.
+- **`ERR_NGROK_121` "agent version too old"** — the account requires agent **≥ 3.20.0**; run **`ngrok update`**
+  (bumped 3.3.1 → 3.39.9 on 2026-07-03). Config + authtoken live at `%LOCALAPPDATA%\ngrok\ngrok.yml`.
+- **Never launch the tunnel as a tool background process** — it prints its URL then exits 0 on stdio EOF within
+  seconds; it must run in a real, persistent terminal. (So I can't hand over a live URL — verify with a
+  start→probe→kill inside *one* command, then hand off the command for the owner to run.)
+
+**Avoid localtunnel/loca.lt for this SPA:** its reminder page returns **HTTP 511** for asset/module requests, so
+the phone receives reminder HTML *in place of the JavaScript* → **white screen** (React never boots). **trycloudflare
+is blocked** here — `cloudflared tunnel --url …` fails with `context deadline exceeded` (TCP 443 to
+`api.trycloudflare.com` dropped; ping/DNS resolve, so it looks fine but won't connect); don't retry it.
+`localhost.run` (`ssh -R 80:localhost:5173 nokey@localhost.run`, prints a phone QR, no signup) is reachable but
+was flaky/slow in testing.
 
 **After deleting/renaming a component:** Vite keeps the old module in its HMR graph and spams
 `[vite] Failed to reload <file>` errors (the page may error too). Hard-reload the page; if it
