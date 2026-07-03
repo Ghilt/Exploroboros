@@ -6,7 +6,7 @@ import type { Tiling, TileNode } from '../tiling'
 import { neighborEdges, tileOrientation, tileRotationDeg, uniqueNeighbors } from '../tiling'
 import type { TileState } from '../canvas'
 import { tileState, visitCount } from '../canvas'
-import type { AttrName, AttrScope } from './types'
+import type { AttrName, AttrScope, TilePath } from './types'
 
 // A walker's own state, exposed to the traverser DSL's formulas/guards. `heading` is the edge NUMBER
 // the walker's `straight` move exits (0 = the north edge, increasing clockwise) — the same numbering
@@ -22,12 +22,16 @@ export type TraverserAttrs = {
 
 // Everything an attribute needs to compute its value for one tile. `traverser` is set only by the
 // traverser DSL (undefined in the coloring/predicate path); its attributes then read as 0 there.
+// `nodeForPath` resolves an attribute's `@`-path (edge hops / target / tile N) to another tile's node;
+// it's supplied by the traverser DSL (it needs a walker's heading/movement/destination). Absent in a
+// walker-free context (coloring) — a path then resolves to nothing and the attribute falls to default.
 export type EvalContext = {
   node: TileNode
   tiling: Tiling
   overlay: ReadonlyMap<string, TileState>
   indexById: ReadonlyMap<string, number>
   traverser?: TraverserAttrs
+  nodeForPath?: (path: TilePath) => TileNode | null
 }
 
 export type AttrSpec = {

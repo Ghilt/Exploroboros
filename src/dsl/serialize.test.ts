@@ -64,6 +64,17 @@ describe('serialize — canonical text', () => {
     expect(canon('tile-type of tile != triangle')).toBe('tile-type != triangle')
   })
 
+  it('serializes attribute @-paths (edge hops, target, tile)', () => {
+    expect(canon('visited@e1 == 0')).toBe('visited@e1 == 0')
+    expect(canon('visited@e0@e0@e3 > 0')).toBe('visited@e0@e0@e3 > 0')
+    expect(canon('visited@r1@e5 == 1')).toBe('visited@r1@e5 == 1')
+    expect(canon('[A@r1] == 2')).toBe('[A@r1] == 2')
+    expect(canon('tile-type@e0 == wedge')).toBe('tile-type@e0 == wedge')
+    expect(canon('visited@target == 0')).toBe('visited@target == 0')
+    expect(canon('visited@tile 5 == 0')).toBe('visited@tile 5 == 0')
+    expect(canon('visited@nearest-unvisited > 0')).toBe('visited@nearest-unvisited > 0')
+  })
+
   it('inserts parentheses only where precedence needs them', () => {
     expect(canon('(visited == 1 or visited == 2) and [A] == 3')).toBe(
       '(visited == 1 or visited == 2) and [A] == 3',
@@ -90,6 +101,12 @@ describe('serialize — round-trips through parse', () => {
     'tile-type == wedge',
     'tile-type != triangle and visited > 0',
     'rotation == 90 or tile-type == square',
+    'visited@e1 == 0',
+    'visited@e0@e0@e3 > 0',
+    'visited@r1@e5 == 1',
+    '[A@r1] == 2',
+    'tile-type@e0 == wedge',
+    'visited@target == 0 and visited@e1 > 0',
   ]
   for (const src of samples) {
     it(`parse(serialize(parse(${src}))) is stable`, () => {

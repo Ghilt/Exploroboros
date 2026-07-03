@@ -6,6 +6,7 @@ import {
   parsePredicate,
   replaceAt,
   serialize,
+  serializePath,
   type ArithOp,
   type AttrName,
   type AttrRef,
@@ -59,12 +60,13 @@ const OP_SYMBOL: Record<string, string> = {
 }
 const SHAPE_SYMBOL: Record<string, string> = { '==': 'is', '!=': 'is not' }
 
-// Swap an attribute for another, keeping a sensible index/default for the new one.
+// Swap an attribute for another, keeping a sensible index/default — and the @-path (which tile it reads).
 function swapAttr(attr: AttrRef, name: AttrName): AttrRef {
   const spec = attrSpec(name)
   const next: AttrRef = { kind: 'attr', name, scope: attr.scope }
   if (spec?.indexed) next.index = attr.index ?? 0
   if (spec?.needsDefault) next.fallback = attr.fallback ?? 0
+  if (attr.path) next.path = attr.path
   return next
 }
 
@@ -142,6 +144,11 @@ export function PredicateVisualEditor({ text, onChange }: { text: string; onChan
             onCommit={(n) => apply(path, { ...attr, index: Math.max(0, Math.round(n)) })}
           />
         )}
+        {attr.path && (
+          <span className="pv-static pv-path" title="edit paths in Text mode">
+            {serializePath(attr.path)}
+          </span>
+        )}
         {attr.fallback !== undefined && (
           <span className="pv-default">
             default
@@ -159,8 +166,8 @@ export function PredicateVisualEditor({ text, onChange }: { text: string; onChan
       case 'attr':
         return attrChip(path, e)
       case 'reg':
-        // A registry read [A] / [A, B]. Shown as a static chip; edit it in Text mode for now.
-        return <span className="pv-static pv-reg">[{e.regs.map((r) => r.toUpperCase()).join(', ')}]</span>
+        // A registry read [A] / [A, B] (+ optional @path). Shown as a static chip; edit it in Text mode.
+        return <span className="pv-static pv-reg">[{e.regs.map((r) => r.toUpperCase()).join(', ')}]{serializePath(e.path)}</span>
 
       case 'neg':
         return (
@@ -203,7 +210,7 @@ export function PredicateVisualEditor({ text, onChange }: { text: string; onChan
       case 'shape':
         return (
           <span className="pv-frag">
-            <span className="pv-static">tile-type</span>
+            <span className="pv-static">tile-type{serializePath(p.path)}</span>
             {opChip(`${path.join('/')}:op`, SHAPE_SYMBOL[p.op] ?? p.op, SHAPE_OPS, (v) =>
               apply(path, { ...p, op: v as '==' | '!=' }),
             )}

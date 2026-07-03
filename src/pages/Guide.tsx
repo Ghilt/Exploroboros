@@ -3,7 +3,7 @@ import { hrefFor } from '../router/useHashRoute'
 
 // A fleshed-out reference for the traverser DSL — reached from the "?" explainer in the Traversers
 // pane ("Read the full guide"). Plain content + small inline SVG diagrams (themeable via CSS vars) so
-// visual learners get a picture of edges, splits, decoration, and directives. No new dependencies.
+// visual learners get a picture of edges, splits, attribute paths, and directives. No new dependencies.
 export function Guide() {
   return (
     <div className="guide container">
@@ -211,7 +211,7 @@ move straight                  # a bare action — always runs`}</pre>
         <h2>Moving</h2>
         <p>
           A move command is <code>move &lt;edge&gt;</code>. There is <strong>one vocabulary for naming an
-          edge</strong>, used everywhere a move (or a <a href="#predicates">decoration</a>) names a
+          edge</strong>, used everywhere a move (or an attribute's <a href="#predicates">path</a>) names a
           direction. Every tile's edges are numbered <em>clockwise from the top</em> (0, 1, 2, …); your
           <strong> heading</strong> is simply the edge number <code>straight</code> exits, and the turns
           step that number around the ring — so the same rule works on any tile shape, the concave wedge
@@ -227,7 +227,7 @@ move straight                  # a bare action — always runs`}</pre>
             <tr><td><code>straight</code></td><td>The edge you're heading at — the heading edge itself. (<code>s</code> for short.)</td></tr>
             <tr><td><code>r1</code>, <code>r2</code>, …</td><td>Turn <strong>right</strong> (clockwise): heading <strong>+1</strong>, +2, … around the edge ring.</td></tr>
             <tr><td><code>l1</code>, <code>l2</code>, …</td><td>Turn <strong>left</strong> (counter-clockwise): heading <strong>−1</strong>, −2, … around the ring.</td></tr>
-            <tr><td><code>edge N</code></td><td>The <strong>absolute</strong> edge by its <em>clockwise-from-top</em> number (0 at the top), regardless of heading.</td></tr>
+            <tr><td><code>eN</code> (<code>e0</code>, <code>e3</code>…)</td><td>The <strong>absolute</strong> edge by its <em>clockwise-from-top</em> number (0 at the top), regardless of heading.</td></tr>
             <tr><td><code>nearest-unvisited</code></td><td>The unvisited neighbour the fewest edges around from your heading (great for carving mazes).</td></tr>
           </tbody>
         </table>
@@ -262,15 +262,15 @@ move straight                  # a bare action — always runs`}</pre>
             <tr><td><code>move straight</code></td><td>Step forward one tile.</td></tr>
             <tr><td><code>move r1</code></td><td>Turn right and step.</td></tr>
             <tr><td><code>move l2</code></td><td>Take the second edge to the left.</td></tr>
-            <tr><td><code>move edge 0</code></td><td>Cross the top edge, whatever your heading.</td></tr>
+            <tr><td><code>move e0</code></td><td>Cross the top edge, whatever your heading.</td></tr>
             <tr><td><code>move nearest-unvisited</code></td><td>Step to the closest unvisited neighbour — the built-in Walker.</td></tr>
             <tr><td><code>move [straight, r1, l1]</code></td><td>Split: branch forward, right and left at once.</td></tr>
             <tr><td><code>move straight -&gt; r1</code></td><td>Hop two edges in one tick; only the final tile is visited.</td></tr>
-            <tr><td><code>if visited == 0 @ target then move [r1, l1, straight]</code></td><td>A <a href="#predicates">predicate</a> gates the move: split three ways, but keep only the branches landing on an <em>unvisited</em> tile (<code>@ target</code> tests each destination).</td></tr>
+            <tr><td><code>if visited@target == 0 then move [r1, l1, straight]</code></td><td>A <a href="#predicates">predicate</a> gates the move: split three ways, but keep only the branches landing on an <em>unvisited</em> tile (<code>@target</code> on the attribute tests each destination).</td></tr>
           </tbody>
         </table>
         <p className="guide-note">
-          <code>straight</code>/<code>r</code>/<code>l</code> are framed by your heading; <code>edge N</code> is
+          <code>straight</code>/<code>r</code>/<code>l</code> are framed by your heading; <code>eN</code> is
           always absolute. Set <code>movement = absolute</code> in the header to frame <em>all</em> of them by
           north instead.
         </p>
@@ -296,22 +296,29 @@ move straight                  # a bare action — always runs`}</pre>
           </li>
         </ul>
         <p>
-          A predicate reads the tile you're <strong>on</strong> by default. A <strong>decoration</strong>{' '}
-          redirects the <em>whole</em> predicate to another tile:
+          Each attribute reads the tile you're <strong>on</strong> by default. Add an <strong>@-path</strong>{' '}
+          right after the attribute to read it on <em>another</em> tile — <code>visited@e1</code>,{' '}
+          <code>tile-type@target</code>, <code>[A@r1]</code>. Different attributes in one predicate can point
+          at different tiles.
         </p>
         <table className="guide-table">
           <thead>
-            <tr><th>Decoration</th><th>Asks about…</th></tr>
+            <tr><th>Path</th><th>Reads the attribute on…</th></tr>
           </thead>
           <tbody>
-            <tr><td><code>@ &lt;edge&gt;</code></td><td>The neighbour across that edge — e.g. <code>@ r1</code>, <code>@ straight</code> (any <a href="#moving">edge name</a>).</td></tr>
-            <tr><td><code>@ tile N</code></td><td>The tile with absolute number <code>N</code>.</td></tr>
-            <tr><td><code>@ target</code></td><td>The tile a move is <strong>heading to</strong>. Dynamic: with a split it's tested <em>per branch</em>, so it filters which branches survive. This is how a <a href="#directives">directive</a> gates moves.</td></tr>
+            <tr><td><code>@e0</code>, <code>@r1</code>, <code>@straight</code>…</td><td>The neighbour across that edge — any <a href="#moving">edge name</a> (<code>eN</code>, <code>r</code>/<code>l</code>, <code>straight</code>, <code>nearest-unvisited</code>).</td></tr>
+            <tr><td><code>@e0@e0@e3</code>, <code>@r1@e5</code></td><td>Follow several edges in turn (re-aiming at each) and read the tile you land on.</td></tr>
+            <tr><td><code>@target</code></td><td>The tile a move is <strong>heading to</strong>. Dynamic: with a split it's tested <em>per branch</em>, so it filters which branches survive. This is how a <a href="#directives">directive</a> gates moves.</td></tr>
+            <tr><td><code>@tile N</code></td><td>The tile with absolute number <code>N</code>.</td></tr>
           </tbody>
         </table>
+        <p className="guide-note">
+          <code>@target</code> and <code>@tile N</code> name a tile directly, so nothing can follow them; edge
+          hops (<code>@e0</code>, <code>@r1</code>…) chain freely.
+        </p>
         <DecorationDiagram />
-        <pre className="guide-code">{`if visited > 0 @ r1 then move l1                        # if the tile to my right is visited, turn left
-if visited == 0 @ target then move [r1, l1, straight]   # split, but only onto unvisited tiles`}</pre>
+        <pre className="guide-code">{`if visited@r1 > 0 then move l1                          # if the tile to my right is visited, turn left
+if visited@target == 0 then move [r1, l1, straight]    # split, but only onto unvisited tiles`}</pre>
       </section>
 
       <section className="guide-section" id="registries">
@@ -362,18 +369,18 @@ reset directives`}</pre>
           Each candidate destination of a following move must pass every active directive: it's taken only if
           no <code>forbid</code> predicate holds and every <code>allow</code> predicate holds
           (<strong>forbid wins</strong>). Like any predicate the test reads the tile you're{' '}
-          <strong>on</strong> by default — so to gate by where you're <em>going</em>, decorate it with{' '}
-          <code>@ target</code> (almost always what you want). Directives stack as the program runs
+          <strong>on</strong> by default — so to gate by where you're <em>going</em>, add{' '}
+          <code>@target</code> to its attribute(s) (almost always what you want). Directives stack as the program runs
           top-to-bottom; <code>reset directives</code> clears them so later moves are unconstrained again.
         </p>
         <DirectiveDiagram />
-        <pre className="guide-code">{`directive if visited > 0 @ target always forbid move   # never step onto a visited tile…
+        <pre className="guide-code">{`directive if visited@target > 0 always forbid move     # never step onto a visited tile…
 move [straight, r1, l1, r2, l2]                        # …try these, the directive filters them
 
 reset directives                                       # from here on, moves are unfiltered again
 move straight`}</pre>
         <p className="guide-note">
-          A directive is just an <code>@ target</code> guard made standing: it constrains the{' '}
+          A directive is just a <code>@target</code> guard made standing: it constrains the{' '}
           <code>move</code>/<code>morph</code> lines that <em>follow</em> it — never the ones above.
         </p>
       </section>
@@ -400,7 +407,7 @@ move straight`}</pre>
 
         <h3>Self-avoiding splitter</h3>
         <pre className="guide-code">{`max-split = 3
-directive if visited > 0 @ target always forbid move
+directive if visited@target > 0 always forbid move
 move [straight, r1, l1]`}</pre>
         <p>Branches forward/left/right, but never onto a visited tile — branches die as they run out of room, leaving a tree.</p>
 
@@ -500,21 +507,21 @@ function SplitChainDiagram() {
   )
 }
 
-// Decoration: a predicate with @ r1 asks about the neighbour, not the current tile.
+// Path: an attribute with @r1 reads the neighbour, not the current tile.
 function DecorationDiagram() {
   return (
     <figure className="guide-figure">
-      <svg viewBox="0 0 320 130" role="img" aria-label="visited > 0 @ r1 tests the tile across edge r1, not the tile the walker is on.">
+      <svg viewBox="0 0 320 130" role="img" aria-label="visited@r1 > 0 reads the tile across edge r1, not the tile the walker is on.">
         <Tile x={70} y={45} walker />
         <line x1={110} y1={65} x2={150} y2={65} className="gd-ray" />
-        <text x={130} y={56} textAnchor="middle" className="gd-label gd-label--strong">@ r1</text>
+        <text x={130} y={56} textAnchor="middle" className="gd-label gd-label--strong">@r1</text>
         <Tile x={150} y={45} asked />
         <text x={90} y={110} textAnchor="middle" className="gd-caption">you are here</text>
-        <text x={170} y={110} textAnchor="middle" className="gd-caption">asks about this</text>
+        <text x={170} y={110} textAnchor="middle" className="gd-caption">reads this</text>
       </svg>
       <figcaption>
-        <code>visited &gt; 0 @ r1</code> reads the tile across <code>r1</code> — the decoration redirects the
-        question to a neighbour.
+        <code>visited@r1 &gt; 0</code> reads the tile across <code>r1</code> — the <code>@</code>-path
+        redirects that attribute to a neighbour.
       </figcaption>
     </figure>
   )
@@ -536,7 +543,7 @@ function DirectiveDiagram() {
         <text x={205} y={28} textAnchor="middle" className="gd-caption gd-no-text">forbidden (visited)</text>
       </svg>
       <figcaption>
-        <code>directive if visited &gt; 0 @ target always forbid move</code> drops any following move whose
+        <code>directive if visited@target &gt; 0 always forbid move</code> drops any following move whose
         destination is visited.
       </figcaption>
     </figure>

@@ -1,8 +1,9 @@
 // AST for the traverser-program DSL — pure & isomorphic (no React/DOM/Konva), like src/dsl and
 // src/tiling. A traverser DEFINITION is a header of settings + an ordered list of rules/directives,
 // evaluated top-to-bottom each tick. Numeric formulas and boolean guards reuse src/dsl's `Expr`/`Pred`
-// (parsed by delegating their substrings to src/dsl); this layer adds the statement grammar, the edge
-// shorthands, and the `@ edge` decoration that points an inner predicate/expression at a neighbour.
+// (parsed by delegating their substrings to src/dsl); this layer adds the statement grammar and the edge
+// shorthands. A predicate/expression reads a NEIGHBOUR tile via an attribute's own `@`-path (src/dsl) —
+// `visited@e1`, `visited@target` — not a guard-level decoration.
 
 import type { Expr, Pred } from '../../dsl'
 
@@ -24,21 +25,15 @@ export type Chain = ReadonlyArray<EdgeRef> // length >= 1
 // A move target: one chain, or a set of chains that split (capped by max-split).
 export type EdgeTarget = ReadonlyArray<Chain> // length 1 = single move; >1 = split
 
-// Points a decorated predicate/expression at another tile instead of the current one:
-//  - edge:   the neighbour across an edge (relative to the walker)
-//  - tile:   a tile by its absolute number
-//  - target: the DESTINATION of the move being gated — dynamic, resolved per candidate. Meaningful in
-//            a directive or a move/morph rule guard; elsewhere it falls back to the current tile.
-// A missing target (boundary / out of range) makes the predicate false / the value 0.
-export type Decoration = { kind: 'edge'; edge: EdgeRef } | { kind: 'tile'; index: number } | { kind: 'target' }
-
-// A guard predicate: written inline, or a reference to a saved predicate by name (resolved to inline
-// at compile). Either may carry a decoration.
+// A guard predicate: written inline, or a reference to a saved predicate by name (resolved to inline at
+// compile). Which tile each attribute reads is carried by the attribute's own `@`-path (src/dsl), not a
+// guard-level decoration. A path that hits a boundary / missing tile makes that attribute default / the
+// shape test false.
 export type GuardPred = { kind: 'inline'; pred: Pred } | { kind: 'named'; name: string }
-export type Guard = { pred: GuardPred; at?: Decoration }
+export type Guard = { pred: GuardPred }
 
-// A numeric value with an optional decoration (read the inner expression on another tile).
-export type DExpr = { expr: Expr; at?: Decoration }
+// A numeric value in a put/increase. Attributes inside carry their own `@`-path if they read another tile.
+export type DExpr = { expr: Expr }
 
 // Tile registries A/B/C (shared with drag-paint) and the traverser's own P/Q/R.
 export type Reg = 'A' | 'B' | 'C' | 'P' | 'Q' | 'R'
@@ -55,8 +50,9 @@ export type Action =
 export type Rule = { kind: 'rule'; guard?: Guard; action: Action }
 // A directive gates ALL following move/morph actions: a candidate destination is allowed only if it
 // passes every active `allow` and no active `forbid` (forbid wins). Like any guard the predicate reads
-// the CURRENT tile by default; decorate it with `@ target` to test the destination instead. `reset`
-// clears the active directives. Surface grammar: `directive if <guard> always forbid|allow move`.
+// the CURRENT tile by default; use `@target` on an attribute (e.g. `visited@target`) to test the
+// destination instead. `reset` clears the active directives. Grammar: `directive if <guard> always
+// forbid|allow move`.
 export type Directive = { kind: 'directive'; allow: boolean; guard: Guard }
 export type Reset = { kind: 'reset' }
 export type Stmt = Rule | Directive | Reset

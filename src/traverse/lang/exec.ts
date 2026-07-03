@@ -9,18 +9,18 @@
 // order-independently, while a `put` is last-writer-wins in the runtime's traverser order (see step.ts).
 // Each firing move/morph adds a branch (capped by max-split); a walker producing no branch is dropped.
 
-import type { Tiling } from '../../tiling'
+import type { Tiling, TileNode } from '../../tiling'
 import { nodeById } from '../../tiling'
-import { evalNumber, evalPredicate, type EvalContext } from '../../dsl'
+import { evalNumber, evalPredicate, predReadsTarget, serializePath, type EvalContext, type PathSeg, type TilePath } from '../../dsl'
 import type { TileState } from '../../canvas'
-import { resolveChain, resolveRef } from './edges'
+import { resolveChain } from './edges'
 import { serializeChain, serializeGuard, serializeStmt } from './serialize'
-import type { Action, Decoration, DExpr, EdgeTarget, Guard, Movement, Program } from './types'
-import type { CandidateTrace, GuardEval, RejectReason, TraverserTrace } from '../trace'
+import type { Action, DExpr, EdgeRef, EdgeTarget, Guard, Movement, Program } from './types'
+import type { CandidateTrace, GuardEval, ReadTile, RejectReason, TraverserTrace } from '../trace'
 
 export type WalkerState = {
   tile: string
-  heading: number // radians
+  heading: number // edge number (0 = top, clockwise) — the edge `straight` exits
   steps: number
   splits: number
   maxSplit: number
@@ -52,6 +52,25 @@ export type ExecResult = {
 // Wrap an edge-number heading into 0..n-1 for a tile with `n` sides.
 const wrapEdge = (edge: number, n: number) => (n > 0 ? (((Math.round(edge) % n) + n) % n) : 0)
 
+// A hop-shaped path segment IS an EdgeRef (same shape); the terminal target/tile segs are resolved by
+// the caller and never reach here.
+function segToEdgeRef(seg: PathSeg): EdgeRef | null {
+  switch (seg.kind) {
+    case 'straight':
+      return { kind: 'straight' }
+    case 'unvisited':
+      return { kind: 'unvisited' }
+    case 'turn':
+      return { kind: 'turn', dir: seg.dir, n: seg.n }
+    case 'edge':
+      return { kind: 'edge', index: seg.index }
+    case 'target':
+    case 'tile':
+      return null
+  }
+}
+
+
 // `trace`, when given, is filled with this walker's per-statement decisions (what each guard read,
 // every candidate move and why it survived/was rejected). It's the only debug-mode cost: when
 // undefined every recording branch short-circuits and no text is serialized — so the headless export
@@ -82,44 +101,72 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
     q: self.q,
     r: self.r,
   })
-  const ctxFor = (tileId: string): EvalContext | null => {
-    const node = nodeById(tiling, tileId)
-    return node ? { node, tiling, overlay, indexById, traverser: traverserAttrs() } : null
-  }
-  // The tile a decoration points at, or null if it doesn't exist. No decoration -> the current tile.
-  // `@ target` -> the move destination under consideration (`dest`); outside a move context (dest
-  // null) it falls back to the current tile, so a stray `@ target` is never silently always-false.
-  const decoratedTile = (at: Decoration | undefined, dest: string | null): string | null => {
-    if (!at) return walker.tile
-    if (at.kind === 'target') return dest ?? walker.tile
-    if (at.kind === 'tile') return tileByIndex[at.index] ?? null
-    return resolveRef(tiling, overlay, walker.tile, self.heading, self.movement, at.edge)?.tile ?? null
-  }
+  const currentNode = nodeById(tiling, walker.tile) ?? null
 
-  // The guard's boolean AND the tile it read. tileId is computed regardless, so returning it costs
-  // nothing and gives the trace the "which tile did this guard test" answer.
-  const evalGuardFull = (guard: Guard, dest: string | null): { result: boolean; tileId: string | null } => {
-    const tileId = decoratedTile(guard.at, dest)
-    if (tileId === null) return { result: false, tileId: null } // boundary / missing -> false
-    const ctx = ctxFor(tileId)
-    if (!ctx || guard.pred.kind === 'named') return { result: false, tileId } // named resolved at compile
-    return { result: evalPredicate(guard.pred.pred, ctx), tileId }
+  // Resolve an attribute's `@`-path to another tile's node (or null at a boundary / missing tile). No
+  // path -> the current tile. `@target` -> the move destination under consideration (`dest`), or the
+  // current tile outside a move context (so a stray `@target` is never silently always-false). `@tile N`
+  // -> the tile with that absolute number. Otherwise chain the edge hops from the current tile/heading.
+  const resolvePathNode = (dest: string | null, path: TilePath): TileNode | null => {
+    if (path.length === 0) return currentNode
+    const first = path[0]
+    if (first.kind === 'target') return nodeById(tiling, dest ?? walker.tile) ?? null
+    if (first.kind === 'tile') {
+      const id = tileByIndex[first.index]
+      return id ? nodeById(tiling, id) ?? null : null
+    }
+    const refs: EdgeRef[] = []
+    for (const seg of path) {
+      const ref = segToEdgeRef(seg)
+      if (!ref) return null // a terminal seg mid-chain (the parser forbids it) -> no tile
+      refs.push(ref)
+    }
+    const hop = resolveChain(tiling, overlay, walker.tile, self.heading, self.movement, refs)
+    return hop ? nodeById(tiling, hop.tile) ?? null : null
   }
-  const evalGuard = (guard: Guard, dest: string | null): boolean => evalGuardFull(guard, dest).result
-  // Package a guard evaluation for the trace — only called under `if (trace)`, so the text
-  // serialization never runs on the hot path.
-  const guardEval = (guard: Guard, full: { result: boolean; tileId: string | null }): GuardEval => ({
+  // The nodeForPath hook handed to the evaluator. When `record` is given (trace mode only) each
+  // resolution is logged for the debug read-tile highlights; otherwise it's a plain resolve (zero cost).
+  const makeNodeForPath =
+    (dest: string | null, record?: ReadTile[]) =>
+    (path: TilePath): TileNode | null => {
+      const node = resolvePathNode(dest, path)
+      if (record) {
+        record.push({
+          id: node?.id ?? null,
+          role: path[0]?.kind === 'target' ? 'target' : 'read',
+          tileType: node?.shape ?? null,
+          text: serializePath(path),
+        })
+      }
+      return node
+    }
+  const ctxFor = (dest: string | null, record?: ReadTile[]): EvalContext | null =>
+    currentNode
+      ? { node: currentNode, tiling, overlay, indexById, traverser: traverserAttrs(), nodeForPath: makeNodeForPath(dest, record) }
+      : null
+
+  // A guard's boolean, rooted at the current tile (its attributes redirect themselves via `@`-paths).
+  const evalGuard = (guard: Guard, dest: string | null): boolean => {
+    if (guard.pred.kind === 'named') return false // resolved at compile; defensive
+    const ctx = ctxFor(dest)
+    return ctx ? evalPredicate(guard.pred.pred, ctx) : false
+  }
+  // As evalGuard, but records the tiles the guard's paths read. Only called under `if (trace)`, so the
+  // recording + text serialization never runs on the hot path.
+  const evalGuardTraced = (guard: Guard, dest: string | null): { result: boolean; readTiles: ReadTile[] } => {
+    const readTiles: ReadTile[] = []
+    if (guard.pred.kind === 'named') return { result: false, readTiles }
+    const ctx = ctxFor(dest, readTiles)
+    return { result: ctx ? evalPredicate(guard.pred.pred, ctx) : false, readTiles }
+  }
+  const guardEval = (guard: Guard, ev: { result: boolean; readTiles: ReadTile[] }): GuardEval => ({
     text: serializeGuard(guard),
-    tileId: full.tileId,
-    tileType: full.tileId ? nodeById(tiling, full.tileId)?.shape ?? null : null,
-    decorated: guard.at !== undefined,
-    result: full.result,
-    reason: full.tileId === null ? 'boundary' : guard.pred.kind === 'named' ? 'named-unresolved' : undefined,
+    readTiles: ev.readTiles,
+    result: ev.result,
+    reason: guard.pred.kind === 'named' ? 'named-unresolved' : undefined,
   })
   const evalDExpr = (d: DExpr): number => {
-    const tileId = decoratedTile(d.at, null)
-    if (tileId === null) return 0
-    const ctx = ctxFor(tileId)
+    const ctx = ctxFor(null)
     return ctx ? evalNumber(d.expr, ctx) : 0
   }
 
@@ -138,14 +185,14 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
   // trace. Used only when recording.
   const moveAllowedTraced = (dest: string, perTarget?: Guard): { ok: boolean; reject?: RejectReason } => {
     if (perTarget) {
-      const full = evalGuardFull(perTarget, dest)
-      if (!full.result) return { ok: false, reject: { by: 'per-target', guard: guardEval(perTarget, full) } }
+      const ev = evalGuardTraced(perTarget, dest)
+      if (!ev.result) return { ok: false, reject: { by: 'per-target', guard: guardEval(perTarget, ev) } }
     }
     for (let i = 0; i < directives.length; i += 1) {
       const d = directives[i]
-      const full = evalGuardFull(d.guard, dest)
-      if (d.allow ? !full.result : full.result)
-        return { ok: false, reject: { by: 'directive', index: i, allow: d.allow, guard: guardEval(d.guard, full) } }
+      const ev = evalGuardTraced(d.guard, dest)
+      if (d.allow ? !ev.result : ev.result)
+        return { ok: false, reject: { by: 'directive', index: i, allow: d.allow, guard: guardEval(d.guard, ev) } }
     }
     return { ok: true }
   }
@@ -220,15 +267,16 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
       if (trace) trace.statements.push({ kind: 'directive', source: serializeStmt(stmt), allow: stmt.allow })
       continue
     }
-    // A `@ target` guard on a move/morph filters each candidate destination (like an inline directive);
-    // any other guard gates the whole statement up front against the current/decorated tile.
+    // A guard that reads `@target` on a move/morph filters each candidate destination (like an inline
+    // directive); any other guard gates the whole statement up front against the current tile.
     const g = stmt.guard
     const isMove = stmt.action.kind === 'move' || stmt.action.kind === 'morph'
-    const perTarget = !!g && g.at?.kind === 'target' && isMove
+    const perTarget = isMove && !!g && g.pred.kind === 'inline' && predReadsTarget(g.pred.pred)
     if (g && !perTarget) {
-      const full = evalGuardFull(g, null)
-      if (!full.result) {
-        if (trace) trace.statements.push({ kind: 'gate-skip', source: serializeStmt(stmt), guard: guardEval(g, full) })
+      const ev = trace ? evalGuardTraced(g, null) : null
+      const ok = ev ? ev.result : evalGuard(g, null)
+      if (!ok) {
+        if (trace && ev) trace.statements.push({ kind: 'gate-skip', source: serializeStmt(stmt), guard: guardEval(g, ev) })
         continue
       }
     }

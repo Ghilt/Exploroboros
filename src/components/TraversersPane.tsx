@@ -53,7 +53,7 @@ export function TraversersPane({
           </p>
           <p>
             <strong>Move</strong> by edge: <code>move straight</code>, <code>move r1</code> (weak right),{' '}
-            <code>move l2</code> (stronger left), <code>move edge 3</code> (the numbered edge), or{' '}
+            <code>move l2</code> (stronger left), <code>move e3</code> (the numbered edge), or{' '}
             <code>move nearest-unvisited</code> (step to the closest-by-heading unvisited neighbour — the
             built-in walker). <code>move [r1, l1]</code> splits (capped by <code>max-split</code>);{' '}
             <code>move straight -&gt; r1</code> hops twice in one tick.
@@ -61,8 +61,8 @@ export function TraversersPane({
           <p>
             <strong>Registries:</strong> <code>put A = [A] + 1</code>, <code>increase P</code>. A/B/C live on
             the tile; P/Q/R travel with the walker. Read a tile registry as <code>[A]</code> (or{' '}
-            <code>[A, B]</code> to sum). Read another tile with <code>@</code>:{' '}
-            <code>if visited &gt; 0 @ r1 then move l1</code>. Reference a saved predicate by name. Also:{' '}
+            <code>[A, B]</code> to sum). Read the value on another tile with a <code>@</code>-path on the
+            attribute: <code>if visited@r1 &gt; 0 then move l1</code>. Reference a saved predicate by name. Also:{' '}
             <code>morph &lt;name&gt; …</code>, <code>update max-split 2</code>, and{' '}
             <code>directive if &lt;predicate&gt; always forbid move</code> / <code>reset directives</code>.
           </p>

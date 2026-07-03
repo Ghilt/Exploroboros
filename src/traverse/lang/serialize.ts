@@ -6,7 +6,6 @@ import { DEFAULT_SETTINGS } from './types'
 import type {
   Action,
   Chain,
-  Decoration,
   DExpr,
   EdgeRef,
   EdgeTarget,
@@ -25,7 +24,7 @@ function edgeRef(r: EdgeRef): string {
     case 'turn':
       return `${r.dir}${r.n}`
     case 'edge':
-      return `edge ${r.index}`
+      return `e${r.index}`
   }
 }
 
@@ -40,23 +39,16 @@ function target(t: EdgeTarget): string {
   return chains.length === 1 ? chains[0] : `[${chains.join(', ')}]`
 }
 
-export function serializeDecoration(d: Decoration): string {
-  if (d.kind === 'target') return '@ target'
-  if (d.kind === 'tile') return `@ tile ${d.index}`
-  return `@ ${edgeRef(d.edge)}`
-}
-
 export function serializeGuard(g: Guard): string {
-  const head = g.pred.kind === 'named' ? g.pred.name : serializePred(g.pred.pred)
-  return head + (g.at ? ` ${serializeDecoration(g.at)}` : '')
+  return g.pred.kind === 'named' ? g.pred.name : serializePred(g.pred.pred)
 }
 
 function dexpr(d: DExpr): string {
-  return serializeExpr(d.expr) + (d.at ? ` ${serializeDecoration(d.at)}` : '')
+  return serializeExpr(d.expr)
 }
 
 function isLiteralOne(d: DExpr): boolean {
-  return !d.at && d.expr.kind === 'number' && d.expr.value === 1
+  return d.expr.kind === 'number' && d.expr.value === 1
 }
 
 function action(a: Action): string {

@@ -10,7 +10,6 @@ import {
   DEFAULT_SETTINGS,
   type Action,
   type Chain,
-  type Decoration,
   type DExpr,
   type EdgeRef,
   type EdgeTarget,
@@ -105,17 +104,8 @@ function delegate<T>(line: Line, from: number, to: number, what: 'pred' | 'expr'
   return r.value as T
 }
 
-// Find the first top-level `@` (decoration) in [from, to). `@` is not a valid src/dsl token, so any
-// occurrence is a decoration boundary.
-function findAt(line: Line, from: number, to: number): number {
-  for (let k = from; k < to; k += 1) {
-    if (line.toks[k].kind === 'sym' && line.toks[k].text === '@') return k
-  }
-  return -1
-}
-
 function parseEdgeRef(line: Line): EdgeRef {
-  const t = line.word('expected an edge, e.g. straight, r1, l2, or edge 3')
+  const t = line.word('expected an edge, e.g. straight, r1, l2, or e3')
   const text = t.text
   if (text === 'straight' || text === 's') return { kind: 'straight' }
   if (text === 'nearest-unvisited') return { kind: 'unvisited' }
@@ -125,16 +115,9 @@ function parseEdgeRef(line: Line): EdgeRef {
     if (n < 1) throw new ParseFail('a turn must be r1/l1 or higher', { start: t.start, end: t.end })
     return { kind: 'turn', dir: turn[1] as 'r' | 'l', n }
   }
-  if (text === 'edge') {
-    const num = line.next()
-    if (num.kind !== 'num') throw new ParseFail('expected an edge number, e.g. edge 3', { start: num.start, end: num.end })
-    const index = Number(num.text)
-    if (!Number.isInteger(index) || index < 0) {
-      throw new ParseFail('edge number must be a whole number ≥ 0', { start: num.start, end: num.end })
-    }
-    return { kind: 'edge', index }
-  }
-  throw new ParseFail(`"${text}" is not an edge — use straight, r1/l1…, edge N, or nearest-unvisited`, {
+  const edge = /^e([0-9]+)$/.exec(text)
+  if (edge) return { kind: 'edge', index: Number(edge[1]) }
+  throw new ParseFail(`"${text}" is not an edge — use straight, r1/l1…, eN, or nearest-unvisited`, {
     start: t.start,
     end: t.end,
   })
@@ -163,53 +146,23 @@ function parseEdgeTarget(line: Line): EdgeTarget {
   return [parseChain(line)]
 }
 
-// Parse a decoration from tokens [from, to): `target`, `tile <n>`, or an edge ref. Must consume the
-// whole range.
-function parseDecorationRange(line: Line, from: number, to: number): Decoration {
-  const saved = line.pos
-  line.pos = from
-  let dec: Decoration
-  if (line.isWord('target')) {
-    line.pos += 1
-    dec = { kind: 'target' }
-  } else if (line.isWord('tile')) {
-    line.pos += 1
-    const num = line.next()
-    if (num.kind !== 'num') throw new ParseFail('expected a tile number, e.g. @ tile 12', { start: num.start, end: num.end })
-    dec = { kind: 'tile', index: Number(num.text) }
-  } else {
-    dec = { kind: 'edge', edge: parseEdgeRef(line) }
-  }
-  if (line.pos < to) throw new ParseFail(`unexpected "${line.toks[line.pos].text}"`, line.spanHere())
-  line.pos = saved
-  return dec
-}
-
-// A guard over tokens [from, to): an inline predicate or a single-word named reference, with an
-// optional `@ <decoration>` suffix.
+// A guard over tokens [from, to): a single-word named reference, or an inline predicate delegated whole
+// to src/dsl. Any `@`-paths (`visited@e1`, `visited@target`) live INSIDE the predicate and are parsed by
+// src/dsl — this layer no longer splits on `@`.
 function parseGuardRange(line: Line, from: number, to: number): Guard {
-  const at = findAt(line, from, to)
-  const predTo = at === -1 ? to : at
-  let pred: Guard['pred']
-  if (predTo - from === 1 && line.toks[from].kind === 'word') {
-    pred = { kind: 'named', name: line.toks[from].text }
-  } else {
-    pred = { kind: 'inline', pred: delegate(line, from, predTo, 'pred') }
+  if (to - from === 1 && line.toks[from].kind === 'word') {
+    return { pred: { kind: 'named', name: line.toks[from].text } }
   }
-  const decoration = at === -1 ? undefined : parseDecorationRange(line, at + 1, to)
-  return decoration ? { pred, at: decoration } : { pred }
+  return { pred: { kind: 'inline', pred: delegate(line, from, to, 'pred') } }
 }
 
-// A numeric value `<expr> [@ <decoration>]` from the cursor to end of line.
+// A numeric value `<expr>` from the cursor to end of line (any `@`-paths inside are parsed by src/dsl).
 function parseDExprToEnd(line: Line): DExpr {
   const from = line.pos
   const to = line.toks.length
-  const at = findAt(line, from, to)
-  const exprTo = at === -1 ? to : at
-  const expr = delegate<DExpr['expr']>(line, from, exprTo, 'expr')
-  const decoration = at === -1 ? undefined : parseDecorationRange(line, at + 1, to)
+  const expr = delegate<DExpr['expr']>(line, from, to, 'expr')
   line.pos = to
-  return decoration ? { expr, at: decoration } : { expr }
+  return { expr }
 }
 
 function parseReg(line: Line): Reg {

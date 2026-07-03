@@ -33,24 +33,24 @@ describe('debug highlight mapping', () => {
     expect([...idsFor(g, 'chosen')].sort()).toEqual(['sq:2,3', 'sq:3,2'])
   })
 
-  it('a gate-skip highlights the current tile + the tile the decorated guard read', () => {
+  it('a gate-skip highlights the current tile + the tiles the guard read via @-paths', () => {
     const w = header()
     const s: StmtTrace = {
       kind: 'gate-skip',
-      source: 'if tile-type == wedge @ edge 0 then move edge 0',
-      guard: { text: 'tile-type == wedge @ edge 0', tileId: 'sq:3,2', tileType: 'square', decorated: true, result: false },
+      source: 'if tile-type@e0 == wedge then move e0',
+      guard: { text: 'tile-type@e0 == wedge', readTiles: [{ id: 'sq:3,2', role: 'read', tileType: 'square', text: '@e0' }], result: false },
     }
     const g = statementGroups(w, s)
     expect(idsFor(g, 'current')).toEqual(['sq:2,2'])
     expect(idsFor(g, 'decorator')).toEqual(['sq:3,2'])
   })
 
-  it('an undecorated gate-skip marks no decorator tile', () => {
+  it('a path-less gate-skip marks no decorator tile', () => {
     const w = header()
     const s: StmtTrace = {
       kind: 'gate-skip',
       source: 'if visited > 0 then move straight',
-      guard: { text: 'visited > 0', tileId: 'sq:2,2', tileType: 'square', decorated: false, result: false },
+      guard: { text: 'visited > 0', readTiles: [], result: false },
     }
     expect(statementGroups(w, s).some((grp) => grp.role === 'decorator')).toBe(false)
   })
@@ -64,7 +64,7 @@ describe('debug highlight mapping', () => {
         destType: 'square',
         heading: 0,
         survived: false,
-        reject: { by: 'directive', index: 0, allow: false, guard: { text: 'visited > 0 @ target', tileId: 'sq:1,2', tileType: 'square', decorated: true, result: true } },
+        reject: { by: 'directive', index: 0, allow: false, guard: { text: 'visited@target > 0', readTiles: [{ id: 'sq:1,2', role: 'target', tileType: 'square', text: '@target' }], result: true } },
       },
     ]
     const s: StmtTrace = { kind: 'move', source: 'move [straight, r1]', candidates }
@@ -79,5 +79,19 @@ describe('debug highlight mapping', () => {
     expect(idsFor(candidateGroups(header(), reject), 'rejected')).toEqual(['sq:1,2'])
     const ok: CandidateTrace = { chainText: 'straight', dest: 'sq:2,3', destType: 'square', heading: 0, survived: true }
     expect(idsFor(candidateGroups(header(), ok), 'chosen')).toEqual(['sq:2,3'])
+  })
+
+  it('a candidate rejected by an @-edge guard marks the read tile (≠ destination) as decorator', () => {
+    const c: CandidateTrace = {
+      chainText: 'straight',
+      dest: 'sq:2,3',
+      destType: 'square',
+      heading: 0,
+      survived: false,
+      reject: { by: 'per-target', guard: { text: 'visited@r1 > 0', readTiles: [{ id: 'sq:2,4', role: 'read', tileType: 'square', text: '@r1' }], result: true } },
+    }
+    const g = candidateGroups(header(), c)
+    expect(idsFor(g, 'decorator')).toEqual(['sq:2,4'])
+    expect(idsFor(g, 'rejected')).toEqual(['sq:2,3'])
   })
 })

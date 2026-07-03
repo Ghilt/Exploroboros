@@ -70,7 +70,7 @@ describe('tick trace', () => {
 
   it('records a forbid directive blocking a move (the destination is visited)', () => {
     const overlay = addVisits(new Map(), ['sq:2,3'], 0) // east (the straight destination) visited
-    const ss = stmts(state('directive if visited > 0 @ target always forbid move\nmove straight', 'sq:2,2', overlay))
+    const ss = stmts(state('directive if visited@target > 0 always forbid move\nmove straight', 'sq:2,2', overlay))
     const move = ss.find((s) => s.kind === 'move')
     expect(move?.kind === 'move' && move.candidates).toHaveLength(1)
     if (move?.kind !== 'move') throw new Error('expected a move statement')
@@ -80,9 +80,9 @@ describe('tick trace', () => {
     expect(c.reject).toEqual({ by: 'directive', index: 0, allow: false, guard: expect.objectContaining({ result: true }) })
   })
 
-  it('records per-candidate @ target rejects on a split', () => {
+  it('records per-candidate @target rejects on a split', () => {
     const overlay = addVisits(new Map(), ['sq:2,3', 'sq:3,2'], 0) // east + north visited; south not
-    const ss = stmts(state('max-split = 3\nif visited > 0 @ target then move [straight, l1, r1]', 'sq:2,2', overlay))
+    const ss = stmts(state('max-split = 3\nif visited@target > 0 then move [straight, l1, r1]', 'sq:2,2', overlay))
     const move = ss.find((s) => s.kind === 'move')
     if (move?.kind !== 'move') throw new Error('expected a move statement')
     const byDest = Object.fromEntries(move.candidates.map((c) => [c.dest, c]))
@@ -92,18 +92,17 @@ describe('tick trace', () => {
     expect(byDest['sq:1,2'].reject?.by).toBe('per-target')
   })
 
-  it('a gate-skip reports the guard it failed and the tile it read (the motivating case)', () => {
-    // `@ straight` reads the east neighbour (unvisited) — guard false -> whole statement skipped,
-    // the move never attempted. Mirrors `tile-type == wedge @ edge 0` reading an octagon.
-    const ss = stmts(state('if visited > 0 @ straight then move straight'))
+  it('a gate-skip reports the guard it failed and the tiles it read (the motivating case)', () => {
+    // `visited@straight` reads the east neighbour (unvisited) — guard false -> whole statement skipped,
+    // the move never attempted. Mirrors `tile-type@e0 == wedge` reading an octagon.
+    const ss = stmts(state('if visited@straight > 0 then move straight'))
     expect(ss).toHaveLength(1)
     const g = ss[0]
     expect(g.kind).toBe('gate-skip')
     if (g.kind !== 'gate-skip') throw new Error('expected gate-skip')
     expect(g.guard.result).toBe(false)
-    expect(g.guard.decorated).toBe(true)
-    expect(g.guard.tileId).toBe('sq:2,3') // the tile the decoration pointed at
-    expect(g.guard.tileType).toBe('square')
+    // the guard read the straight (east) neighbour via its @-path
+    expect(g.guard.readTiles).toEqual([{ id: 'sq:2,3', role: 'read', tileType: 'square', text: '@straight' }])
   })
 
   it('a multi-hop chain records the chain text and the FINAL destination only', () => {

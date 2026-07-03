@@ -70,21 +70,21 @@ describe('traverser program execution', () => {
     expect(run('if visited > 0 then move straight').branches).toHaveLength(0)
   })
 
-  it('reads a decorated guard against the tile across an edge', () => {
-    // mark the east (straight) tile visited; "if visited>0 @ straight" should then fire
+  it('reads an @-path guard against the tile across an edge', () => {
+    // mark the east (straight) tile visited; "visited@straight > 0" should then fire
     const overlay = addVisits(new Map(), ['sq:2,3'], 0)
-    expect(run('if visited > 0 @ straight then move l1', 'sq:2,2', overlay).branches[0]?.tile).toBe('sq:3,2')
-    expect(run('if visited > 0 @ straight then move l1').branches).toHaveLength(0)
+    expect(run('if visited@straight > 0 then move l1', 'sq:2,2', overlay).branches[0]?.tile).toBe('sq:3,2')
+    expect(run('if visited@straight > 0 then move l1').branches).toHaveLength(0)
   })
 
-  it('honours a forbid directive on the destination (@ target) over following moves', () => {
+  it('honours a forbid directive on the destination (@target) over following moves', () => {
     const overlay = addVisits(new Map(), ['sq:2,3'], 0)
-    const src = 'directive if visited > 0 @ target always forbid move\nmove straight'
+    const src = 'directive if visited@target > 0 always forbid move\nmove straight'
     expect(run(src, 'sq:2,2', overlay).branches).toHaveLength(0) // east (destination) visited -> forbidden
     expect(run(src).branches).toHaveLength(1) // east unvisited -> allowed
   })
 
-  it('an undecorated directive tests the CURRENT tile, not the destination', () => {
+  it('a path-less directive tests the CURRENT tile, not the destination', () => {
     // Only the current tile is visited; the destination (east) is not.
     const here = addVisits(new Map(), ['sq:2,2'], 0)
     const src = 'directive if visited > 0 always forbid move\nmove straight'
@@ -92,17 +92,17 @@ describe('traverser program execution', () => {
     expect(run(src).branches).toHaveLength(1) // current tile unvisited -> move allowed regardless of the destination
   })
 
-  it('a @ target rule guard filters each candidate of the move', () => {
+  it('a @target rule guard filters each candidate of the move', () => {
     // facing east: straight = east (sq:2,3), l1 = north (sq:3,2), r1 = south (sq:1,2).
     const overlay = addVisits(new Map(), ['sq:2,3', 'sq:3,2'], 0)
-    const res = run('max-split = 3\nif visited > 0 @ target then move [straight, l1, r1]', 'sq:2,2', overlay)
+    const res = run('max-split = 3\nif visited@target > 0 then move [straight, l1, r1]', 'sq:2,2', overlay)
     // straight + l1 land on visited tiles (kept); r1 (south, sq:1,2) is unvisited (dropped).
     expect(res.branches.map((b) => b.tile).sort()).toEqual(['sq:2,3', 'sq:3,2'])
   })
 
   it('forbid wins when an allow and a forbid directive both match the destination', () => {
     const overlay = addVisits(new Map(), ['sq:2,3'], 0)
-    const src = 'directive if visited > 0 @ target always allow move\ndirective if visited > 0 @ target always forbid move\nmove straight'
+    const src = 'directive if visited@target > 0 always allow move\ndirective if visited@target > 0 always forbid move\nmove straight'
     expect(run(src, 'sq:2,2', overlay).branches).toHaveLength(0)
   })
 
@@ -110,5 +110,21 @@ describe('traverser program execution', () => {
     const res = run('increase P\nmorph spinner straight')
     expect(res.branches[0]).toMatchObject({ tile: 'sq:2,3', morphDef: 'spinner' })
     expect(res.next.p).toBe(1)
+  })
+
+  it('resolves a multi-hop @-path (two straights read the tile two east)', () => {
+    const overlay = addVisits(new Map(), ['sq:2,4'], 0) // two east of sq:2,2
+    expect(run('if visited@straight@straight > 0 then move l1', 'sq:2,2', overlay).branches[0]?.tile).toBe('sq:3,2')
+    expect(run('if visited@straight@straight > 0 then move l1').branches).toHaveLength(0)
+  })
+
+  it('evaluates each attribute against its OWN path (per-leaf redirection)', () => {
+    // facing east: @straight = east (sq:2,3), @l1 = north (sq:3,2), r1 move = south (sq:1,2).
+    const eastOnly = addVisits(new Map(), ['sq:2,3'], 0)
+    // east visited AND north unvisited -> fire, stepping south
+    expect(run('if visited@straight > 0 and visited@l1 == 0 then move r1', 'sq:2,2', eastOnly).branches[0]?.tile).toBe('sq:1,2')
+    // if north is ALSO visited the second leaf fails -> no move
+    const both = addVisits(eastOnly, ['sq:3,2'], 0)
+    expect(run('if visited@straight > 0 and visited@l1 == 0 then move r1', 'sq:2,2', both).branches).toHaveLength(0)
   })
 })

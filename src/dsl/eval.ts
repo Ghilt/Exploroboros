@@ -2,9 +2,18 @@
 // clock, or RNG, so the colorizer can cache results. Division and modulo by zero return 0 (rather
 // than NaN/Infinity) so coloring always has a defined value and comparisons never go undefined.
 
-import type { Expr, Pred } from './types'
+import type { Expr, Pred, TilePath } from './types'
 import type { EvalContext } from './attributes'
 import { attrSpec } from './attributes'
+
+// Resolve a leaf's optional `@`-path to the context it should be read against. No path → the current
+// context. A path with no resolver (walker-free context) or one that resolves to nothing (boundary /
+// missing tile) → null; the caller then yields the attribute's default / 0 / a false shape test.
+function ctxForLeaf(ctx: EvalContext, path: TilePath | undefined): EvalContext | null {
+  if (!path || path.length === 0) return ctx
+  const node = ctx.nodeForPath?.(path)
+  return node ? { ...ctx, node } : null
+}
 
 export function evalNumber(expr: Expr, ctx: EvalContext): number {
   switch (expr.kind) {
@@ -15,16 +24,20 @@ export function evalNumber(expr: Expr, ctx: EvalContext): number {
     case 'neg':
       return -evalNumber(expr.operand, ctx)
     case 'attr': {
+      const sub = ctxForLeaf(ctx, expr.path)
+      if (!sub) return expr.fallback ?? 0
       const spec = attrSpec(expr.name)
-      const v = spec ? spec.compute(ctx, expr.index) : undefined
+      const v = spec ? spec.compute(sub, expr.index) : undefined
       return v ?? expr.fallback ?? 0
     }
     case 'reg': {
       // [A] / [A, B] — sum the named tile registries (reuse the registry-x computes).
+      const sub = ctxForLeaf(ctx, expr.path)
+      if (!sub) return 0
       let sum = 0
       for (const r of expr.regs) {
         const spec = attrSpec(`registry-${r}`)
-        sum += spec?.compute(ctx) ?? 0
+        sum += spec?.compute(sub) ?? 0
       }
       return sum
     }
@@ -52,7 +65,11 @@ export function evalPredicate(pred: Pred, ctx: EvalContext): boolean {
     case 'pgroup':
       return evalPredicate(pred.inner, ctx)
     case 'shape': {
-      const matches = ctx.node.shape === pred.shape
+      // A missing target tile (unresolvable path) matches nothing → the test is false, either op
+      // (mirrors the traverser rule that a boundary/missing tile makes the whole guard false).
+      const sub = ctxForLeaf(ctx, pred.path)
+      if (!sub) return false
+      const matches = sub.node.shape === pred.shape
       return pred.op === '==' ? matches : !matches
     }
     case 'not':

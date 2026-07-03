@@ -12,6 +12,7 @@ export type TokenKind =
   | 'lbracket'
   | 'rbracket'
   | 'comma' // separates registries in a `[A, B]` read
+  | 'at' // @ — starts an attribute's edge-hop path (`visited@e1`)
   | 'op' // + - * / %
   | 'cmp' // == != < <= > >= (and bare =, normalized to == by the parser)
   | 'eof'
@@ -91,6 +92,11 @@ export function lex(src: string): Result<Token[]> {
     }
     if (c === ',') {
       tokens.push({ kind: 'comma', text: c, span: { start, end: i + 1 } })
+      i += 1
+      continue
+    }
+    if (c === '@') {
+      tokens.push({ kind: 'at', text: c, span: { start, end: i + 1 } })
       i += 1
       continue
     }

@@ -20,7 +20,7 @@ function resolveGuard(guard: Guard, names: ReadonlyMap<string, string>): Result<
       error: { message: `predicate "${guard.pred.name}": ${r.error.message}`, span: { start: 0, end: 0 } },
     }
   }
-  return { ok: true, value: { pred: { kind: 'inline', pred: r.value }, at: guard.at } }
+  return { ok: true, value: { pred: { kind: 'inline', pred: r.value } } }
 }
 
 export function resolveNames(prog: Program, names: ReadonlyMap<string, string>): Result<Program> {

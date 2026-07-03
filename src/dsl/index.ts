@@ -15,10 +15,13 @@ export type {
   RegRead,
   Expr,
   Compare,
+  ShapeTest,
   Not,
   BoolBin,
   PredGroup,
   Pred,
+  PathSeg,
+  TilePath,
   Span,
   ParseError,
   Result,
@@ -31,6 +34,7 @@ export type { EvalContext, AttrSpec, TraverserAttrs } from './attributes'
 export { ATTRIBUTES, TILE_ATTRIBUTES, RAMP_ATTRIBUTES, attrSpec } from './attributes'
 
 export { parsePredicate, parseExpr } from './parse'
-export { serialize, serializeExpr } from './serialize'
+export { serialize, serializeExpr, serializePath } from './serialize'
 export { evalNumber, evalPredicate } from './eval'
+export { predReadsTarget, exprReadsTarget } from './target'
 export { replaceAt, type Path } from './edit'

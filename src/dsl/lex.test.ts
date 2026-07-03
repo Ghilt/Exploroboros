@@ -60,10 +60,16 @@ describe('lex', () => {
   })
 
   it('fails on a stray character with a span', () => {
-    const r = lex('visited @ 4')
+    const r = lex('visited $ 4')
     expect(r.ok).toBe(false)
     if (r.ok) return
     expect(r.error.span).toEqual({ start: 8, end: 9 })
+  })
+
+  it('lexes @ as an at token (starting an attribute path)', () => {
+    const r = lex('visited@e1')
+    if (!r.ok) throw new Error('expected ok')
+    expect(r.value.map((t: Token) => t.kind)).toEqual(['ident', 'at', 'ident', 'number', 'eof'])
   })
 
   it('fails on a lone "!"', () => {

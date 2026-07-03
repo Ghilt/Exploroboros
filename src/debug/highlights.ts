@@ -27,16 +27,16 @@ export function walkerGroups(w: TraverserTrace): HighlightGroups {
 // Hovering one statement row.
 export function statementGroups(w: TraverserTrace, s: StmtTrace): HighlightGroups {
   if (s.kind === 'gate-skip') {
-    // The motivating case: show the current tile + the tile the (decorated) guard actually read.
+    // The motivating case: show the current tile + every tile the guard's @-paths read.
     return build([
       { role: 'current', ids: [w.tile] },
-      { role: 'decorator', ids: [s.guard.decorated ? s.guard.tileId : null] },
+      { role: 'decorator', ids: s.guard.readTiles.map((r) => r.id) },
     ])
   }
   if (s.kind === 'move') {
     return build([
       { role: 'current', ids: [w.tile] },
-      { role: 'decorator', ids: s.candidates.map(decoratorTile) },
+      { role: 'decorator', ids: s.candidates.flatMap(decoratorTiles) },
       { role: 'chosen', ids: s.candidates.filter((c) => c.survived).map((c) => c.dest) },
       { role: 'rejected', ids: s.candidates.filter((c) => !c.survived).map((c) => c.dest) },
     ])
@@ -49,17 +49,17 @@ export function statementGroups(w: TraverserTrace, s: StmtTrace): HighlightGroup
 export function candidateGroups(w: TraverserTrace, c: CandidateTrace): HighlightGroups {
   return build([
     { role: 'current', ids: [w.tile] },
-    { role: 'decorator', ids: [decoratorTile(c)] },
+    { role: 'decorator', ids: decoratorTiles(c) },
     { role: c.survived ? 'chosen' : 'rejected', ids: [c.dest] },
   ])
 }
 
-// The tile a candidate's reject guard READ via a decoration, when it differs from the candidate's own
-// destination (the common `@ target` guard reads the dest itself, so there's nothing extra to mark).
-function decoratorTile(c: CandidateTrace): string | null {
+// The tiles a candidate's reject guard READ via `@`-paths, other than the candidate's own destination
+// (a `@target` read IS the dest — already shown as chosen/rejected, so there's nothing extra to mark).
+function decoratorTiles(c: CandidateTrace): Array<string | null> {
   const g = guardOf(c)
-  if (!g || !g.decorated || !g.tileId) return null
-  return g.tileId === c.dest ? null : g.tileId
+  if (!g) return []
+  return g.readTiles.filter((r) => r.id && r.id !== c.dest).map((r) => r.id)
 }
 function guardOf(c: CandidateTrace): GuardEval | null {
   if (c.reject && (c.reject.by === 'per-target' || c.reject.by === 'directive')) return c.reject.guard

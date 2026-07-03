@@ -7,16 +7,23 @@
 
 import type { Movement } from './lang'
 
-// One predicate evaluation: the guard text (incl. any decoration), the tile it actually READ (the
-// decorated tile — the heart of "why didn't it move onto the wedge"), that tile's shape, and the
-// boolean result. `decorated` flags an `@ ...` decoration so the UI can highlight the read tile as a
-// pointer target. `reason` distinguishes a false caused by a boundary / unresolved name from a real
-// comparison that came out false.
+// One tile an attribute in a guard read via its `@`-path — the heart of "why didn't it move onto the
+// wedge". `role` is `target` for the move destination (`@target`) or `read` for a fixed edge/tile path;
+// `id` is null when the path hit a boundary / missing tile. `text` is the path label (`@e1`, `@target`).
+export type ReadTile = {
+  id: string | null
+  role: 'read' | 'target'
+  tileType: string | null
+  text: string
+}
+
+// One predicate evaluation: the guard text, every NEIGHBOUR tile its attributes read via an `@`-path
+// (path-less attributes read the walker's current tile, not listed here), and the boolean result.
+// `readTiles` lets the UI highlight each tile the guard peeked at. `reason` distinguishes a false from
+// an unresolved named predicate from a real comparison that came out false.
 export type GuardEval = {
   text: string
-  tileId: string | null
-  tileType: string | null
-  decorated: boolean
+  readTiles: ReadTile[]
   result: boolean
   reason?: 'boundary' | 'named-unresolved'
 }

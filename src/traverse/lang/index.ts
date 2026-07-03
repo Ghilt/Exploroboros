@@ -5,7 +5,6 @@ export type {
   EdgeRef,
   Chain,
   EdgeTarget,
-  Decoration,
   GuardPred,
   Guard,
   DExpr,

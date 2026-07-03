@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { predReadsTarget } from '../../dsl'
 import { parseProgram } from './parse'
 
 function ok(src: string) {
@@ -31,7 +32,7 @@ describe('traverser DSL parser', () => {
   })
 
   it('parses split sets and chains', () => {
-    const p = ok('move [r1, l1]\nmove straight -> r2 -> edge 3')
+    const p = ok('move [r1, l1]\nmove straight -> r2 -> e3')
     expect(p.statements[0]).toEqual({
       kind: 'rule',
       action: { kind: 'move', target: [[{ kind: 'turn', dir: 'r', n: 1 }], [{ kind: 'turn', dir: 'l', n: 1 }]] },
@@ -45,11 +46,30 @@ describe('traverser DSL parser', () => {
     })
   })
 
-  it('parses a named-predicate guard with edge decoration', () => {
-    const p = ok('if isCrowded @ r1 then move l1')
+  it('parses a named-predicate guard', () => {
+    const p = ok('if isCrowded then move l1')
     const r = p.statements[0]
     if (r.kind !== 'rule') throw new Error('expected rule')
-    expect(r.guard).toEqual({ pred: { kind: 'named', name: 'isCrowded' }, at: { kind: 'edge', edge: { kind: 'turn', dir: 'r', n: 1 } } })
+    expect(r.guard).toEqual({ pred: { kind: 'named', name: 'isCrowded' } })
+  })
+
+  it('parses an attribute @-path inside a guard (delegated to the predicate DSL)', () => {
+    const p = ok('if visited@r1 > 0 then move l1')
+    const r = p.statements[0]
+    if (r.kind !== 'rule' || r.guard?.pred.kind !== 'inline') throw new Error('expected an inline rule guard')
+    const pred = r.guard.pred.pred
+    if (pred.kind !== 'compare' || pred.left.kind !== 'attr') throw new Error('expected a "visited@r1" comparison')
+    expect(pred.left.name).toBe('visited')
+    expect(pred.left.path).toEqual([{ kind: 'turn', dir: 'r', n: 1 }])
+  })
+
+  it('parses eN move edges', () => {
+    const p = ok('move e0\nmove [e1, e2]')
+    expect(p.statements[0]).toEqual({ kind: 'rule', action: { kind: 'move', target: [[{ kind: 'edge', index: 0 }]] } })
+    expect(p.statements[1]).toEqual({
+      kind: 'rule',
+      action: { kind: 'move', target: [[{ kind: 'edge', index: 1 }], [{ kind: 'edge', index: 2 }]] },
+    })
   })
 
   it('parses registry writes for tile and traverser registries', () => {
@@ -69,22 +89,22 @@ describe('traverser DSL parser', () => {
     expect(p.statements[3]).toEqual({ kind: 'reset' })
   })
 
-  it('parses a directive with a @ target decoration (gate the destination)', () => {
-    const p = ok('directive if visited > 0 @ target always forbid move')
+  it('parses a directive with a @target attribute path (gate the destination)', () => {
+    const p = ok('directive if visited@target > 0 always forbid move')
     const d = p.statements[0]
     expect(d.kind).toBe('directive')
     if (d.kind === 'directive') {
       expect(d.allow).toBe(false)
-      expect(d.guard.at).toEqual({ kind: 'target' })
       expect(d.guard.pred.kind).toBe('inline')
+      if (d.guard.pred.kind === 'inline') expect(predReadsTarget(d.guard.pred.pred)).toBe(true)
     }
   })
 
-  it('parses a @ target guard on a move rule', () => {
-    const p = ok('if visited > 0 @ target then move [r1, l1]')
+  it('parses a @target guard on a move rule', () => {
+    const p = ok('if visited@target > 0 then move [r1, l1]')
     const r = p.statements[0]
     if (r.kind !== 'rule') throw new Error('expected rule')
-    expect(r.guard?.at).toEqual({ kind: 'target' })
+    if (r.guard?.pred.kind === 'inline') expect(predReadsTarget(r.guard.pred.pred)).toBe(true)
     expect(r.action).toEqual({
       kind: 'move',
       target: [[{ kind: 'turn', dir: 'r', n: 1 }], [{ kind: 'turn', dir: 'l', n: 1 }]],

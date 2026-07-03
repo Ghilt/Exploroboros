@@ -65,7 +65,7 @@ describe('edge resolution on the concave wedge', () => {
     expect(wedge).toBeDefined()
   })
 
-  it('a placed walker aiming at edge k leaves via edge k — identical to `move edge k`', () => {
+  it('a placed walker aiming at edge k leaves via edge k — identical to `move ek`', () => {
     const n = wedge.sides.length
     for (let k = 0; k < n; k += 1) {
       const straight = resolveRef(t, empty, wedge.id, k, 'relative', { kind: 'straight' })

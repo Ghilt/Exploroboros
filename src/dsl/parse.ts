@@ -4,7 +4,7 @@
 // the future traverser DSL. Errors come back as a Result with a message + span (for the editor to
 // point at), never thrown across the boundary.
 
-import type { ArithOp, AttrName, AttrRef, CompareOp, Expr, Pred, RegLetter, Result, Span } from './types'
+import type { ArithOp, AttrName, AttrRef, CompareOp, Expr, PathSeg, Pred, RegLetter, Result, Span, TilePath } from './types'
 import { lex, type Token } from './lex'
 import { attrSpec } from './attributes'
 
@@ -89,6 +89,8 @@ class Parser {
   // shapes are tiling-specific and predicates persist across tilings).
   private parseShapeTest(): Pred {
     const head = this.next() // tile-type
+    // optional @path: test the shape of another tile — `tile-type@e0 == wedge`.
+    const path = this.peek().kind === 'at' ? this.parsePath() : undefined
     if (this.isKeyword('of')) {
       this.next()
       if (!this.isKeyword('tile')) throw new ParseFail('expected "tile" after "of"', this.peek().span)
@@ -105,7 +107,7 @@ class Parser {
       throw new ParseFail('expected a shape name, e.g. tile-type == square', nameTok.span)
     }
     this.next()
-    return { kind: 'shape', op, shape: nameTok.text }
+    return path ? { kind: 'shape', op, shape: nameTok.text, path } : { kind: 'shape', op, shape: nameTok.text }
   }
 
   private parenIsPredicate(): boolean {
@@ -196,9 +198,11 @@ class Parser {
       }
       break
     }
+    // optional @path inside the brackets, after the letters, applying to the whole read: `[A@e1]`.
+    const path = this.peek().kind === 'at' ? this.parsePath() : undefined
     this.expect('rbracket', 'expected "]"')
     if (regs.length === 0) throw new ParseFail('a registry read needs at least one letter, e.g. [A]', open.span)
-    return { kind: 'reg', regs }
+    return path ? { kind: 'reg', regs, path } : { kind: 'reg', regs }
   }
   private parseAttribute(): Expr {
     const t = this.next()
@@ -241,6 +245,15 @@ class Parser {
       node.scope = 'tile'
     }
 
+    // optional @path: read the attribute on ANOTHER tile. Traverser attributes read the walker's own
+    // state (not a tile), so a path on one is meaningless — reject it.
+    if (this.peek().kind === 'at') {
+      if (!spec.scopes.includes('tile')) {
+        throw new ParseFail(`"${name}" is the walker's own state — it can't take an @path`, t.span)
+      }
+      node.path = this.parsePath()
+    }
+
     // optional default: default N (required when the attribute may be absent)
     if (this.isKeyword('default')) {
       this.next()
@@ -259,6 +272,71 @@ class Parser {
     }
 
     return node
+  }
+
+  // One or more `@`-segments after a leaf: `@e1`, `@r1@e5`, `@target`. Called only when the next token
+  // is an `at`. Edge/turn/straight/unvisited segments chain; `target`/`tile N` are terminal (they name
+  // a tile directly) and must be a path's only hop.
+  private parsePath(): TilePath {
+    const segs: PathSeg[] = []
+    while (this.peek().kind === 'at') {
+      this.next() // consume '@'
+      const segTok = this.peek()
+      const seg = this.parseSegment()
+      if (seg.kind === 'target' || seg.kind === 'tile') {
+        // Terminal: it names a tile directly, so it must be the ONLY hop in the path (no hops before
+        // or after) — there's no defined heading to continue from.
+        if (segs.length > 0 || this.peek().kind === 'at') {
+          throw new ParseFail('"@target" / "@tile N" names a tile directly — it must be the only hop', segTok.span)
+        }
+        return [seg]
+      }
+      segs.push(seg)
+    }
+    return segs
+  }
+
+  // One path segment (the token(s) after an `@`): straight/s, nearest-unvisited, target, tile N, or a
+  // letter e/r/l followed by a number (@e5, @r1, @l2). Bare numbers are rejected — edges are `@eN`.
+  private parseSegment(): PathSeg {
+    const t = this.peek()
+    if (t.kind !== 'ident') {
+      throw new ParseFail('expected an edge after "@", e.g. @e1, @r1, @straight, @target', t.span)
+    }
+    const word = t.text
+    if (word === 'straight' || word === 's') {
+      this.next()
+      return { kind: 'straight' }
+    }
+    if (word === 'nearest-unvisited') {
+      this.next()
+      return { kind: 'unvisited' }
+    }
+    if (word === 'target') {
+      this.next()
+      return { kind: 'target' }
+    }
+    if (word === 'tile') {
+      this.next()
+      const num = this.peek()
+      if (num.kind !== 'number') throw new ParseFail('expected a tile number, e.g. @tile 12', num.span)
+      this.next()
+      const idx = Number(num.text)
+      if (!Number.isInteger(idx) || idx < 0) throw new ParseFail('tile number must be a whole number ≥ 0', num.span)
+      return { kind: 'tile', index: idx }
+    }
+    if (word === 'e' || word === 'r' || word === 'l') {
+      this.next()
+      const num = this.peek()
+      if (num.kind !== 'number') throw new ParseFail(`expected a number after "${word}", e.g. @${word}1`, num.span)
+      this.next()
+      const n = Number(num.text)
+      if (!Number.isInteger(n) || n < 0) throw new ParseFail('an edge/turn number must be a whole number ≥ 0', num.span)
+      if (word === 'e') return { kind: 'edge', index: n }
+      if (n < 1) throw new ParseFail('a turn must be r1/l1 or higher', num.span)
+      return { kind: 'turn', dir: word, n }
+    }
+    throw new ParseFail(`"${word}" is not an edge — use @e0, @r1/@l1…, @straight, @nearest-unvisited, or @target`, t.span)
   }
 
   private isKeyword(word: string): boolean {

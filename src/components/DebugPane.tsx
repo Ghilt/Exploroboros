@@ -2,7 +2,7 @@ import './DebugPane.css'
 import { HelpButton } from './HelpButton'
 import { walkerGroups, statementGroups, candidateGroups } from '../debug/highlights'
 import type { HighlightGroups } from './TilingCanvas'
-import type { CandidateTrace, StmtTrace, TickTrace, TraverserTrace } from '../traverse'
+import type { CandidateTrace, ReadTile, StmtTrace, TickTrace, TraverserTrace } from '../traverse'
 
 // The per-tick decision log (debug mode). Reads the engine's TickTrace and lays it out as walker →
 // statement → candidate rows; hovering any row reports the tiles it's about (via the pure mappers in
@@ -53,12 +53,12 @@ export function DebugPane({ history, viewedStep, onViewStep, tileNumber, onHover
           <p>
             Each walker shows the statements it ran. <strong>Hover a row</strong> to light up the tiles
             it’s about on the canvas: <span className="dbg-key dbg-key--current">current</span> tile,
-            the tile a guard <span className="dbg-key dbg-key--decorator">reads</span> (an
-            <code> @ edge</code> / <code>@ target</code> decoration), where it
+            each tile a guard <span className="dbg-key dbg-key--decorator">reads</span> via an
+            <code> @</code>-path (<code>visited@e1</code>, <code>tile-type@target</code>), where it
             <span className="dbg-key dbg-key--chosen"> moved</span>, and any
             <span className="dbg-key dbg-key--rejected"> rejected</span> candidate. Click a row to pin
-            the highlight. So if <code>if tile-type == wedge @ edge 0 …</code> won’t fire, you can see
-            <em> edge 0</em> is pointing at the wrong tile.
+            the highlight. So if <code>if tile-type@e0 == wedge …</code> won’t fire, you can see
+            <em> @e0</em> is pointing at the wrong tile.
           </p>
         </HelpButton>
       </header>
@@ -159,7 +159,22 @@ function StmtRow({
       <div className="dbg-stmt-group">
         {head}
         <div className="dbg-detail" onMouseEnter={() => onHover(groups)} onMouseLeave={() => onHover(null)}>
-          read <strong>{s.guard.tileType ?? 'tile'}</strong> at {num(s.guard.tileId)} — <code>{s.guard.text}</code> → false
+          {s.guard.readTiles.length > 0 ? (
+            <>
+              reads{' '}
+              {s.guard.readTiles.map((r, i) => (
+                <span key={i}>
+                  {i > 0 ? ', ' : ''}
+                  <code>{r.text}</code> = {r.tileType ?? 'boundary'} {num(r.id)}
+                </span>
+              ))}{' '}
+              — <code>{s.guard.text}</code> → false
+            </>
+          ) : (
+            <>
+              <code>{s.guard.text}</code> → false (current tile)
+            </>
+          )}
         </div>
       </div>
     )
@@ -224,11 +239,17 @@ function rejectText(c: CandidateTrace): string {
   }
 }
 
+// A summary of the tiles a guard read via `@`-paths, for the no-move banner (empty = the current tile).
+function readsText(readTiles: ReadonlyArray<ReadTile>, num: (id: string | null | undefined) => string): string {
+  if (readTiles.length === 0) return 'the current tile'
+  return readTiles.map((r) => `${r.text} = ${r.tileType ?? 'boundary'} ${num(r.id)}`).join(', ')
+}
+
 // A one-line "why didn't it move" for a dropped walker — the first gate-skip or all-rejected move.
 function noMoveReason(w: TraverserTrace, num: (id: string | null | undefined) => string): string {
   const gs = w.statements.find((s) => s.kind === 'gate-skip')
   if (gs && gs.kind === 'gate-skip') {
-    return `No move — “${gs.source}” skipped: ${gs.guard.text} read ${gs.guard.tileType ?? 'a tile'} at ${num(gs.guard.tileId)} → false.`
+    return `No move — “${gs.source}” skipped: ${gs.guard.text} on ${readsText(gs.guard.readTiles, num)} → false.`
   }
   const mv = w.statements.find((s) => s.kind === 'move')
   if (mv && mv.kind === 'move' && mv.candidates.length > 0) {

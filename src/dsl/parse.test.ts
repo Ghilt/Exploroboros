@@ -124,6 +124,76 @@ describe('parse — precedence & structure', () => {
   })
 })
 
+describe('parse — attribute @-paths', () => {
+  it('parses an edge hop on an attribute', () => {
+    expect(ok('visited@e1 == 0')).toEqual({
+      kind: 'compare',
+      op: '==',
+      left: { kind: 'attr', name: 'visited', scope: 'tile', path: [{ kind: 'edge', index: 1 }] },
+      right: { kind: 'number', value: 0 },
+    })
+  })
+
+  it('parses a multi-hop path of chained edges', () => {
+    const p = ok('visited@e0@e0@e3 > 0')
+    if (p.kind !== 'compare' || p.left.kind !== 'attr') throw new Error('expected an attr comparison')
+    expect(p.left.path).toEqual([
+      { kind: 'edge', index: 0 },
+      { kind: 'edge', index: 0 },
+      { kind: 'edge', index: 3 },
+    ])
+  })
+
+  it('parses turns, straight and nearest-unvisited segments', () => {
+    const p = ok('visited@r1@e5 == 1')
+    if (p.kind !== 'compare' || p.left.kind !== 'attr') throw new Error('expected an attr comparison')
+    expect(p.left.path).toEqual([{ kind: 'turn', dir: 'r', n: 1 }, { kind: 'edge', index: 5 }])
+    const q = ok('visited@straight > 0')
+    if (q.kind !== 'compare' || q.left.kind !== 'attr') throw new Error('expected an attr comparison')
+    expect(q.left.path).toEqual([{ kind: 'straight' }])
+    const u = ok('visited@nearest-unvisited > 0')
+    if (u.kind !== 'compare' || u.left.kind !== 'attr') throw new Error('expected an attr comparison')
+    expect(u.left.path).toEqual([{ kind: 'unvisited' }])
+  })
+
+  it('parses a path on a registry read, inside the brackets', () => {
+    const p = ok('[A@r1] == 2')
+    if (p.kind !== 'compare' || p.left.kind !== 'reg') throw new Error('expected a reg comparison')
+    expect(p.left).toEqual({ kind: 'reg', regs: ['a'], path: [{ kind: 'turn', dir: 'r', n: 1 }] })
+  })
+
+  it('parses a path on a tile-type test', () => {
+    expect(ok('tile-type@e0 == wedge')).toEqual({ kind: 'shape', op: '==', shape: 'wedge', path: [{ kind: 'edge', index: 0 }] })
+  })
+
+  it('parses the terminal @target and @tile N', () => {
+    const t = ok('visited@target == 0')
+    if (t.kind !== 'compare' || t.left.kind !== 'attr') throw new Error('expected an attr comparison')
+    expect(t.left.path).toEqual([{ kind: 'target' }])
+    const n = ok('visited@tile 5 == 0')
+    if (n.kind !== 'compare' || n.left.kind !== 'attr') throw new Error('expected an attr comparison')
+    expect(n.left.path).toEqual([{ kind: 'tile', index: 5 }])
+  })
+
+  it('rejects a bare number after @ (edges are @eN)', () => {
+    expect(errOf('visited@1 == 0')).toContain('@')
+  })
+
+  it('rejects a hop after a terminal target/tile', () => {
+    expect(errOf('visited@target@e1 == 0')).toMatch(/only hop/)
+    expect(errOf('visited@tile 5@e1 == 0')).toMatch(/only hop/)
+  })
+
+  it('rejects a path on a walker (traverser-scoped) attribute', () => {
+    expect(errOf('heading@e1 == 0')).toMatch(/walker/)
+    expect(errOf('steps@e1 == 0')).toMatch(/walker/)
+  })
+
+  it('rejects an unknown path segment', () => {
+    expect(errOf('visited@bogus == 0')).toMatch(/not an edge|edge after/)
+  })
+})
+
 describe('parse — defaults & indices', () => {
   it('requires an index on indexed attributes', () => {
     expect(errOf('coordinate == 1')).toMatch(/needs an index/)

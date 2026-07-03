@@ -6,11 +6,36 @@
 // Precedence (must match parse.ts): or 1 < and 2 < not 3 < compare 4 ; for expressions
 // + - 5 < * / % 6 < unary 7 < atom 8.
 
-import type { Expr, Pred, AttrRef } from './types'
+import type { Expr, Pred, AttrRef, PathSeg, TilePath } from './types'
+
+function segStr(seg: PathSeg): string {
+  switch (seg.kind) {
+    case 'straight':
+      return 'straight'
+    case 'unvisited':
+      return 'nearest-unvisited'
+    case 'turn':
+      return `${seg.dir}${seg.n}`
+    case 'edge':
+      return `e${seg.index}`
+    case 'target':
+      return 'target'
+    case 'tile':
+      return `tile ${seg.index}`
+  }
+}
+
+// An attribute's edge-hop path back to text: `@e1`, `@r1@e5`, `@target`. Empty/absent → ''. Exported
+// so the traverse trace + the visual editor can label a path without re-implementing this.
+export function serializePath(path: TilePath | undefined): string {
+  return path && path.length ? path.map((s) => `@${segStr(s)}`).join('') : ''
+}
+const pathStr = serializePath
 
 function attrStr(a: AttrRef): string {
   let s: string = a.name
   if (a.index !== undefined) s += `[${a.index}]`
+  s += pathStr(a.path)
   // scope 'tile' is the implicit default — omit it to keep the canonical/auto-name short.
   if (a.fallback !== undefined) s += ` default ${String(a.fallback)}`
   return s
@@ -27,7 +52,7 @@ function exprText(e: Expr): Texted {
     case 'attr':
       return { s: attrStr(e), prec: 8 }
     case 'reg':
-      return { s: `[${e.regs.map((r) => r.toUpperCase()).join(', ')}]`, prec: 8 }
+      return { s: `[${e.regs.map((r) => r.toUpperCase()).join(', ')}${pathStr(e.path)}]`, prec: 8 }
     case 'neg':
       return { s: `-${wrapExpr(e.operand, 7)}`, prec: 7 }
     case 'bin': {
@@ -57,7 +82,7 @@ function predText(p: Pred): Texted {
       // Expression operands always bind tighter than a comparison, so never need wrapping.
       return { s: `${exprText(p.left).s} ${p.op} ${exprText(p.right).s}`, prec: 4 }
     case 'shape':
-      return { s: `tile-type ${p.op} ${p.shape}`, prec: 4 }
+      return { s: `tile-type${pathStr(p.path)} ${p.op} ${p.shape}`, prec: 4 }
     case 'not':
       return { s: `not ${wrapPred(p.operand, 3)}`, prec: 3 }
     case 'bool': {
