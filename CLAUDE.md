@@ -237,6 +237,12 @@ still needed into this doc **before** then; do not rely on the path persisting.
   predicate/traverser/coloring library (the stores gained `setAll`). The gallery hands off via
   `src/state/pendingRecipe.ts`; the Workspace consumes it on mount. *Known follow-up:* the original export
   resolution isn't preserved into the export menu after reopen (re-pick it).
+- **Auto-place seeding (done 2026-07-03, `3e7a601`):** an `auto-place line {angle, percent, edge} if
+  <predicate>` statement in a traverser definition seeds walkers by a **grid-relative** rule (resolved against
+  whatever grid renders, so a pattern lines the edge on the big export grid too — unlike a hand-placed seed's
+  absolute centre-offset). Ghost heads, non-removable (edit the rule), hand-placed seeds win a shared tile;
+  rides in the traverser text so no recipe bump. Pure `src/traverse/autoplace.ts`; export + live editor share
+  the merge (preview == export). Same commit fixed the Guide's in-page links (hash-routing bounce).
 - **Next up:** **DSL-driven traversers** (custom rules in the Traversers pane — paint/move/visit/split/guards/
   state, §5; reuses the predicate DSL) → **persist user exports across reloads** (IndexedDB) → **deploy** to Vercel.
 
@@ -300,6 +306,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-07-02 | **Fix — edge numbering scrambled on concave tiles (wedge)**; **Inspect tile mini** — a small oriented diagram of the selected tile with every edge numbered, plus a "Straightness" blurb (wedge: dotted opposite-edge pairing; triangle: right-handed). The 0/360-seam fix (row above) anchored edge 0 correctly but still SORTED by outward-normal angle, which only walks the perimeter clockwise for convex shapes — the wedge is concave, so its normals zig-zag and the numbering scattered (rotate didn't cycle 0..7 in order). Replaced the sort with a perimeter **walk** from the anchor (CCW winding → clockwise = decreasing local index); convex tiles unchanged, concave/chiral ones fixed. sierpinski's hand-placed wedge edge refs re-tuned to match (grow-check unchanged) | ✅ yes | owner found the scrambled wedge rotate order, gave the exact wrong sequences per slot; fix verified by a new perimeter-adjacency invariant (`edge-order.test.ts`, all 12 tilings) + owner re-tested rotate on a freshly-uncached port (5601, after an earlier same-port retest was fooled by browser cache from a prior server instance) and confirmed 0→1→…→7; build / lint / **462 tests** | `7df7090` |
 | 2026-07-02 | **Refactor — a traverser's heading is now a single edge NUMBER** (the edge its `straight` move exits; 0 = north, clockwise). Turns are pure ring arithmetic (`r1` = heading+1, `l1` = heading−1 mod sides), the arrow **always** points at the heading edge (no "just-placed / first-step" special case), and the wedge's concave straight-through pairing is layered on **only when a walker arrives** on a tile — never during editor rotation. Fixes the two reported wedge bugs: `move r1` aimed at edge 7 now exits **edge 0**, and the `move straight` arrow now points at the real destination edge. The recipe still stores heading as a portable **angle**, converted at the load/save boundary (`remapSeeds` angle→edge, `buildRecipe` edge→angle), so old saved PNGs reopen unchanged (no schema bump); `classic` re-seeded north to keep its first move identical. Removed the old angle-based `chooseMove` / `headingOptions` / angle-`headingArrowDir` | ✅ yes | owner reported the scrambled `move r1`-on-wedge + the wrong `move straight` arrow on-device, specified the edge-number model, approved the refactor + re-verify pass, then said "commit"; backed by build / lint / **464 tests** (edges / step / arrow / exec / trace / recipe rewritten to the edge frame + a new r1-on-wedge regression). **Follow-up:** ringlare / xor-tri / xor-dense regenerate sparser under the new turn arithmetic — gallery re-tune pending | `96ede11` |
 | 2026-07-03 | **Traverser DSL — "read another tile" moved off the whole guard onto each attribute as an `@`-path** (was a guard-level `@ target` / `@ edge`). An attribute now carries its own path: `visited@e1`, `tile-type@target`, `[A@r1@e5]`; no path = the current tile, so one predicate can read **several** tiles. `@target` / `@tile N` are terminal (a path's only hop); edge hops (`eN`/`rN`/`lN`/`straight`/`nearest-unvisited`) chain + re-aim. The move/edge token `edge N` → **`eN`**. An off-grid hop makes that attribute default (registry → 0, `tile-type@…` → false). Debug highlights **every** tile a row reads. `src/dsl` owns the path AST + parse/serialize/eval via a `nodeForPath` hook (stays walker-free; colorizer degrades); the traverse layer supplies the hook + detects per-target guards via `predReadsTarget`. Gallery + prototype recipes, the Guide, and the Traversers/Debug help migrated — behaviour identical (per-recipe grow-check unchanged); no schema bump | ✅ yes | owner tried it on this worktree's preview (5582) — asked the off-grid behaviour + why `[A]@e2` fails (path goes INSIDE the brackets: `[A@e2]`) questions, then said "please commit"; build / lint / **494 tests** (new dsl path parse/serialize/eval + `predReadsTarget` + traverse `@`-path / `eN` / per-leaf-redirection cases) + served-source/DOM checks | `2aec24b` |
+| 2026-07-03 | **Auto-place traverser DSL — grid-relative seeding.** `auto-place line {angle, percent, edge} if <predicate>` inside a traverser definition seeds walkers by a RULE re-resolved against whatever tiling renders (small preview OR big export grid), so a pattern like "the top row" lines the edge at ANY size — unlike a hand-placed seed's absolute centre-offset, which drifts inward on a larger export. angle 0=row/90=column/±45=diagonal; percent 0–100 from the top-left; edge = the absolute heading (`% sides`); the `if` reuses the tile-predicate DSL. Walkers render **ghostly**, are **non-removable** from the canvas (edit the rule; Inspect says so), and a hand-placed seed **wins** a shared tile. Lives in the traverser text already stored in the PNG → **no recipe/schema change**. Pure `src/traverse/autoplace.ts` (lineTiles + resolveAutoPlacements + mergeByTile); export (`prepare.ts`) + live editor share the merge (preview == export). Also fixed the **Guide in-page TOC/cross-ref links** (hash routing bounced them to the landing page → intercept + scrollIntoView, clear the sticky nav) | ✅ yes | owner tried it on this worktree's preview (5260) across iterations — reported a diagonal/percent line reading "too thick"/doubled; I tried a single-file **lane-nearest** pass, but it looked worse on non-square tilings so **reverted to the straddle line** (thin line, tiles it passes) per owner — then "good commit it"; build / lint / **514 tests** (autoplace geometry/resolver/merge + DSL parse/serialize + export threading) + served-source checks | `3e7a601` |
 
 ## 8. Todo list (working backlog)
 
@@ -394,6 +401,14 @@ in-session task tracker.
     the guard onto each attribute (`visited@e1`, `tile-type@target`, `[A@r1@e5]`; no path = current tile;
     `@target`/`@tile N` terminal); move/edge token `edge N` → `eN`. Groundwork for the DSL-driven traversers
     below *(verified 2026-07-03, `2aec24b`)*
+  - [x] **Auto-place seeding (DSL)** — `auto-place line {angle, percent, edge} if <predicate>` in a traverser
+    definition seeds walkers by a **grid-relative** rule (resolved against whatever grid renders, so it lines
+    the edge on the big export grid too, unlike a hand-placed seed's absolute centre-offset). angle 0=row /
+    90=column / ±45=diagonal; percent 0–100 from the top-left; edge = absolute heading (`% sides`); the `if`
+    reuses the tile-predicate DSL. Ghost heads, non-removable (edit the rule → Inspect note), hand-placed seeds
+    win a shared tile; no recipe bump (rides in the traverser text). Pure `src/traverse/autoplace.ts`
+    (`lineTiles` = a thin line + the tiles it passes; `resolveAutoPlacements`; `mergeByTile`); export
+    (`prepare.ts`) + live editor share the merge *(verified 2026-07-03, `3e7a601`)*
   - [ ] DSL-driven traversers — custom rules in the Traversers pane (paint / move along edge refs / visit /
     split / guards / state terms, §5), reusing the predicate DSL; replaces the one hardcoded behaviour
   - [x] Prototype-port loader (debug) — a "Load prototype ports" button at the bottom of the Traversers
@@ -548,7 +563,13 @@ Hard-won; read before fighting the tooling again.
   `stepTraversersInto` applies them **in place** into a mutable overlay — used by the headless export run so a
   long run on a big grid is O(work), not O(ticks × visited). May import `src/tiling` + the overlay helpers; the
   basic behaviour is hardcoded, with the **DSL-driven** traversers (§5) to slot in behind the same
-  `stepTraversers` shape — so keep it pure.
+  `stepTraversers` shape — so keep it pure. `autoplace.ts` (**grid-relative seeding**) — `lineTiles(tiling,
+  angle, percent)` returns the tiles an infinitely-thin line passes through (a tile is on it when its vertices
+  straddle the line; NOT single-file — a "lane-nearest" single-file variant was tried and reverted, it read
+  worse on non-square tilings), `resolveAutoPlacements(defs, tiling, overlay, indexById)` turns every def's
+  `auto-place` rules into seed Traversers (`heading = edge % sides`, per-tile predicate guard, earlier-rule
+  wins), and `mergeByTile(hand, auto)` (hand-placed seed wins a shared tile). Used by both `prepare.ts` and
+  the live Workspace so preview == export.
 - `src/export/` — the **pure, isomorphic image-export core** (no React/Konva), public API via
   `src/export/index.ts`. `runToCompletion.ts` (loops `stepTraversersInto` to completion, `maxTicks` cap),
   `remap.ts` (seed/paint placement by bounds-centre offset, grid-size-independent), `renderTiling.ts`
@@ -832,3 +853,11 @@ on-screen. Precedents: `.canvas-more-wrap` / `.canvas-drag` in `Workspace.css`, 
 in `ExportMenu.css`. `.canvas-controls` is `position: relative` precisely to be this anchor — don't remove it.
 Verify with `preview_resize` to a phone width, open the popup, and check its `getBoundingClientRect().right`
 is within `innerWidth`.
+
+**In-page anchor links break under hash routing.** The app routes on `window.location.hash` (`#/canvas`,
+`#/guide` — `src/router/useHashRoute.ts`). A plain in-page anchor like `<a href="#anatomy">` OVERWRITES that
+hash, so the router reads `#anatomy` as an unknown route and bounces to the landing page — the link neither
+scrolls nor stays put (hit on the Guide's table-of-contents + its body cross-refs, fixed 2026-07-03). Fix: a
+delegated `onClick` that intercepts `href="#id"` links (but NOT the router's `#/route` ones), `preventDefault`,
+and `scrollIntoView` (see `Guide.tsx` `onGuideClick`); give the scroll targets `scroll-margin-top` to clear
+the sticky `.nav-bar`. Don't add bare `#id` anchors in a hash-routed page without this.
