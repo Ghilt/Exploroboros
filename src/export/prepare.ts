@@ -6,7 +6,7 @@
 import type { Tiling } from '../tiling'
 import { nodeById, nearestEdge } from '../tiling'
 import type { TileState } from '../canvas'
-import { compileProgram, type Program, type Traverser } from '../traverse'
+import { compileProgram, mergeByTile, resolveAutoPlacements, type Program, type Traverser } from '../traverse'
 import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
 import type { Recipe } from './recipe'
 import { placeOffset } from './remap'
@@ -110,11 +110,18 @@ export function remapPaint(paint: Recipe['paint'], tiling: Tiling): Map<string, 
 }
 
 export function prepareFromRecipe(recipe: Recipe, tiling: Tiling): Prepared {
+  const defs = buildDefs(recipe.traversers, recipe.predicates)
+  const indexById = buildIndexById(tiling)
+  const baseOverlay = remapPaint(recipe.paint, tiling)
+  // Grid-relative `auto-place` seeds (resolved against the EXPORT tiling) + the hand-placed seeds remapped
+  // by centre-offset — hand-placed win on a shared tile. Mirrors the live run's merge in Workspace.
+  const auto = resolveAutoPlacements(defs, tiling, baseOverlay, indexById)
+  const seeds = mergeByTile(remapSeeds(recipe.seeds, tiling), auto)
   return {
-    defs: buildDefs(recipe.traversers, recipe.predicates),
+    defs,
     predicateText: buildPredicateText(recipe.predicates),
-    indexById: buildIndexById(tiling),
-    seeds: remapSeeds(recipe.seeds, tiling),
-    baseOverlay: remapPaint(recipe.paint, tiling),
+    indexById,
+    seeds,
+    baseOverlay,
   }
 }

@@ -1,12 +1,28 @@
 import './Guide.css'
+import type { MouseEvent } from 'react'
 import { hrefFor } from '../router/useHashRoute'
+
+// The app uses hash ROUTING (#/guide), so a plain in-page anchor like href="#anatomy" would overwrite the
+// route hash — the router reads it as an unknown route and bounces to the landing page. Intercept clicks on
+// the in-page section links (href="#id", but NOT the router's "#/route" links) and scroll to the section
+// ourselves, leaving the URL on #/guide. `scroll-margin-top` (Guide.css) clears the sticky nav.
+function onGuideClick(e: MouseEvent<HTMLDivElement>) {
+  const link = (e.target as HTMLElement).closest('a')
+  if (!link) return
+  const href = link.getAttribute('href') ?? ''
+  if (!href.startsWith('#') || href.startsWith('#/')) return
+  const el = document.getElementById(href.slice(1))
+  if (!el) return
+  e.preventDefault()
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 
 // A fleshed-out reference for the traverser DSL — reached from the "?" explainer in the Traversers
 // pane ("Read the full guide"). Plain content + small inline SVG diagrams (themeable via CSS vars) so
 // visual learners get a picture of edges, splits, attribute paths, and directives. No new dependencies.
 export function Guide() {
   return (
-    <div className="guide container">
+    <div className="guide container" onClick={onGuideClick}>
       <header className="page-head">
         <p className="page-eyebrow">Reference</p>
         <h1 className="page-title">The traverser language</h1>
@@ -31,6 +47,7 @@ export function Guide() {
         <a href="#registries">Registries</a>
         <a href="#directives">Directives</a>
         <a href="#morph">Morph &amp; update</a>
+        <a href="#autoplace">Auto-place</a>
         <a href="#examples">Examples</a>
       </nav>
 
@@ -396,6 +413,45 @@ move straight`}</pre>
         <p>
           <code>update &lt;setting&gt; &lt;value&gt;</code> changes the walker's own setting from here on —
           e.g. <code>update max-split 3</code>, <code>update heading 2</code> (aim at edge 2), <code>update movement absolute</code>.
+        </p>
+      </section>
+
+      <section className="guide-section" id="autoplace">
+        <h2>Auto-place</h2>
+        <p>
+          Normally you place walkers by hand on the canvas. <strong>Auto-place</strong> instead seeds them by
+          a <em>rule</em> that is re-evaluated against whatever grid is showing — so a pattern you author on
+          the small exploration grid still lands correctly when you <strong>export</strong> at a much larger
+          size. (A hand-placed walker keeps its absolute distance from the centre, so on a bigger grid it
+          drifts inward — auto-place is the grid-relative alternative.) Write the rule inside a definition:
+        </p>
+        <pre className="guide-code">{`auto-place line {0, 0, 0} if tile-type == octagon
+move nearest-unvisited`}</pre>
+        <p>
+          <code>auto-place line {'{'}angle, percent, edge{'}'}</code> drops a walker on every tile the line
+          crosses:
+        </p>
+        <table className="guide-table">
+          <thead>
+            <tr><th>Field</th><th>Meaning</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>angle</code></td><td>The line's angle in degrees — <code>0</code> = a row (horizontal), <code>90</code> = a column (vertical), <code>45</code> / <code>-45</code> = the diagonals.</td></tr>
+            <tr><td><code>percent</code></td><td>How far across, measured from the <strong>top-left</strong>: <code>0</code> = the top (for a row) or left (for a column) edge, <code>100</code> = the far side. Diagonals are less intuitive — experiment.</td></tr>
+            <tr><td><code>edge</code></td><td>The <strong>absolute edge number</strong> (0 = the top edge, clockwise) each walker aims at. A number past a tile's edge count just wraps.</td></tr>
+          </tbody>
+        </table>
+        <p>
+          The optional <code>if &lt;predicate&gt;</code> is an ordinary <a href="#predicates">tile predicate</a> —
+          only tiles on the line that match get a walker (drop it to place on all of them). There's no walker
+          yet at placement time, so walker-relative paths (<code>@target</code>, …) have nothing to read;
+          stick to tile facts like <code>tile-type</code>, <code>orientation</code>, <code>coordinate</code>.
+        </p>
+        <p className="guide-note">
+          Auto-placed walkers appear <strong>ghostly</strong> on the canvas and can't be removed with the
+          canvas controls — edit or delete the <code>auto-place</code> line to change them. Where a
+          hand-placed walker shares a tile, the hand-placed one wins. Every definition's own{' '}
+          <code>auto-place</code> lines contribute, so comment a line out to switch it off.
         </p>
       </section>
 

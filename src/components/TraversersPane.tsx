@@ -72,6 +72,15 @@ export function TraversersPane({
             <code>increase</code> from both <strong>adds up</strong>; a <code>put</code> is{' '}
             <strong>last-writer-wins</strong> — so prefer <code>increase</code> when several walkers may meet.
           </p>
+          <p>
+            <strong>Auto-place</strong> seeds walkers by a rule that scales with the grid (so it still
+            lines the edge when you export much bigger):{' '}
+            <code>auto-place line {'{'}0, 0, 0{'}'} if tile-type == octagon</code>. The three numbers are{' '}
+            <code>{'{'}angle, percent, edge{'}'}</code> — the line’s angle (0 = row, 90 = column, ±45 =
+            diagonal), how far across from the top-left (0–100%), and the absolute edge each walker aims at.
+            Auto-placed walkers show <strong>ghostly</strong> and are changed by editing the rule, not from
+            the canvas.
+          </p>
           <p className="help-readmore">
             <a href="#/guide">Read the full guide → </a>
             <span className="help-readmore-note">(every keyword, with diagrams)</span>
@@ -167,7 +176,10 @@ function TraverserEditor({
       />
 
       {result.ok ? (
-        <p className="pred-status pred-status--ok">✓ {result.value.statements.length} rule(s)</p>
+        <p className="pred-status pred-status--ok">
+          ✓ {result.value.statements.length} rule(s)
+          {result.value.placements.length > 0 ? ` · ${result.value.placements.length} auto-place` : ''}
+        </p>
       ) : (
         <p className="pred-status pred-status--err" role="alert">
           {result.error.message}

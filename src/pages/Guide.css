@@ -33,6 +33,8 @@
 .guide-section {
   margin-bottom: 2.75rem;
   max-width: 46rem;
+  /* Clear the sticky nav (min-height 3.5rem) when a TOC/cross-ref link scrolls a section to the top. */
+  scroll-margin-top: 4.75rem;
 }
 .guide-section h2 {
   font-size: 1.4rem;

@@ -53,6 +53,8 @@ type Palette = {
   accent2: string
   accent3: string
   traverser: string
+  // A ghostly, half-transparent head for auto-placed walkers — reads as "placed by a rule, not by hand".
+  traverserAuto: string
   mono: string
 }
 
@@ -70,6 +72,7 @@ const FALLBACK: Palette = {
   // Traverser arrow — solid black (tiles are always white), so the head reads as "the walker" in
   // every display mode.
   traverser: '#000',
+  traverserAuto: 'rgba(0, 0, 0, 0.32)',
   mono: 'ui-monospace, SFMono-Regular, Menlo, monospace',
 }
 
@@ -107,9 +110,11 @@ type Props = {
   // Precomputed fill per tile id (CSS colour), from the coloring rules. Tiles absent here keep the
   // base fill. Computed by the colorizer in Workspace, not per frame.
   colorFor?: ReadonlyMap<string, string>
-  // Tile id -> heading (radians, world y-up) for each traverser, always drawn as an arrow (any
-  // display mode) — and a tile with a traverser shows ONLY the arrow, no printed labels.
+  // Tile id -> heading (an edge NUMBER) for each hand-placed / running walker, drawn as a solid arrow
+  // (any display mode) — and a tile with a head shows ONLY the arrow, no printed labels.
   traverserHeads?: ReadonlyMap<string, number>
+  // Same, for AUTO-placed walkers (from `auto-place` rules) — drawn ghostly so they read as rule-placed.
+  autoTraverserHeads?: ReadonlyMap<string, number>
   // Debug overlay: tiles to outline by role (decision-log hover). Undefined / empty = nothing drawn.
   highlightGroups?: HighlightGroups
   tileNumber?: (id: string) => number
@@ -131,6 +136,7 @@ export function TilingCanvas({
   overlay,
   colorFor,
   traverserHeads,
+  autoTraverserHeads,
   highlightGroups,
   tileNumber,
   onSelect,
@@ -555,7 +561,7 @@ export function TilingCanvas({
             <Shape
               listening={false}
               sceneFunc={(ctx) =>
-                drawTiles(ctx, tiling, viewRef.current, size, paletteRef.current, selectedSet, overlay, colorFor, displayMode, tileNumber, traverserHeads)
+                drawTiles(ctx, tiling, viewRef.current, size, paletteRef.current, selectedSet, overlay, colorFor, displayMode, tileNumber, traverserHeads, autoTraverserHeads)
               }
             />
           </Layer>
@@ -570,7 +576,7 @@ export function TilingCanvas({
             />
             <Shape
               listening={false}
-              sceneFunc={(ctx) => drawTraverserHeads(ctx, tiling, viewRef.current, paletteRef.current, traverserHeads)}
+              sceneFunc={(ctx) => drawTraverserHeads(ctx, tiling, viewRef.current, paletteRef.current, traverserHeads, autoTraverserHeads)}
             />
             <Shape
               listening={false}
@@ -622,11 +628,12 @@ function drawTiles(
   colorFor: ReadonlyMap<string, string> | undefined,
   displayMode: DisplayMode,
   tileNumber: ((id: string) => number) | undefined,
-  // Tiles carrying a traverser show only its arrow — their printed labels are suppressed below.
+  // Tiles carrying a traverser (hand OR auto) show only its arrow — their printed labels are suppressed below.
   traverserHeads: ReadonlyMap<string, number> | undefined,
+  autoTraverserHeads: ReadonlyMap<string, number> | undefined,
 ): void {
   const ov = overlay ?? NO_OVERLAY
-  const hasTraverser = (id: string) => traverserHeads?.has(id) ?? false
+  const hasTraverser = (id: string) => (traverserHeads?.has(id) ?? false) || (autoTraverserHeads?.has(id) ?? false)
   // World-space viewport (+ one-tile margin) — skip tiles off-screen so cost tracks what's
   // visible, not the total tile count.
   const margin = representativeTileSize(tiling)
@@ -799,16 +806,17 @@ function drawTraverserHeads(
   view: View,
   pal: Palette,
   heads: ReadonlyMap<string, number> | undefined,
+  autoHeads: ReadonlyMap<string, number> | undefined,
 ): void {
-  if (!heads || heads.size === 0) return
+  const solid = heads && heads.size ? heads : undefined
+  const ghost = autoHeads && autoHeads.size ? autoHeads : undefined
+  if (!solid && !ghost) return
   const tilePx = representativeTileSize(tiling) * view.scale
   const len = Math.max(14, Math.min(tilePx * 0.62, 54)) // tip-to-base length
   const halfW = len * 0.34 // half the base width — kept well under `len` so the triangle stays pointy
-  ctx.save()
-  ctx.setAttr('fillStyle', pal.traverser)
-  for (const [id, heading] of heads) {
+  const drawOne = (id: string, heading: number) => {
     const node = nodeById(tiling, id)
-    if (!node) continue
+    if (!node) return
     const c = worldToScreen(node.centroid, view)
     const dir = headingArrowDir(node, heading) // points AT the faced edge on a concave wedge
     const dx = dir.x
@@ -824,6 +832,16 @@ function drawTraverserHeads(
     ctx.lineTo(bx - px * halfW, by - py * halfW)
     ctx.closePath()
     ctx.fill()
+  }
+  ctx.save()
+  // Ghost (auto-placed) first, solid (hand/running) on top so a hand seed always reads clearly.
+  if (ghost) {
+    ctx.setAttr('fillStyle', pal.traverserAuto)
+    for (const [id, heading] of ghost) drawOne(id, heading)
+  }
+  if (solid) {
+    ctx.setAttr('fillStyle', pal.traverser)
+    for (const [id, heading] of solid) drawOne(id, heading)
   }
   ctx.restore()
 }

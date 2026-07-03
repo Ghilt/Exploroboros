@@ -20,7 +20,7 @@ import {
   MANUAL_STEP,
 } from '../canvas'
 import type { TileClip, TileState, Registry, PaintTarget } from '../canvas'
-import { stepTraversers, stepTraversersTraced, rotateHeading, compileProgram, DEFAULT_SETTINGS, type Traverser, type Program, type TickTrace } from '../traverse'
+import { stepTraversers, stepTraversersTraced, rotateHeading, compileProgram, resolveAutoPlacements, mergeByTile, DEFAULT_SETTINGS, type Traverser, type Program, type TickTrace } from '../traverse'
 import { TilingCanvas, type DisplayMode, type DragMode, type HighlightGroups } from './TilingCanvas'
 import { TilingPicker } from './TilingPicker'
 import { Panel } from './Panel'
@@ -229,6 +229,25 @@ export function Workspace() {
   // The hand-authored base for an export: manual paint + registries only (traverser visits are
   // re-derived by re-running on the export grid). Same as what Stop restores.
   const exportBase = useMemo(() => clearTraverserVisits(overlay), [overlay])
+
+  // Auto-placed walkers — DERIVED from the traverser defs' `auto-place` rules against the CURRENT tiling,
+  // so they re-lay along the grid as its size changes (the grid-relative seeding that survives export).
+  // Resolved against the hand-paint base only (matching the export path in prepare.ts); never stored in
+  // `seeds`, so canvas controls can't remove them — you edit the rule to change them.
+  const autoSeeds = useMemo(
+    () => resolveAutoPlacements(defs, tiling, exportBase, indexById),
+    [defs, tiling, exportBase, indexById],
+  )
+  // Ghost heads for the auto-placed walkers — only while stopped (during a run they're merged into
+  // runLive and drawn solid). Skip any tile already carrying a hand seed (hand wins, drawn solid).
+  const autoTraverserHeads = useMemo(() => {
+    const m = new Map<string, number>()
+    if (runLive === null) {
+      const hand = new Set(seeds.map((s) => s.tile))
+      for (const t of autoSeeds) if (!hand.has(t.tile)) m.set(t.tile, t.heading)
+    }
+    return m
+  }, [runLive, seeds, autoSeeds])
 
   // The export currently open in the viewer (null = show the live canvas). Only a finished item is
   // viewable; a running/cap-evicted id resolves to null and the canvas comes back.
@@ -474,7 +493,12 @@ export function Workspace() {
   // (place/remove/aim) is only allowed while stopped (`runLive === null`).
   const walkers = runLive ?? seeds
   const stopped = runLive === null
+  // Something to run: a paused/playing run, hand-placed seeds, or grid-relative auto-placed walkers.
+  const hasWalkers = runLive !== null || seeds.length > 0 || autoSeeds.length > 0
   const selectedTraverser = selected ? walkers.find((t) => t.tile === selected.id) ?? null : null
+  // An auto-placed walker on the selected tile (only while stopped — during a run it's part of runLive,
+  // found via selectedTraverser). Drives a read-only "placed by a rule" note in Inspect.
+  const selectedAuto = selected && stopped ? autoSeeds.find((t) => t.tile === selected.id) ?? null : null
 
   // ---- traverser run controls ----
   // Start a fresh run from the authored seeds on a COPY (so the seeds stay intact for Stop to
@@ -482,7 +506,10 @@ export function Workspace() {
   // before Play takes effect), then mark each starting tile visited at step 0.
   const initRun = () => {
     clearDebug() // a fresh run starts a fresh log
-    const live = seeds.map((s) => {
+    // Hand-placed seeds + the grid-relative auto-placed walkers (hand wins a shared tile). Same merge as
+    // the export path (prepare.ts) so the preview grows exactly what an export would.
+    const start = mergeByTile(seeds, autoSeeds)
+    const live = start.map((s) => {
       const set = defs.get(s.def)?.settings ?? DEFAULT_SETTINGS
       return { ...s, steps: 0, splits: 0, p: 0, q: 0, r: 0, maxSplit: set.maxSplit, maxSteps: set.maxSteps, movement: set.movement }
     })
@@ -491,7 +518,7 @@ export function Workspace() {
     setOverlay((prev) => addVisits(prev, live.map((t) => t.tile), 0))
   }
   const play = () => {
-    if (walkers.length === 0) return
+    if (!hasWalkers) return
     if (runLive === null) initRun()
     setRunning(true)
   }
@@ -521,7 +548,7 @@ export function Workspace() {
   // The continuous clock stays off in step mode.
   const stepOnce = () => {
     if (runLive === null) {
-      if (seeds.length === 0) return
+      if (seeds.length === 0 && autoSeeds.length === 0) return
       initRun()
       return
     }
@@ -680,7 +707,7 @@ export function Workspace() {
   const canvasControls = (
     <>
       <div className="transport seg-shell" role="group" aria-label="traverser run">
-        <button type="button" className="seg-item seg-item--btn transport-btn" onClick={play} disabled={running || walkers.length === 0 || speed === 'step'} aria-label="Play — run the traversers" title={speed === 'step' ? 'In step mode — use the step button to advance one tick at a time' : 'Play — run the traversers'}>▶</button>
+        <button type="button" className="seg-item seg-item--btn transport-btn" onClick={play} disabled={running || !hasWalkers || speed === 'step'} aria-label="Play — run the traversers" title={speed === 'step' ? 'In step mode — use the step button to advance one tick at a time' : 'Play — run the traversers'}>▶</button>
         <button type="button" className="seg-item seg-item--btn transport-btn" onClick={pause} disabled={!running} aria-label="Pause — stop ticking, keep the walkers" title="Pause — stop ticking, keep the walkers">❚❚</button>
         <button type="button" className="seg-item seg-item--btn transport-btn" onClick={stopRun} disabled={!running && runLive === null && !hasTraverserVisits(overlay)} aria-label="Stop — end the run and clear its trail (keeps the walkers and your painting)" title="Stop — end the run and clear its trail (keeps the walkers and your painting)">■</button>
         <SegmentedControl
@@ -785,6 +812,7 @@ export function Workspace() {
               overlay={overlay}
               colorFor={colorFor}
               traverserHeads={traverserHeads}
+              autoTraverserHeads={autoTraverserHeads}
               highlightGroups={debug ? highlightGroups : undefined}
               tileNumber={(id) => indexById.get(id) ?? -1}
               onSelect={(id) => setSelectedIds([id])}
@@ -815,7 +843,8 @@ export function Workspace() {
             number={indexById.get(selected.id) ?? -1}
             overlay={overlay}
             clip={clip}
-            traverserHeading={selectedTraverser ? selectedTraverser.heading : null}
+            traverserHeading={selectedTraverser ? selectedTraverser.heading : selectedAuto ? selectedAuto.heading : null}
+            traverserIsAuto={selectedTraverser === null && selectedAuto !== null}
             canEditTraverser={stopped}
             defOptions={defOptions}
             placeDef={effectiveDef}
@@ -892,6 +921,7 @@ function InspectContent({
   overlay,
   clip,
   traverserHeading,
+  traverserIsAuto,
   canEditTraverser,
   defOptions,
   placeDef,
@@ -911,6 +941,8 @@ function InspectContent({
   clip: TileClip | null
   // The heading (edge number) of the walker on this tile, or null if there isn't one here.
   traverserHeading: number | null
+  // True when that walker came from an auto-place rule — shown read-only (change it by editing the rule).
+  traverserIsAuto: boolean
   // Whether placements can be edited — only while stopped (a run owns the walkers).
   canEditTraverser: boolean
   // Which definition placement instantiates (the picker), and the available names.
@@ -981,6 +1013,15 @@ function InspectContent({
         </div>
         {!canEditTraverser ? (
           <p className="trav-note">Stop the run to edit the walkers.</p>
+        ) : traverserIsAuto ? (
+          <div className="trav-auto">
+            <div className="trav-controls seg-shell">
+              <span className="seg-item trav-arrow">
+                <HeadingArrow node={node} heading={traverserHeading ?? 0} />
+              </span>
+            </div>
+            <p className="trav-note">Placed by an auto-place rule — edit the rule in the Traversers pane to change it.</p>
+          </div>
         ) : traverserHeading === null ? (
           <div className="trav-place-row seg-shell">
             <DefSelect options={defOptions} value={placeDef} onChange={onChangeDef} />

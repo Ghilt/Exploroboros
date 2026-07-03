@@ -9,6 +9,7 @@ import { lexProgram, type Tok } from './lex'
 import {
   DEFAULT_SETTINGS,
   type Action,
+  type AutoPlaceRule,
   type Chain,
   type DExpr,
   type EdgeRef,
@@ -224,6 +225,33 @@ function parseNumberToken(line: Line): number {
   return (neg ? -1 : 1) * Number(numTok.text)
 }
 
+// `auto-place line { <angle>, <percent>, <edge> } [if <guard>]` — a seed-placement rule (see types.ts).
+// The `auto-place` word is already consumed. Each slot is a signed number; the optional guard runs to end
+// of line and is delegated to src/dsl exactly like a directive's guard.
+function parseAutoPlace(line: Line): AutoPlaceRule {
+  const prim = line.word('expected "line" after "auto-place"')
+  if (prim.text !== 'line') {
+    throw new ParseFail(`unknown auto-place shape "${prim.text}" — use "line"`, { start: prim.start, end: prim.end })
+  }
+  line.expectSym('{')
+  const angle = parseNumberToken(line)
+  line.expectSym(',')
+  const percent = parseNumberToken(line)
+  line.expectSym(',')
+  const edge = parseNumberToken(line)
+  line.expectSym('}')
+  let guard: Guard | undefined
+  if (line.isWord('if')) {
+    line.pos += 1
+    const from = line.pos
+    const to = line.toks.length
+    guard = parseGuardRange(line, from, to)
+    line.pos = to
+  }
+  line.expectEnd()
+  return { shape: 'line', spec: { angle, percent, edge }, guard }
+}
+
 function parseSetting(line: Line, settings: Settings): void {
   const name = line.next().text as SettingName
   line.expectSym('=')
@@ -238,13 +266,18 @@ function parseSetting(line: Line, settings: Settings): void {
   line.expectEnd()
 }
 
-function parseLine(line: Line, settings: Settings, statements: Stmt[]): void {
+function parseLine(line: Line, settings: Settings, statements: Stmt[], placements: AutoPlaceRule[]): void {
   const head = line.peek()
   if (!head || head.kind !== 'word') throw new ParseFail('expected a statement', line.spanHere())
   const w = head.text
   const second = line.toks[1]
   if (SETTING_NAMES.has(w as SettingName) && second && second.kind === 'sym' && second.text === '=') {
     parseSetting(line, settings)
+    return
+  }
+  if (w === 'auto-place') {
+    line.pos += 1
+    placements.push(parseAutoPlace(line))
     return
   }
   if (w === 'directive') {
@@ -309,12 +342,13 @@ export function parseProgram(src: string): Result<Program> {
   const toks = lexed.value
   const settings: Settings = { ...DEFAULT_SETTINGS }
   const statements: Stmt[] = []
+  const placements: AutoPlaceRule[] = []
   // Split into lines on the `nl` tokens (dropping the trailing `eof`).
   let lineToks: Tok[] = []
   try {
     for (const t of toks) {
       if (t.kind === 'eof' || t.kind === 'nl') {
-        if (lineToks.length > 0) parseLine(new Line(lineToks, src), settings, statements)
+        if (lineToks.length > 0) parseLine(new Line(lineToks, src), settings, statements, placements)
         lineToks = []
       } else {
         lineToks.push(t)
@@ -324,5 +358,5 @@ export function parseProgram(src: string): Result<Program> {
     if (e instanceof ParseFail) return { ok: false, error: { message: e.message, span: e.span } }
     throw e
   }
-  return { ok: true, value: { settings, statements } }
+  return { ok: true, value: { settings, statements, placements } }
 }

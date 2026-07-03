@@ -14,7 +14,7 @@ const isAlpha = (c: string) => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 
 // Multi-char symbols matched before their single-char prefixes.
 const MULTI = ['->', '==', '!=', '<=', '>=']
-const SINGLE = '()[],@=<>+-*/%!'
+const SINGLE = '(){}[],@=<>+-*/%!'
 
 function fail(message: string, span: Span): Result<Tok[]> {
   return { ok: false, error: { message, span } }

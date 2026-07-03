@@ -15,13 +15,15 @@ export type {
   Directive,
   Reset,
   Stmt,
+  AutoPlaceLine,
+  AutoPlaceRule,
   Settings,
   Program,
 } from './types'
 export { DEFAULT_SETTINGS } from './types'
 
 export { parseProgram } from './parse'
-export { serializeProgram } from './serialize'
+export { serializeProgram, serializeAutoPlace } from './serialize'
 export { resolveNames, compileProgram } from './compile'
 export { resolveRef, resolveChain, type Hop } from './edges'
 export { runProgram, type WalkerState, type ExecInput, type ExecResult, type Branch, type TileWrite } from './exec'

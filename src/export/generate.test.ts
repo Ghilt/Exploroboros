@@ -42,4 +42,18 @@ describe('computeExport', () => {
     const out = computeExport(recipe({ coloringRules: [] }), DESKTOP_CAPS)
     expect(out.colorFor.size).toBe(0)
   })
+
+  it('seeds walkers from an auto-place rule (no hand seeds) and runs them', () => {
+    const out = computeExport(
+      recipe({
+        seeds: [],
+        gridN: 8,
+        traversers: [{ id: 't', name: 'Edge', text: 'auto-place line {0, 0, 0}\nmove nearest-unvisited' }],
+      }),
+      DESKTOP_CAPS,
+    )
+    expect(out.hitCap).toBe(false)
+    expect(out.ticks).toBeGreaterThan(0)
+    expect(out.colorFor.size).toBeGreaterThan(8) // the top-row walkers left trails beyond their start row
+  })
 })

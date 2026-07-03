@@ -5,6 +5,7 @@ import { serialize as serializePred, serializeExpr } from '../../dsl'
 import { DEFAULT_SETTINGS } from './types'
 import type {
   Action,
+  AutoPlaceRule,
   Chain,
   DExpr,
   EdgeRef,
@@ -77,6 +78,11 @@ export function serializeStmt(s: Stmt): string {
   }
 }
 
+export function serializeAutoPlace(a: AutoPlaceRule): string {
+  const base = `auto-place ${a.shape} {${a.spec.angle}, ${a.spec.percent}, ${a.spec.edge}}`
+  return a.guard ? `${base} if ${serializeGuard(a.guard)}` : base
+}
+
 function settingLines(s: Settings): string[] {
   const lines: string[] = []
   if (s.maxSplit !== DEFAULT_SETTINGS.maxSplit) lines.push(`max-split = ${s.maxSplit}`)
@@ -87,5 +93,9 @@ function settingLines(s: Settings): string[] {
 }
 
 export function serializeProgram(prog: Program): string {
-  return [...settingLines(prog.settings), ...prog.statements.map(serializeStmt)].join('\n')
+  return [
+    ...settingLines(prog.settings),
+    ...prog.placements.map(serializeAutoPlace),
+    ...prog.statements.map(serializeStmt),
+  ].join('\n')
 }
