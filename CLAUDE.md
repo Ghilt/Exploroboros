@@ -299,6 +299,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-06-30 | Export dialog defaults to a **black** background (fractals read best on black, matching the prototype renders); white / transparent still available | ✅ yes | owner asked for it + said "commit all this to main"; build / lint / 432 tests green | `9969914` |
 | 2026-07-02 | **Fix — edge numbering scrambled on concave tiles (wedge)**; **Inspect tile mini** — a small oriented diagram of the selected tile with every edge numbered, plus a "Straightness" blurb (wedge: dotted opposite-edge pairing; triangle: right-handed). The 0/360-seam fix (row above) anchored edge 0 correctly but still SORTED by outward-normal angle, which only walks the perimeter clockwise for convex shapes — the wedge is concave, so its normals zig-zag and the numbering scattered (rotate didn't cycle 0..7 in order). Replaced the sort with a perimeter **walk** from the anchor (CCW winding → clockwise = decreasing local index); convex tiles unchanged, concave/chiral ones fixed. sierpinski's hand-placed wedge edge refs re-tuned to match (grow-check unchanged) | ✅ yes | owner found the scrambled wedge rotate order, gave the exact wrong sequences per slot; fix verified by a new perimeter-adjacency invariant (`edge-order.test.ts`, all 12 tilings) + owner re-tested rotate on a freshly-uncached port (5601, after an earlier same-port retest was fooled by browser cache from a prior server instance) and confirmed 0→1→…→7; build / lint / **462 tests** | `7df7090` |
 | 2026-07-02 | **Refactor — a traverser's heading is now a single edge NUMBER** (the edge its `straight` move exits; 0 = north, clockwise). Turns are pure ring arithmetic (`r1` = heading+1, `l1` = heading−1 mod sides), the arrow **always** points at the heading edge (no "just-placed / first-step" special case), and the wedge's concave straight-through pairing is layered on **only when a walker arrives** on a tile — never during editor rotation. Fixes the two reported wedge bugs: `move r1` aimed at edge 7 now exits **edge 0**, and the `move straight` arrow now points at the real destination edge. The recipe still stores heading as a portable **angle**, converted at the load/save boundary (`remapSeeds` angle→edge, `buildRecipe` edge→angle), so old saved PNGs reopen unchanged (no schema bump); `classic` re-seeded north to keep its first move identical. Removed the old angle-based `chooseMove` / `headingOptions` / angle-`headingArrowDir` | ✅ yes | owner reported the scrambled `move r1`-on-wedge + the wrong `move straight` arrow on-device, specified the edge-number model, approved the refactor + re-verify pass, then said "commit"; backed by build / lint / **464 tests** (edges / step / arrow / exec / trace / recipe rewritten to the edge frame + a new r1-on-wedge regression). **Follow-up:** ringlare / xor-tri / xor-dense regenerate sparser under the new turn arithmetic — gallery re-tune pending | `96ede11` |
+| 2026-07-03 | **Traverser DSL — "read another tile" moved off the whole guard onto each attribute as an `@`-path** (was a guard-level `@ target` / `@ edge`). An attribute now carries its own path: `visited@e1`, `tile-type@target`, `[A@r1@e5]`; no path = the current tile, so one predicate can read **several** tiles. `@target` / `@tile N` are terminal (a path's only hop); edge hops (`eN`/`rN`/`lN`/`straight`/`nearest-unvisited`) chain + re-aim. The move/edge token `edge N` → **`eN`**. An off-grid hop makes that attribute default (registry → 0, `tile-type@…` → false). Debug highlights **every** tile a row reads. `src/dsl` owns the path AST + parse/serialize/eval via a `nodeForPath` hook (stays walker-free; colorizer degrades); the traverse layer supplies the hook + detects per-target guards via `predReadsTarget`. Gallery + prototype recipes, the Guide, and the Traversers/Debug help migrated — behaviour identical (per-recipe grow-check unchanged); no schema bump | ✅ yes | owner tried it on this worktree's preview (5582) — asked the off-grid behaviour + why `[A]@e2` fails (path goes INSIDE the brackets: `[A@e2]`) questions, then said "please commit"; build / lint / **494 tests** (new dsl path parse/serialize/eval + `predReadsTarget` + traverse `@`-path / `eN` / per-leaf-redirection cases) + served-source/DOM checks | `2aec24b` |
 
 ## 8. Todo list (working backlog)
 
@@ -389,6 +390,10 @@ in-session task tracker.
     stand and are too cumbersome *(owner, 2026-06-29)*. Rethink the whole transport as one coherent thing:
     how Play / Pause / Stop, the **step** button, and the slow/fast speeds relate (e.g. step disabling Play
     feels awkward; Stop vs Pause vs Reset is muddy). Aim for an obvious, low-friction control.
+  - [x] Attribute **`@`-paths** in the predicate/traverser DSL — the "read another tile" mechanism moved off
+    the guard onto each attribute (`visited@e1`, `tile-type@target`, `[A@r1@e5]`; no path = current tile;
+    `@target`/`@tile N` terminal); move/edge token `edge N` → `eN`. Groundwork for the DSL-driven traversers
+    below *(verified 2026-07-03, `2aec24b`)*
   - [ ] DSL-driven traversers — custom rules in the Traversers pane (paint / move along edge refs / visit /
     split / guards / state terms, §5), reusing the predicate DSL; replaces the one hardcoded behaviour
   - [x] Prototype-port loader (debug) — a "Load prototype ports" button at the bottom of the Traversers
@@ -517,11 +522,19 @@ Hard-won; read before fighting the tooling again.
   or removes a finished one; it also owns the object-URL lifecycle (revoke on remove / cap-evict the oldest
   *finished* / unmount + abort-all) and the `viewingId` swap.
 - `src/dsl/` — the **pure tile-predicate DSL** (no React/DOM/Konva), public API via `src/dsl/index.ts`.
-  `types.ts` (AST: numeric `Expr` + boolean `Pred`, incl. the `shape`/`tile-type` leaf), `lex.ts`,
-  `parse.ts` (recursive descent), `serialize.ts` (canonical text = the auto-name), `eval.ts`
-  (`evalNumber`/`evalPredicate`; ÷/% by zero → 0; missing attr → its `default`), `attributes.ts` (the
-  keyword→compute registry + `EvalContext`), `edit.ts` (`replaceAt` for the visual editor). Reused by
-  the visual editor + future traversers, so keep it pure.
+  `types.ts` (AST: numeric `Expr` + boolean `Pred`, incl. the `shape`/`tile-type` leaf; each tile-reading
+  leaf — `attr`/`reg`/`shape` — carries an optional **`@`-path** `TilePath` that reads it on another tile),
+  `lex.ts` (`@` is an `at` token), `parse.ts` (recursive descent; `parsePath` reads `@eN`/`@rN`/`@lN`/
+  `@straight`/`@nearest-unvisited`/`@target`/`@tile N`), `serialize.ts` (canonical text = the auto-name;
+  `serializePath`), `eval.ts` (`evalNumber`/`evalPredicate`; ÷/% by zero → 0; missing attr **or unresolved
+  path** → its `default`/0, a `tile-type@…` on a missing tile → false), `attributes.ts` (the keyword→compute
+  registry + `EvalContext`, incl. the **`nodeForPath` hook** that resolves a path to another tile's node —
+  supplied by the traverse layer, absent in coloring so paths there fall back), `target.ts` (`predReadsTarget`
+  — does a guard read `@target`? drives per-branch move filtering), `edit.ts` (`replaceAt` for the visual
+  editor). Reused by the visual editor + traversers, so keep it pure. **Path-placement gotcha:** the registry
+  path goes INSIDE the brackets — `[A@e2]`, NOT `[A]@e2` (the latter errors "expected a comparison"); a bare
+  attribute suffixes it (`visited@e2`), and `tile-type@e0 == wedge`. `@target`/`@tile N` must be a path's
+  **only** hop (they name a tile directly); edge hops chain.
 - `src/colorizer/` — pure `colorize(rules, predicateText, tiling, overlay, indexById) → Map<id, rgba>`:
   evaluates each rule's predicate once, alpha-composites matching rules top→bottom (per-rule opacity =
   blend), resolves flat/ramp (modulo + optional breakpoints). Memoized in Workspace, **not** per frame.
@@ -558,9 +571,11 @@ Hard-won; read before fighting the tooling again.
     it migrates an OLDER recipe up to the current shape (chain in `migrateRecipe`), and REFUSES a NEWER one
     with `reason: 'too-new'` (the reopen UI should say "update the app") — never strict-equality-reject an old
     image. Current exports are `schemaVersion: 2` (the v1→v2 output-size migration lives in `MIGRATIONS`).
-    **Pre-release exception (2026-06-29):** the breaking DSL change (directives → predicate-first + `@ target`)
-    deliberately did NOT bump the schema — while unreleased we hand-fix the few saved PNGs instead of shipping
-    migration code (owner's call); resume the bump-and-migrate rule once images are shared with others.
+    **Pre-release exception (2026-06-29, again 2026-07-03):** the breaking DSL changes (directives →
+    predicate-first + `@ target`, then decoration → per-attribute `@`-paths + `edge N`→`eN`) deliberately did
+    NOT bump the schema — while unreleased we hand-fix the few saved PNGs (the in-repo gallery/prototype
+    recipes are just edited) instead of shipping migration code (owner's call); resume the bump-and-migrate
+    rule once images are shared with others.
 - `src/state/` — localStorage-backed stores: `predicateStore.ts` (custom predicates as DSL text +
   name), `coloringStore.ts` (the ordered rules, key `…:coloring:v2`), `traverserStore.ts`, `persist.ts`
   (SSR/quota-safe load/save + `newId`). Pure list updaters are unit-tested; the hooks wire them to
