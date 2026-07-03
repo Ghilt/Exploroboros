@@ -43,9 +43,10 @@ describe('Workspace', () => {
   it('shows the canvas, the run controls, the inspect pane, and the collapsed authoring panes', () => {
     render(<Workspace />)
     expect(screen.getByTestId('mock-canvas')).toBeTruthy()
-    // Play/Pause/Stop replace the old "Canvas" title; Play starts disabled (no walkers yet).
+    // Play (toggles to Pause) · Step · Stop replace the old "Canvas" title; Play starts disabled (no
+    // walkers yet), and there's no separate Pause button until a run is actually playing.
     expect((screen.getByRole('button', { name: /^play/i }) as HTMLButtonElement).disabled).toBe(true)
-    expect(screen.getByRole('button', { name: /^pause/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^step/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /^stop/i })).toBeTruthy()
     expect(screen.getByText(/click a tile to inspect/i)).toBeTruthy()
     // Traversers, Predicates and Coloring start collapsed — their titles live on the rail.
@@ -97,30 +98,50 @@ describe('Workspace', () => {
     expect(radio(/edges/i).getAttribute('aria-checked')).toBe('true')
   })
 
-  it('the speed segmented control selects step / slow / fast (default slow)', () => {
+  it('the speed slider defaults to slow and arrow keys move between the four speeds (turtle → rabbit)', () => {
     render(<Workspace />)
-    const group = within(screen.getByRole('radiogroup', { name: /run speed/i }))
-    const radio = (name: RegExp) => group.getByRole('radio', { name }) as HTMLButtonElement
-    expect(radio(/slow/i).getAttribute('aria-checked')).toBe('true')
-    fireEvent.click(radio(/fast/i))
-    expect(radio(/fast/i).getAttribute('aria-checked')).toBe('true')
-    fireEvent.click(radio(/step/i))
-    expect(radio(/step/i).getAttribute('aria-checked')).toBe('true')
+    const speed = screen.getByRole('slider', { name: /traverser speed/i })
+    expect(speed.getAttribute('aria-valuemin')).toBe('0')
+    expect(speed.getAttribute('aria-valuemax')).toBe('3')
+    expect(speed.getAttribute('aria-valuenow')).toBe('1') // default = 2nd notch
+    expect(speed.getAttribute('aria-valuetext')).toBe('slow')
+    fireEvent.keyDown(speed, { key: 'ArrowRight' })
+    expect(speed.getAttribute('aria-valuetext')).toBe('fast')
+    fireEvent.keyDown(speed, { key: 'ArrowRight' })
+    expect(speed.getAttribute('aria-valuenow')).toBe('3') // rabbit — max
+    expect(speed.getAttribute('aria-valuetext')).toBe('max')
+    fireEvent.keyDown(speed, { key: 'ArrowRight' }) // clamps at the top
+    expect(speed.getAttribute('aria-valuenow')).toBe('3')
+    fireEvent.keyDown(speed, { key: 'Home' })
+    expect(speed.getAttribute('aria-valuetext')).toBe('very slow') // turtle
   })
 
-  it('step mode initializes a run (grid locks), disables continuous Play, and Stop frees it', () => {
+  it('the Step button initializes then advances a run (grid locks), leaves Play enabled, and Stop frees it', () => {
     render(<Workspace />)
-    const stepRadio = within(screen.getByRole('radiogroup', { name: /run speed/i })).getByRole('radio', { name: /step/i })
-    const slider = () => screen.getByRole('slider', { name: /grid size/i }) as HTMLInputElement
+    const grid = () => screen.getByRole('slider', { name: /grid size/i }) as HTMLInputElement
     const play = () => screen.getByRole('button', { name: /^play/i }) as HTMLButtonElement
+    const stepBtn = () => screen.getByRole('button', { name: /^step/i }) as HTMLButtonElement
     fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
     fireEvent.click(screen.getByRole('button', { name: 'Place' }))
-    fireEvent.click(stepRadio) // first click initializes the run without "playing"
-    expect(slider().disabled).toBe(true) // runLive !== null -> grid locked
-    expect(play().disabled).toBe(true) // continuous Play is off in step mode
-    fireEvent.click(stepRadio) // a further click advances one tick (still no error)
+    fireEvent.click(stepBtn()) // first Step initializes the run (places the seeds), no continuous play
+    expect(grid().disabled).toBe(true) // runLive !== null -> grid locked
+    expect(play().disabled).toBe(false) // Step is no longer a speed mode -> Play stays enabled
+    expect(play().getAttribute('aria-label')).toMatch(/^play/i) // still stopped -> shows Play, not Pause
+    fireEvent.click(stepBtn()) // a further Step advances one tick (no error)
     fireEvent.click(screen.getByRole('button', { name: /^stop/i }))
-    expect(slider().disabled).toBe(false)
+    expect(grid().disabled).toBe(false)
+  })
+
+  it('the Play button toggles to Pause while running and back to Play', () => {
+    render(<Workspace />)
+    const btn = () => screen.getByRole('button', { name: /^(play|pause)/i }) as HTMLButtonElement
+    fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Place' }))
+    expect(btn().getAttribute('aria-label')).toMatch(/^play/i)
+    fireEvent.click(btn()) // play -> running
+    expect(btn().getAttribute('aria-label')).toMatch(/^pause/i)
+    fireEvent.click(btn()) // pause -> back to Play
+    expect(btn().getAttribute('aria-label')).toMatch(/^play/i)
   })
 
   it('locks grid resize during an active run (Play + Pause), frees it on Stop', () => {

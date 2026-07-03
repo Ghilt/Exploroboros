@@ -241,18 +241,13 @@
   cursor: not-allowed;
 }
 
-/* Traverser transport — Play / Pause / Stop + the speed segmented control, all in ONE connected
-   shell (built on .seg-shell) so it reads as a single unit. The embedded speed group sits behind a
-   divider on the right. */
+/* Traverser transport — Play/Pause · Step · Stop as one connected button shell (built on .seg-shell).
+   The speed slider is a separate inline control, over in the tools group on the right. */
 .transport .transport-btn {
   width: 2rem;
   padding: 0;
   font-size: 0.8rem;
   color: var(--fg);
-}
-/* Divider between the transport buttons and the embedded speed group. */
-.transport > .seg-shell--embedded {
-  border-left: var(--bw-1) solid var(--line);
 }
 
 /* Fit / Reset / grid-size: a ⋯ dropdown on mobile, inline on desktop. */

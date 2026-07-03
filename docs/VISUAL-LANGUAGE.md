@@ -196,6 +196,13 @@ width and never reflows. One connected unit with hairline dividers. Used across 
 A binary on/off switch (track + sliding knob) for true two-state settings (e.g. "Show tile edges").
 Three+ values → use a SegmentedControl instead; many → a dropdown.
 
+### Speed slider — `SpeedBar`
+
+A notched slider for a **small ordered range with meaningful ends** — the four traverser speeds, with a
+turtle (slowest) and a rabbit (fastest) flanking a hairline rail of four notches and a sliding thumb.
+Reach for this over a SegmentedControl when the values form a *continuum* (slow → fast) rather than
+unrelated choices: click a notch, drag, or arrow-key. `role="slider"`, `--control-h` tall, accent thumb.
+
 ### Inspector rows
 
 Properties align as `label … control`, like a pro editor — not floating controls. The Inspect dock
@@ -252,7 +259,8 @@ Motion should suggest **recursive computation**, quietly:
 
 - **Reuse a primitive** before styling a new widget. If you need a control that doesn't exist,
   propose adding it here.
-- **Few values → SegmentedControl; many → Dropdown; binary → Toggle; small integer → Stepper.**
+- **Few values → SegmentedControl; ordered range with ends → notched slider (`SpeedBar`); many →
+  Dropdown; binary → Toggle; small integer → Stepper.**
 - **Buttons use `--radius-sm`, never a pill.** Pills are chips/tags only.
 - **One control height per row** (`--control-h`).
 - **Accent is a highlight, not a background.** Reach for `--muted`/`--line`/`--surface-2` first.
@@ -263,9 +271,10 @@ Motion should suggest **recursive computation**, quietly:
 
 > ❌ **Before:** `▶ ❚❚ ■`  …gap…  `speed: fast` — three buttons and a separate cycling chip that hid
 > the speed options; visually disconnected, mismatched heights.
-> ✅ **After:** one connected `transport` shell — `▶ ❚❚ ■ │ slow fast max` — the speed segmented
-> control sits inside the same bordered unit behind a divider, every speed visible, the selection
-> sliding. It reads as **one** control.
+> ✅ **After:** a connected `transport` button shell `▶/❚❚ · Step · ■` (Play toggles to Pause; Step
+> advances one tick, pausing a running sim), plus a notched **SpeedBar** (turtle → rabbit, four stops)
+> as its own inline control in the toolbar. Step is a button, not a speed mode; speed is a continuum on
+> its own slider. Aligned heights, state always visible.
 
 ---
 

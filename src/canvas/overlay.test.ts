@@ -7,6 +7,7 @@ import {
   applyPaint,
   bumpRegistry,
   clearTraverserVisits,
+  restoreRegistries,
   hasTraverserVisits,
   overlayIsEmpty,
   removeManualVisit,
@@ -139,6 +140,31 @@ describe('clearTraverserVisits', () => {
     let o = addVisit(new Map<string, TileState>(), 't1', 0)
     o = addVisit(o, 't1', 1)
     o = clearTraverserVisits(o)
+    expect(o.has('t1')).toBe(false)
+    expect(overlayIsEmpty(o)).toBe(true)
+  })
+})
+
+describe('restoreRegistries', () => {
+  it('reverts registries to their authored (pre-run) values, keeping hand-set ones', () => {
+    const authored = bumpRegistry(new Map<string, TileState>(), 't1', 'a', 5) // hand-set A = 5
+    // A run bumps t1's A further and writes B on a freshly-visited tile t2.
+    let o = bumpRegistry(authored, 't1', 'a', 3) // -> 8
+    o = addVisits(o, ['t1', 't2'], 0)
+    o = bumpRegistry(o, 't2', 'b', 4)
+    o = restoreRegistries(o, authored)
+    expect(o.get('t1')!.a).toBe(5) // back to the authored value, not 8
+    expect(o.get('t2')!.b).toBe(0) // t2 had no authored registry -> 0
+  })
+  it('leaves visits untouched (only registries change)', () => {
+    let o = addVisit(new Map<string, TileState>(), 't1', 3) // a run visit
+    o = bumpRegistry(o, 't1', 'a', 1)
+    o = restoreRegistries(o, new Map<string, TileState>())
+    expect(o.get('t1')!.visits).toEqual([3])
+    expect(o.get('t1')!.a).toBe(0)
+  })
+  it('drops a tile left fully empty after reverting', () => {
+    const o = restoreRegistries(bumpRegistry(new Map<string, TileState>(), 't1', 'c', 2), new Map())
     expect(o.has('t1')).toBe(false)
     expect(overlayIsEmpty(o)).toBe(true)
   })

@@ -155,6 +155,27 @@ export function clearTraverserVisits(overlay: ReadonlyMap<string, TileState>): M
   return next
 }
 
+// Revert every tile's A/B/C to its authored (pre-run) value — the registry counterpart of
+// clearTraverserVisits. Registries carry no per-write stamp (unlike visits, where step -1 marks a
+// hand-made one), so Stop can't tell a run's registry write from a hand-set value after the fact;
+// instead it passes the overlay snapshot taken when the run started (`authored`), and this reverts the
+// run's writes while keeping any hand-set registries intact. Visits are left untouched (handled by
+// clearTraverserVisits). Tiles left fully empty are dropped so the overlay stays tidy.
+export function restoreRegistries(
+  overlay: ReadonlyMap<string, TileState>,
+  authored: ReadonlyMap<string, TileState>,
+): Map<string, TileState> {
+  const next = new Map<string, TileState>()
+  for (const [id, s] of overlay) {
+    const a = authored.get(id)?.a ?? 0
+    const b = authored.get(id)?.b ?? 0
+    const c = authored.get(id)?.c ?? 0
+    if (s.visits.length === 0 && a === 0 && b === 0 && c === 0) continue // nothing left -> drop
+    next.set(id, s.a === a && s.b === b && s.c === c ? s : { ...s, a, b, c })
+  }
+  return next
+}
+
 // True when any tile carries a traverser-made visit (step >= 0) — drives Stop's enabled state, the
 // way overlayIsEmpty drives the full Reset's.
 export function hasTraverserVisits(overlay: ReadonlyMap<string, TileState>): boolean {

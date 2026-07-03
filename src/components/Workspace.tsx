@@ -16,6 +16,7 @@ import {
   visitCount,
   overlayIsEmpty,
   clearTraverserVisits,
+  restoreRegistries,
   hasTraverserVisits,
   MANUAL_STEP,
 } from '../canvas'
@@ -27,6 +28,7 @@ import { Panel } from './Panel'
 import { TileMini } from './TileMini'
 import { HelpButton } from './HelpButton'
 import { SegmentedControl } from './SegmentedControl'
+import { SpeedBar, type SpeedStop } from './SpeedBar'
 import { Toggle } from './Toggle'
 import { Stepper } from './Stepper'
 import { DebugPane } from './DebugPane'
@@ -53,11 +55,10 @@ const GRID_MAX = 140
 // through while step-debugging, but bounded so a fast run can't grow it without limit.
 const TRACE_HISTORY = 64
 
-// Traverser clock speeds. 'slow' is an interval (ms between ticks); 'fast' runs one tick per
-// animation frame (as fast as the machine paints); 'step' is manual — one tick per click, no timer.
-// The segmented control next to Stop selects these.
-type RunSpeed = 'step' | 'slow' | 'fast'
-const SLOW_MS = 90
+// Traverser clock speeds (turtle → rabbit), selected by the SpeedBar under the transport buttons. The
+// three interval paces are ms between ticks; 'max' runs one tick per animation frame (as fast as the
+// machine paints). 'step' is no longer a speed — it's the Step button, advancing one tick on demand.
+const SPEED_MS: Record<Exclude<SpeedStop, 'max'>, number> = { vslow: 500, slow: 180, fast: 50 }
 
 const REGISTRIES: ReadonlyArray<{ key: Registry; label: string }> = [
   { key: 'a', label: 'A' },
@@ -107,8 +108,12 @@ export function Workspace() {
   const [runLive, setRunLive] = useState<Traverser[] | null>(null)
   const [running, setRunning] = useState(false)
   const [step, setStep] = useState(0)
-  const [speed, setSpeed] = useState<RunSpeed>('slow')
+  const [speed, setSpeed] = useState<SpeedStop>('slow')
   const traverserSeq = useRef(0)
+  // The authored board (visits + A/B/C) as it stood when the current run started — snapshotted at
+  // initRun so Stop can revert the run's registry writes back to their pre-run values (registries have
+  // no per-write stamp, so unlike visits they can't be surgically un-done without this).
+  const authoredOverlayRef = useRef<ReadonlyMap<string, TileState>>(new Map())
   // Debug mode: a per-tick decision log (the Debug pane) + canvas highlighting of the tiles a hovered
   // log row is about. Off by default — when off the trace isn't built and nothing extra is drawn.
   const [debug, setDebug] = useState(false)
@@ -428,8 +433,9 @@ export function Workspace() {
     if (next && next.length === 0) setRunning(false) // every walker died -> auto-pause
   }
   useEffect(() => {
-    if (!running || speed === 'step') return // step mode advances manually — no timer
-    if (speed === 'fast') {
+    if (!running) return
+    if (speed === 'max') {
+      // one tick per animation frame — as fast as the machine paints
       let raf = 0
       const loop = () => {
         tickRef.current()
@@ -438,7 +444,7 @@ export function Workspace() {
       raf = requestAnimationFrame(loop)
       return () => cancelAnimationFrame(raf)
     }
-    const handle = setInterval(() => tickRef.current(), SLOW_MS)
+    const handle = setInterval(() => tickRef.current(), SPEED_MS[speed])
     return () => clearInterval(handle)
   }, [running, speed])
 
@@ -506,6 +512,7 @@ export function Workspace() {
   // before Play takes effect), then mark each starting tile visited at step 0.
   const initRun = () => {
     clearDebug() // a fresh run starts a fresh log
+    authoredOverlayRef.current = overlay // snapshot the authored board so Stop can revert run registry writes
     // Hand-placed seeds + the grid-relative auto-placed walkers (hand wins a shared tile). Same merge as
     // the export path (prepare.ts) so the preview grows exactly what an export would.
     const start = mergeByTile(seeds, autoSeeds)
@@ -523,14 +530,18 @@ export function Workspace() {
     setRunning(true)
   }
   const pause = () => setRunning(false)
-  // Stop: discard the live run and clear its trail (step >= 0 visits), restoring the AUTHORED state —
-  // the placed walkers (seeds) reappear and only hand-painted tiles (step -1) remain. Only Reset
-  // removes the seeds.
+  // The Play/Pause slot is one toggling button: running → pause; otherwise → play (resuming from where
+  // a pause left off, or starting a fresh run from the seeds).
+  const togglePlay = () => (running ? pause() : play())
+  // Stop: discard the live run and restore the AUTHORED board — clear the run's visit trail (step >= 0)
+  // AND revert any registry (A/B/C) writes the run made back to their pre-run values (the initRun
+  // snapshot), so only hand-made state remains (step -1 visits + hand-set registries) and the placed
+  // walkers (seeds) reappear. Only Reset removes the seeds.
   const stopRun = () => {
     setRunning(false)
     setRunLive(null)
     setStep(0)
-    setOverlay((prev) => clearTraverserVisits(prev))
+    setOverlay((prev) => clearTraverserVisits(restoreRegistries(prev, authoredOverlayRef.current)))
     clearDebug()
   }
   // Full Reset: wipe everything (painting + placed walkers) and end any run.
@@ -543,27 +554,18 @@ export function Workspace() {
     clearDebug()
   }
 
-  // Manual single-step (the `step` speed). The first click on a stopped run just initializes it
-  // (places + marks the seeds, like Play's first beat); each later click advances exactly one tick.
-  // The continuous clock stays off in step mode.
+  // The Step button: advance exactly one tick, pausing a running sim first (so Step always drops you
+  // into manual stepping). The first Step on a stopped run just initializes it — places + marks the
+  // seeds, like Play's first beat; each later Step advances one tick. (advanceOneTick reads runLive
+  // directly, not `running`, so pausing in the same click doesn't skip this tick.)
   const stepOnce = () => {
+    if (running) setRunning(false)
     if (runLive === null) {
       if (seeds.length === 0 && autoSeeds.length === 0) return
       initRun()
       return
     }
     advanceOneTick()
-  }
-  // Speed selection: slow/fast pick the continuous rate (Play drives them); `step` is manual —
-  // choosing it pauses any run and advances one tick, and clicking it again steps once more.
-  const onSpeedChange = (s: RunSpeed) => {
-    if (s === 'step') {
-      setSpeed('step')
-      setRunning(false)
-      stepOnce()
-      return
-    }
-    setSpeed(s)
   }
 
   // Authoring the initial state (only while stopped): place / remove / aim walkers. These edit
@@ -707,21 +709,13 @@ export function Workspace() {
   const canvasControls = (
     <>
       <div className="transport seg-shell" role="group" aria-label="traverser run">
-        <button type="button" className="seg-item seg-item--btn transport-btn" onClick={play} disabled={running || !hasWalkers || speed === 'step'} aria-label="Play — run the traversers" title={speed === 'step' ? 'In step mode — use the step button to advance one tick at a time' : 'Play — run the traversers'}>▶</button>
-        <button type="button" className="seg-item seg-item--btn transport-btn" onClick={pause} disabled={!running} aria-label="Pause — stop ticking, keep the walkers" title="Pause — stop ticking, keep the walkers">❚❚</button>
+        <button type="button" className="seg-item seg-item--btn transport-btn" onClick={togglePlay} disabled={!running && !hasWalkers} aria-label={running ? 'Pause — stop ticking, keep the walkers' : 'Play — run the traversers'} title={running ? 'Pause — stop ticking, keep the walkers' : 'Play — run the traversers'}>{running ? '❚❚' : '▶'}</button>
+        <button type="button" className="seg-item seg-item--btn transport-btn" onClick={stepOnce} disabled={!hasWalkers} aria-label="Step — advance one tick (pauses if playing)" title="Step — advance one tick (pauses if playing)">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true" focusable="false"><path d="M6 5 L15 12 L6 19 Z" /><rect x="16" y="5" width="2.4" height="14" rx="1" /></svg>
+        </button>
         <button type="button" className="seg-item seg-item--btn transport-btn" onClick={stopRun} disabled={!running && runLive === null && !hasTraverserVisits(overlay)} aria-label="Stop — end the run and clear its trail (keeps the walkers and your painting)" title="Stop — end the run and clear its trail (keeps the walkers and your painting)">■</button>
-        <SegmentedControl
-          embedded
-          ariaLabel="run speed"
-          value={speed}
-          onChange={onSpeedChange}
-          options={[
-            { value: 'step', label: 'step', title: 'advance one tick' },
-            { value: 'slow', label: 'slow', title: 'one tick every 90ms' },
-            { value: 'fast', label: 'fast', title: 'one tick per animation frame' },
-          ]}
-        />
       </div>
+      <SpeedBar value={speed} onChange={setSpeed} ariaLabel="traverser speed" />
       <div className="canvas-tools">
         <TilingPicker value={tilingId} onChange={selectTiling} />
         <div className="canvas-drag" ref={dragMenuRef}>

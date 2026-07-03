@@ -20,6 +20,7 @@ export {
   applyRegistryWrites,
   addVisits,
   clearTraverserVisits,
+  restoreRegistries,
   hasTraverserVisits,
 } from './overlay'
 export type { TileClip } from './clipboard'
