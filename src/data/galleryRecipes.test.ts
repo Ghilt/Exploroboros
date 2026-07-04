@@ -4,10 +4,15 @@ import { parseRecipe, placeOffset, prepareFromRecipe, runToCompletion } from '..
 import { compileProgram } from '../traverse'
 import { parsePredicate } from '../dsl'
 import { visitCount } from '../canvas'
+import { colorize } from '../colorizer'
 import { GALLERY_RECIPES } from './galleryRecipes'
 
 const ENTRIES = Object.entries(GALLERY_RECIPES)
 const BUNDLED = new Set(['visited', 'unvisited', 'rule90', 'odd-visits', 'checker', 'has-a', 'has-b', 'has-c', 'triangles', 'squares'])
+// Cap the run grid: a recipe's export gridN can be huge (e.g. the full-plane XOR CA at 1067²), which
+// would make the grow-check crawl. The fractal's structure is the same at a modest size — initialState
+// seeding is grid-relative, and centre-seeded recipes still grow from the middle.
+const RUN_GRID_CAP = 120
 
 // Building kalleboda is dense; all recipes share one (tilingId, gridN), so cache it — rebuilding per
 // recipe (×23) is what timed the suite out.
@@ -33,8 +38,9 @@ describe('GALLERY_RECIPES (real ported fractals)', () => {
 
   it('build their tiling and place every seed', () => {
     for (const [file, r] of ENTRIES) {
-      expect(r.seeds.length, file).toBeGreaterThan(0)
-      const t = tilingFor(r.tilingId, r.gridN)
+      // A recipe seeds its walkers by hand (r.seeds) OR by the Initial-state document (r.initialState).
+      expect(r.seeds.length > 0 || r.initialState.trim().length > 0, `${file} places no walkers`).toBe(true)
+      const t = tilingFor(r.tilingId, Math.min(r.gridN, RUN_GRID_CAP))
       expect(t.nodes.length, file).toBeGreaterThan(0)
       for (const s of r.seeds) expect(placeOffset(t, s.offset, s.shape), `${file} seed`).toBeTruthy()
     }
@@ -67,17 +73,22 @@ describe('GALLERY_RECIPES (real ported fractals)', () => {
   // stats so the grid size can be tuned.
   it('each recipe grows a fractal when run to completion', () => {
     for (const [file, r] of ENTRIES) {
-      const t = tilingFor(r.tilingId, r.gridN)
+      const t = tilingFor(r.tilingId, Math.min(r.gridN, RUN_GRID_CAP))
       const prep = prepareFromRecipe(r, t)
       const run = runToCompletion(t, prep.seeds, prep.baseOverlay, prep.defs, prep.indexById, 200_000)
       let visited = 0
       for (const st of run.overlay.values()) if (visitCount(st) > 0) visited += 1
+      // The VISUAL fractal is the COLOURING, not the visited set — a full-plane XOR cellular automaton
+      // sweeps every tile (100% visited) yet paints only a diamond. Measure the coloured tiles instead;
+      // it must be non-empty. No upper bound: a CA sweep and shape-based rules both legitimately touch
+      // every tile.
+      const colored = colorize(r.coloringRules, prep.predicateText, t, run.overlay, prep.indexById)
       const pct = ((visited / t.nodes.length) * 100).toFixed(1)
       // eslint-disable-next-line no-console
-      console.log(`${file.padEnd(16)} nodes=${t.nodes.length} ticks=${run.ticks} visited=${visited} (${pct}%) hitCap=${run.hitCap}`)
+      console.log(`${file.padEnd(16)} nodes=${t.nodes.length} ticks=${run.ticks} visited=${visited} (${pct}%) coloured=${colored.size} hitCap=${run.hitCap}`)
       expect(run.ticks, `${file} should run several ticks`).toBeGreaterThan(5)
       expect(visited, `${file} should visit beyond the seed`).toBeGreaterThan(20)
-      expect(visited, `${file} should not flood the whole plane`).toBeLessThan(t.nodes.length)
+      expect(colored.size, `${file} should colour a visible fractal`).toBeGreaterThan(20)
     }
   })
 })

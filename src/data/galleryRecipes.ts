@@ -233,8 +233,63 @@ const SIERPINSKI = def('sierpinski', [
   ...[2, 3, 4, 5, 6, 7, 0, 1].map((k) => `if tile-type@e${k} == wedge then move e${k}`),
 ])
 
+// xor-diamond — a Rule-90-style XOR cellular automaton on registry [A], authored by the owner and the
+// first gallery piece seeded ENTIRELY by the Initial-state DSL: two walkers sweep toward each other
+// (one up from the bottom row, one down from the top), each setting [A] by the parity of its A-neighbours
+// (`put A = 1` when the XOR is odd), from two seed A-blobs at top/bottom centre — a nested diamond.
+// EXTRACTED from the exported PNG's recipe metadata (the real thing, not a hand-port); the export's leaked
+// run-state `paint` (3392 tiles) was stripped so it regenerates from `initialState` alone (grow-check
+// ~54% fill on a 220² grid, natural stop). Not built by the kalleboda `recipe()` helper — it's a square
+// tiling with its own two traversers + a step ramp, so it's a plain literal.
+const XOR_DIAMOND: Recipe = {
+  schemaVersion: 3,
+  appVersion: '0.1.0',
+  app: 'exploroboros',
+  tilingId: 'square',
+  gridN: 1067,
+  output: { width: 3200, height: 3200, edges: false, background: '#000000' },
+  seeds: [],
+  paint: [],
+  predicates: [],
+  traversers: [
+    {
+      id: '278cca65-8a1e-4f69-b8c0-493634458085',
+      name: 'walker matt',
+      text: '\nif ([A@e2] + [A@e2@e3] + [A@e2@e1] + [A@e2@e2]) % 2 == 1 then put A = 1\nmove straight\n\n',
+    },
+    {
+      id: '5beafc54-71c9-4f7b-9308-dc84226a30d9',
+      name: 'downer',
+      text: 'if ([A@e0] + [A@e0@e3] + [A@e0@e1] + [A@e0@e0]) % 2 == 1 then put A = 1\nmove straight',
+    },
+  ],
+  coloringRules: [
+    {
+      id: '8a57439c-361b-452d-8b22-e9a4a73d23d3',
+      predicate: { kind: 'ref', id: 'has-a' },
+      color: {
+        kind: 'ramp',
+        ramp: {
+          attr: 'step',
+          mod: 6,
+          stops: [
+            { hex: '#6c007a', at: null },
+            { hex: '#6f34f9', at: null },
+            { hex: '#a366ff', at: null },
+          ],
+          attrIndex: 88,
+        },
+      },
+      opacity: 1,
+    },
+  ],
+  initialState:
+    'auto-place line {t1,0,100,0}\nauto-place blob {[A],50,100,1,1}\nauto-place blob {[A],50,0,1,1}\nauto-place line {t2,0,0,2}',
+}
+
 // Image filename (in src/assets/gallery/) → its recipe.
 export const GALLERY_RECIPES: Readonly<Record<string, Recipe>> = {
+  'xor-diamond.webp': XOR_DIAMOND,
   'gasket.webp': recipe('#0a0410', [seed('gasket', 3)], GASKET, [ring('gasket-c', 600, [stop('#FFE08A', 0), stop('#FF6A3D', 200), stop('#B5179E', 500)])]),
   'octa-xor.webp': recipe('#04040a', [seed('octa-xor', 5, { shape: 'octagon' })], OCTA_XOR, [ring('octa-xor-c', 260, [stop('#FFFFC8', 0), stop('#FF6428', 120), stop('#781E5A', 260)])]),
   'carpet.webp': recipe('#0a0408', [seed('carpet', 5)], CARPET, [ring('carpet-c', 380, [stop('#FFE08A', 0), stop('#FF6A3D', 120), stop('#7A1E5A', 260)])]),
