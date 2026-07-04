@@ -103,8 +103,9 @@ Installed and confirmed working 2026-06-26:
   — no in-app admin). Supersedes the never-wired Vercel plan. New dev deps (owner-approved 2026-07-04):
   **`wrangler` ^4.107** + **`@cloudflare/workers-types` ^4** — no router lib (file-based Functions
   routing). The server reuses the pure `parseRecipe` to validate uploads. Config in `wrangler.toml`,
-  schema in `migrations/`; local dev `npm run dev:api` (`wrangler pages dev`, local D1+R2). Not yet
-  deployed (Phase 4). See the §6 gallery entry + §9.
+  schema in `migrations/`; local dev `npm run dev:api` (`wrangler pages dev`, local D1+R2). **Deployed
+  2026-07-04 → https://exploroboros.pages.dev** (`npm run deploy`; D1 `exploroboros` + R2
+  `exploroboros-images` on the owner's account). See the §6 gallery entry + §9.
 - **Repo:** local git repo at `E:\Code\exploroboros` (the owner's machine).
 
 ## 4. Deferred decisions / Open Questions (the embedded quiz)
@@ -285,10 +286,12 @@ still needed into this doc **before** then; do not rely on the path persisting.
   Backend = **Cloudflare Pages Functions + D1 + R2** (`functions/api/`, `migrations/`, `wrangler.toml`); uploads
   validated server-side by the pure `parseRecipe`. Pure client modules `src/gallery/` (api + feed/vote hooks) +
   `src/upload/`. Verified end-to-end on a local `wrangler pages dev` seeded with the 29 existing gallery
-  fractals. **Deploying to Cloudflare Pages + the moderation runbook are the remaining sub-item (Phase 4).**
-- **Next up:** **deploy the gallery live to Cloudflare Pages** (D1 + R2 bindings; optional `exploroboros.io`
-  custom domain) → **DSL-driven traversers** (custom rules in the Traversers pane — paint/move/visit/split/
-  guards/state, §5; reuses the predicate DSL) → **persist user exports across reloads** (IndexedDB).
+  fractals, then **deployed live 2026-07-04 → https://exploroboros.pages.dev** (launched **empty** — fills
+  from uploads; the owner deletes bad uploads via the Cloudflare dashboard). Custom domain `exploroboros.io`
+  is a todo (§8).
+- **Next up:** **`exploroboros.io` custom domain** (register + attach — §8) → **DSL-driven traversers**
+  (custom rules in the Traversers pane — paint/move/visit/split/guards/state, §5; reuses the predicate DSL)
+  → **persist user exports across reloads** (IndexedDB).
 
 ## 7. Verifying on a phone + verification log
 
@@ -356,6 +359,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-07-04 | **Reopen-from-PNG made discoverable + safety-gated**, plus a real export bug it surfaced. A persistent **"drag an image here to import"** box sits in the canvas (stacked above the tile/FPS HUD, bottom-left) and also opens a system file picker on click — the only import path on touch, where you can't drag a file; both routes share one `importFromFile`. A new **`ConfirmDialog`** ("Replace your current work?") gates the import whenever the panes already hold authored data (predicates / coloring rules / traversers / initial-state text / placed seeds / hand-paint — mirrors Reset's blank check); a blank canvas still imports straight away. The drag-over overlay now explains what dropping does. **Fix — export was baking a run's A/B/C registry writes into the recipe as if hand-painted:** registries carry no per-tick stamp (unlike visits), so `clearTraverserVisits` alone — the export base's only cleanup — stripped a run's visits but left its registry writes in place; a finished/auto-paused run's board (the natural moment to export) then exported verbatim. New shared `authoredBoard` (`src/canvas/overlay.ts`) reverts a live run's registries to their pre-run snapshot before `buildRecipe`, exactly what Stop already did — Stop and the export path now route through one helper so they can't drift apart again | ✅ yes (partial — see note) | owner dragged their own real exported PNG (schemaVersion 3, after rebasing this worktree onto main — see §2's new rebase-before-plan rule below, added the same session) onto the canvas and confirmed traversers/coloring/initial-state all loaded correctly, verifying the core drop-to-import mechanism; the click-to-file-picker route, the confirm-dialog gate, and the new overlay copy were **not** separately device-exercised. The registry-bake bug was root-caused from that SAME owner-provided PNG (decoded: 3392 tiles with a baked `A=1`, matching their two `auto-place blob {[A],…}` Initial-state rules exactly); the fix is covered by 2 new regression tests + the full suite but **not** re-verified on device via a fresh export→reopen round trip. Owner reviewed this account and said "please commit this"; build / lint / **537 tests** | `66d9a1d` |
 | 2026-07-04 | **Canvas UI/UX cleanup.** All panes are 2× wide with a **one-open-per-side accordion** (click a pane title — not just the chevron — to collapse; `Panel` is now controllable). The debug toggle is gone and the per-tick **traverser decision log** folded into the **bottom of the Inspect pane** (traced only while Inspect is open — `traceOn`) with clearer empty text. The **Predicates dock** became a **"Custom predicates" popup** (`CustomPredicatesDialog`, hosting `PredicatePane`) opened by a badge at the foot of the Traversers / Coloring / Initial-state panes. Layout: **left = Traversers, Coloring · right = Inspect (+log), Initial state**. **Pan/zoom keep the selection** (only paint / empty-tap clear it); selecting a tile **auto-opens Inspect**; the **"Read the full guide"** links open in a new tab. Owner follow-ups: the **Traversers list red-badges** any definition that doesn't compile; **predicate/traverser names forbid** DSL reserved words + `t/e/r/l`+N reference patterns + duplicates (new `src/dsl/reserved.ts`); the Coloring "Custom predicates" badge **sticks to the pane bottom** like the others | ✅ yes | owner reviewed on this worktree's preview (port 5679) and said "good please commit"; live in-browser checks (accordion opens one pane per side + title-click collapse; predicates dialog opens from a pane badge and hosts the editor; the log sits at the bottom of Inspect; naming a predicate `move` shows a reserved-word error; a bad-DSL traverser gets a red badge; Coloring badge in `.coloring-foot` under `panel--fill`); build / lint / **547 tests** (7 new reserved-word tests) | `21bcec0` |
 | 2026-07-04 | **Community gallery — upload + browse (Cloudflare R2 + D1).** No-login public gallery; global **10/day** cap. Canvas Export → **⤴ Share** (name + little message) → a compact WebP + the recipe are posted; the **Gallery page** is now live: search / sort (new·top·name) / tiling filter / **infinite scroll** / **upvotes** / **spotlight** (message + tiling + **Import to canvas**). Backend = **Cloudflare Pages Functions + D1 + R2** (`functions/api/`, `migrations/`, `wrangler.toml`); the pure `parseRecipe` validates uploads server-side; pure client `src/gallery/` + `src/upload/` | ✅ yes | owner ran the full stack on this worktree's `wrangler pages dev` (port 5356), seeded with the 29 existing gallery fractals + their real recipes: confirmed cards show the real images, sort/filter/search/upvote/infinite-scroll all work, the spotlight shows the message + tiling, and **Import to canvas restores the full setup** (traverser + coloring + walker + correct tiling) — first flagged the placeholder solid-colour seeds, which I replaced with the real fractals, then said "commit". Build / lint / **565 tests** (18 new: API `_lib` cursor/escape/query + a DOM-free server-`parseRecipe` guard) + a 22-check end-to-end API run on the local Cloudflare runtime (upload, image cache headers, atomic upvote, validation → 400, 10/day → 429, keyset pagination). **Deploy (Phase 4) + moderation runbook still to wire.** | `80b2d64` |
+| 2026-07-04 | **Deployed the community gallery live — Cloudflare Pages + D1 + R2.** `npm run deploy` (`wrangler pages deploy dist`) → **https://exploroboros.pages.dev** (SPA + `/api` Functions on one origin; D1 `exploroboros` schema applied `--remote`; R2 `exploroboros-images`). Launched **empty** (owner's call — fills from uploads); `exploroboros.io` custom domain deferred to a todo. | ✅ backend verified live (owner to confirm the UI on-device) | owner authorised Wrangler, activated R2, chose "start empty" + "domain to the todo list". I verified the live deploy server-side: `GET /` → 200, `GET /api/creations` → 200 (empty), and an R2 round-trip through the live image route (`PUT` a probe object → `GET /api/img/…` → 200 with the right bytes + `immutable` cache → deleted). Owner to open the public URL on phone/desktop and run Export → ⤴ Share → gallery → Import as the final on-device confirmation | `605d35a` |
 
 ## 8. Todo list (working backlog)
 
@@ -532,11 +536,14 @@ in-session task tracker.
   an **opt-in pure `TickTrace`** (zero cost when off). Surfaced + fixed a real edge-numbering bug on first
   use *(owner, 2026-06-29; done & verified 2026-06-30, `58fd0b6`)*. A console / log-to-file aid stays a
   possible follow-up.
-- [ ] **Deploy to Cloudflare Pages** — the SPA + the community-gallery Functions (create the real D1 + R2,
-  set `database_id` in `wrangler.toml`, apply the migration `--remote`, connect the repo / `wrangler pages
-  deploy`). Optional custom domain `exploroboros.io` (registered separately). Moderation = delete a bad
-  upload via the dashboard / `wrangler d1 execute … DELETE` + `wrangler r2 object delete`. *(Phase 4 of the
-  gallery feature.)*
+- [x] **Deploy to Cloudflare Pages** *(done 2026-07-04, `605d35a`)* — SPA + gallery Functions live at
+  **https://exploroboros.pages.dev** (D1 `exploroboros` + R2 `exploroboros-images`; schema applied
+  `--remote`; `npm run deploy`). Backend verified live (API + an R2 image round-trip); gallery launched
+  empty. Moderation = delete a bad upload via the dashboard / `wrangler d1 execute … DELETE` +
+  `wrangler r2 object delete`.
+- [ ] **Custom domain `exploroboros.io`** — register it (Cloudflare Registrar, ~$35–50/yr) + attach it to
+  the `exploroboros` Pages project as a custom domain (free SSL). Owner wants it; deferred until after live
+  testing *(owner, 2026-07-04)*.
 
 ## 9. Dev loop & operational notes (gotchas)
 
