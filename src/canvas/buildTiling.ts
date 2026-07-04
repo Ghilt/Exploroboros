@@ -20,6 +20,8 @@ import {
   dodecagonSquareTiling,
   dodecagonHexTiling,
   kagomeSquareTiling,
+  penroseTiling,
+  hatTiling,
 } from '../tiling'
 
 export function buildTiling(tilingId: string, n: number): Tiling {
@@ -55,6 +57,10 @@ export function buildTiling(tilingId: string, n: number): Tiling {
       return dodecagonHexTiling(count)
     case 'kagome-square':
       return kagomeSquareTiling(count)
+    case 'penrose':
+      return penroseTiling(count)
+    case 'hat':
+      return hatTiling(count)
     case 'square':
     default:
       return squareTiling(count, count)

@@ -33,6 +33,8 @@ export const TILINGS: ReadonlyArray<TilingEntry> = [
   { id: 'dodecagon-square', name: 'Dodecagon & Square', vertexConfig: '3.4.3.12', status: 'ready' },
   { id: 'rhombille', name: 'Rhombille', vertexConfig: 'rhombi · dual 3.6.3.6', status: 'ready' },
   { id: 'kagome-square', name: 'Kagome & Squares', vertexConfig: '3.4.4.6 · 3.6.3.6', status: 'ready' },
+  { id: 'penrose', name: 'Penrose (rhombi)', vertexConfig: 'aperiodic · fat + thin rhombi', status: 'ready' },
+  { id: 'hat', name: 'Hat (einstein)', vertexConfig: 'aperiodic monotile', status: 'ready' },
 ]
 
 export function getTiling(id: string): TilingEntry | undefined {

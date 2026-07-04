@@ -23,6 +23,8 @@ import {
   dodecagonSquareTiling,
   dodecagonHexTiling,
   kagomeSquareTiling,
+  penroseTiling,
+  hatTiling,
 } from '../index'
 
 const TILINGS: ReadonlyArray<{ name: string; build: () => Tiling }> = [
@@ -42,6 +44,8 @@ const TILINGS: ReadonlyArray<{ name: string; build: () => Tiling }> = [
   { name: 'dodecagon-square', build: () => dodecagonSquareTiling(20) },
   { name: 'dodecagon-hex', build: () => dodecagonHexTiling(20) },
   { name: 'kagome-square', build: () => kagomeSquareTiling(20) },
+  { name: 'penrose', build: () => penroseTiling(20) },
+  { name: 'hat', build: () => hatTiling(18) },
 ]
 
 describe.each(TILINGS)('lattice coordinates: $name', ({ build }) => {
