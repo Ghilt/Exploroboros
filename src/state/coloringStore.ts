@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import type { ColoringRule } from '../colorizer'
+import { randomColoringRules } from '../data/coloringPresets'
 import { loadStored, newId, saveStored } from './persist'
 
 // v2: colour model changed (rule-level opacity + ramp breakpoints), so older saved rules are dropped.
@@ -25,6 +26,9 @@ export function makeRule(): ColoringRule {
 // ---- pure list updaters ----
 export function withAddedRule(list: ReadonlyArray<ColoringRule>, rule: ColoringRule): ColoringRule[] {
   return [...list, rule]
+}
+export function withAddedRules(list: ReadonlyArray<ColoringRule>, rules: ReadonlyArray<ColoringRule>): ColoringRule[] {
+  return [...list, ...rules]
 }
 export function withReplacedRule(list: ReadonlyArray<ColoringRule>, id: string, next: ColoringRule): ColoringRule[] {
   return list.map((r) => (r.id === id ? next : r))
@@ -50,6 +54,8 @@ export type ColoringStore = {
   rules: ReadonlyArray<ColoringRule>
   persistOk: boolean
   add: () => string
+  // Append a random hand-picked coloring (1–2 rules). Offered when the pane is empty.
+  addRandomColoring: () => void
   replace: (id: string, next: ColoringRule) => void
   remove: (id: string) => void
   reorder: (from: number, to: number) => void
@@ -70,10 +76,11 @@ export function useColoringStore(): ColoringStore {
     setRules((list) => withAddedRule(list, rule))
     return rule.id
   }, [])
+  const addRandomColoring = useCallback(() => setRules((list) => withAddedRules(list, randomColoringRules(newId))), [])
   const replace = useCallback((id: string, next: ColoringRule) => setRules((list) => withReplacedRule(list, id, next)), [])
   const remove = useCallback((id: string) => setRules((list) => withRemovedRule(list, id)), [])
   const reorder = useCallback((from: number, to: number) => setRules((list) => withReordered(list, from, to)), [])
   const setAll = useCallback((list: ReadonlyArray<ColoringRule>) => setRules([...list]), [])
 
-  return { rules, persistOk, add, replace, remove, reorder, setAll }
+  return { rules, persistOk, add, addRandomColoring, replace, remove, reorder, setAll }
 }

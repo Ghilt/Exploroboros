@@ -51,7 +51,12 @@ export function ColoringPane({
       )}
 
       {store.rules.length === 0 ? (
-        <p className="pane-hint">No rules yet — add one to start coloring the tiling.</p>
+        <>
+          <p className="pane-hint">No rules yet — add one, or generate a ready-made palette to start coloring.</p>
+          <button type="button" className="rule-add" onClick={store.addRandomColoring}>
+            Generate a random coloring
+          </button>
+        </>
       ) : (
         <ReorderableList
           items={store.rules}

@@ -58,4 +58,17 @@ describe('ColoringPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'delete rule' }))
     expect(screen.getByText(/no rules yet/i)).toBeTruthy()
   })
+
+  it('offers "Generate a random coloring" only while empty, and adds a rule on click', () => {
+    render(<Harness />)
+    const gen = screen.getByRole('button', { name: /generate a random coloring/i })
+    expect(gen).toBeTruthy()
+    fireEvent.click(gen)
+    // A ramp rule was added, so a ramp attribute selector now exists (some presets add a second
+    // overlay rule too, hence getAllByRole — getByRole would throw on the two-combobox case).
+    expect(screen.getAllByRole('combobox', { name: 'ramp attribute' }).length).toBeGreaterThanOrEqual(1)
+    // ...and the generate button is gone (the pane is no longer empty).
+    expect(screen.queryByRole('button', { name: /generate a random coloring/i })).toBeNull()
+    expect(screen.queryByText(/no rules yet/i)).toBeNull()
+  })
 })

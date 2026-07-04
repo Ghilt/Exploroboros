@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { makeRule, withAddedRule, withRemovedRule, withReordered, withReplacedRule } from './coloringStore'
+import { makeRule, withAddedRule, withAddedRules, withRemovedRule, withReordered, withReplacedRule } from './coloringStore'
 import type { ColoringRule } from '../colorizer'
 
 const rule = (id: string): ColoringRule => ({
@@ -21,6 +21,9 @@ describe('coloringStore — pure updaters', () => {
   it('adds, replaces, and removes without mutating the input', () => {
     const base = [rule('a'), rule('b')]
     expect(withAddedRule(base, rule('c'))).toHaveLength(3)
+    expect(base).toHaveLength(2)
+    // withAddedRules appends many at once (used by "Generate a random coloring")
+    expect(withAddedRules(base, [rule('c'), rule('d')]).map((r) => r.id)).toEqual(['a', 'b', 'c', 'd'])
     expect(base).toHaveLength(2)
     const replaced = withReplacedRule(base, 'b', { ...rule('b'), opacity: 0.5 })
     expect(replaced[1].opacity).toBe(0.5)
