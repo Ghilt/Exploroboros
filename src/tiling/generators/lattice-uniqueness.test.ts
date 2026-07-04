@@ -19,6 +19,10 @@ import {
   truncatedTrihexagonalTiling,
   snubSquareTiling,
   snubHexagonalTiling,
+  rhombilleTiling,
+  dodecagonSquareTiling,
+  dodecagonHexTiling,
+  kagomeSquareTiling,
 } from '../index'
 
 const TILINGS: ReadonlyArray<{ name: string; build: () => Tiling }> = [
@@ -34,6 +38,10 @@ const TILINGS: ReadonlyArray<{ name: string; build: () => Tiling }> = [
   { name: 'truncated-trihexagonal', build: () => truncatedTrihexagonalTiling(20) },
   { name: 'snub-square', build: () => snubSquareTiling(20) },
   { name: 'snub-hexagonal', build: () => snubHexagonalTiling(20) },
+  { name: 'rhombille', build: () => rhombilleTiling(20) },
+  { name: 'dodecagon-square', build: () => dodecagonSquareTiling(20) },
+  { name: 'dodecagon-hex', build: () => dodecagonHexTiling(20) },
+  { name: 'kagome-square', build: () => kagomeSquareTiling(20) },
 ]
 
 describe.each(TILINGS)('lattice coordinates: $name', ({ build }) => {

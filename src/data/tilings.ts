@@ -12,8 +12,10 @@ export type TilingEntry = {
   status: TilingStatus
 }
 
-// Ordered for display: the two with real thumbnails lead, then the remaining uniform tilings.
-// Target set = the 11 convex uniform Euclidean tilings + the prototype's octagon+wedge.
+// Ordered for display: the two with real thumbnails lead, then the remaining uniform tilings, then
+// the "expanded list" extras. Base set = the 11 convex uniform Euclidean tilings + the prototype's
+// octagon+wedge; plus two 2-uniform dodecagon tilings and the rhombille (a Laves dual) — the first
+// picks from the expanded uniform-tiling list.
 export const TILINGS: ReadonlyArray<TilingEntry> = [
   { id: 'square', name: 'Square', vertexConfig: '4.4.4.4', status: 'ready' },
   { id: 'kalleboda', name: 'Kalleboda', vertexConfig: 'octagon + wedge', status: 'ready' },
@@ -27,6 +29,10 @@ export const TILINGS: ReadonlyArray<TilingEntry> = [
   { id: 'truncated-hexagonal', name: 'Truncated Hexagonal', vertexConfig: '3.12.12', status: 'ready' },
   { id: 'rhombitrihexagonal', name: 'Rhombitrihexagonal', vertexConfig: '3.4.6.4', status: 'ready' },
   { id: 'truncated-trihexagonal', name: 'Truncated Trihexagonal', vertexConfig: '4.6.12', status: 'ready' },
+  { id: 'dodecagon-hex', name: 'Dodecagon & Hexagon', vertexConfig: '3.4.6.12', status: 'ready' },
+  { id: 'dodecagon-square', name: 'Dodecagon & Square', vertexConfig: '3.4.3.12', status: 'ready' },
+  { id: 'rhombille', name: 'Rhombille', vertexConfig: 'rhombi · dual 3.6.3.6', status: 'ready' },
+  { id: 'kagome-square', name: 'Kagome & Squares', vertexConfig: '3.4.4.6 · 3.6.3.6', status: 'ready' },
 ]
 
 export function getTiling(id: string): TilingEntry | undefined {

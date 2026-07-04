@@ -1,6 +1,13 @@
 // Shared helpers for tiling generators.
 
 import type { Vec2 } from '../types'
+import { signedArea } from '../geometry'
+
+// Return the vertices wound CCW (stitch requires it), reversing if they came out clockwise.
+// Lets a generator build a polygon in whatever order is convenient and normalize at the end.
+export function windCCW(vertices: Vec2[]): Vec2[] {
+  return signedArea(vertices) < 0 ? [...vertices].reverse() : vertices
+}
 
 // Snap coincident vertices to a single shared point so that endpoint keys match exactly across
 // tiles — letting the generic stitch() pair shared edges even when trig-based coordinates differ
