@@ -243,6 +243,17 @@ still needed into this doc **before** then; do not rely on the path persisting.
   absolute centre-offset). Ghost heads, non-removable (edit the rule), hand-placed seeds win a shared tile;
   rides in the traverser text so no recipe bump. Pure `src/traverse/autoplace.ts`; export + live editor share
   the merge (preview == export). Same commit fixed the Guide's in-page links (hash-routing bounce).
+  *(Superseded 2026-07-04 — auto-place moved out of the traverser DSL into the Initial-state pane below.)*
+- **Initial-state DSL — auto-place moved to its own pane (done 2026-07-04, `5155446`):** `auto-place` left the
+  traverser DSL for a dedicated right-dock **Initial state** pane that seeds the *whole* starting state —
+  traversers **and** per-tile registries `[A]/[B]/[C]` **and** `visited` — by grid-relative rules, encoded in
+  the PNG so a creation reopens intact. `line {what, angle, percent, param}` picks the tiles a line crosses;
+  `blob {what, x%, y%, radius, param}` a point grown out `radius` tile-rings (1 = one tile, BFS). `what` = a
+  traverser (`t1`/name), a registry, or `visited`; the trailing `param` **sets** the heading / value / count,
+  overwriting hand-paint. Pure `src/initstate/` (lex/parse/serialize/compile/geometry/resolve); recipe **schema
+  v3** (+ v2→v3 migration — old PNGs still open). Traversers numbered `1:`,`2:`… (referenced `t1`/name). Preview
+  == export (both call `resolveInitialState`). Removed the traverser-DSL auto-place; `src/traverse/autoplace.ts`
+  is gone.
 - **Next up:** **DSL-driven traversers** (custom rules in the Traversers pane — paint/move/visit/split/guards/
   state, §5; reuses the predicate DSL) → **persist user exports across reloads** (IndexedDB) → **deploy** to Vercel.
 
@@ -308,6 +319,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-07-03 | **Traverser DSL — "read another tile" moved off the whole guard onto each attribute as an `@`-path** (was a guard-level `@ target` / `@ edge`). An attribute now carries its own path: `visited@e1`, `tile-type@target`, `[A@r1@e5]`; no path = the current tile, so one predicate can read **several** tiles. `@target` / `@tile N` are terminal (a path's only hop); edge hops (`eN`/`rN`/`lN`/`straight`/`nearest-unvisited`) chain + re-aim. The move/edge token `edge N` → **`eN`**. An off-grid hop makes that attribute default (registry → 0, `tile-type@…` → false). Debug highlights **every** tile a row reads. `src/dsl` owns the path AST + parse/serialize/eval via a `nodeForPath` hook (stays walker-free; colorizer degrades); the traverse layer supplies the hook + detects per-target guards via `predReadsTarget`. Gallery + prototype recipes, the Guide, and the Traversers/Debug help migrated — behaviour identical (per-recipe grow-check unchanged); no schema bump | ✅ yes | owner tried it on this worktree's preview (5582) — asked the off-grid behaviour + why `[A]@e2` fails (path goes INSIDE the brackets: `[A@e2]`) questions, then said "please commit"; build / lint / **494 tests** (new dsl path parse/serialize/eval + `predReadsTarget` + traverse `@`-path / `eN` / per-leaf-redirection cases) + served-source/DOM checks | `2aec24b` |
 | 2026-07-03 | **Auto-place traverser DSL — grid-relative seeding.** `auto-place line {angle, percent, edge} if <predicate>` inside a traverser definition seeds walkers by a RULE re-resolved against whatever tiling renders (small preview OR big export grid), so a pattern like "the top row" lines the edge at ANY size — unlike a hand-placed seed's absolute centre-offset, which drifts inward on a larger export. angle 0=row/90=column/±45=diagonal; percent 0–100 from the top-left; edge = the absolute heading (`% sides`); the `if` reuses the tile-predicate DSL. Walkers render **ghostly**, are **non-removable** from the canvas (edit the rule; Inspect says so), and a hand-placed seed **wins** a shared tile. Lives in the traverser text already stored in the PNG → **no recipe/schema change**. Pure `src/traverse/autoplace.ts` (lineTiles + resolveAutoPlacements + mergeByTile); export (`prepare.ts`) + live editor share the merge (preview == export). Also fixed the **Guide in-page TOC/cross-ref links** (hash routing bounced them to the landing page → intercept + scrollIntoView, clear the sticky nav) | ✅ yes | owner tried it on this worktree's preview (5260) across iterations — reported a diagonal/percent line reading "too thick"/doubled; I tried a single-file **lane-nearest** pass, but it looked worse on non-square tilings so **reverted to the straddle line** (thin line, tiles it passes) per owner — then "good commit it"; build / lint / **514 tests** (autoplace geometry/resolver/merge + DSL parse/serialize + export threading) + served-source checks | `3e7a601` |
 | 2026-07-03 | **Traverser transport redesign** — Play/Pause is one toggling button; **Step** is a real button (advance one tick, pausing a running run); speed moves to a notched **turtle→rabbit slider** (new `SpeedBar` primitive) with four paces (very slow / slow / fast / max), decoupled from Step and re-pacing a live run, placed just right of the transport buttons. Also **Stop now reverts a run's A/B/C registry writes** back to their pre-run values (snapshotted at run start) — the registry counterpart of how it clears the visit trail while keeping hand-set state | ✅ yes | owner verified on this worktree's preview (5497) across iterations — flagged the speed slider stacked under the buttons made the bar too tall, so moved it to just right of the transport — then said "commit"; backed by build / lint / **502 tests** (SpeedBar unit tests + transport / step / Play-Pause-toggle + `restoreRegistries`) + served-source/DOM checks | `b9c9f7c` |
+| 2026-07-04 | **Initial-state DSL — auto-place moved into its own pane** (seeds traversers **+** per-tile registries `[A]/[B]/[C]` **+** `visited`, not just walkers). A right-dock **Initial state** pane (2× wide) holds `auto-place line {what, angle, percent, param}` / `auto-place blob {what, x%, y%, radius, param}` — `what` = a traverser (`t1`/name), a registry, or `visited`; the trailing `param` **sets** heading / value / count; `line` picks the tiles a line crosses, `blob` a point grown out `radius` tile-rings; optional `if <predicate>`. Grid-relative (resolves against whatever grid renders → preview == export). Removed auto-place from the traverser DSL; new pure `src/initstate/`; recipe **schema v3** (+ v2→v3 migration, old PNGs still open); traversers numbered `1:`,`2:`… in their pane (referenced `t1`/name); a short spec now reports the shape template, not a bare `expected ","`. Rule-placed walkers ghostly + non-removable (edit the rule); hand seed wins a shared tile; a set overwrites hand-paint | ✅ yes | owner built a purple XOR fractal with it + said "Excellent commit this feature to main"; earlier flagged the cryptic `expected ,` (→ template error), asked for `1:` numbering + a 2× pane (all done); backed by build / lint / **531 tests** (full `src/initstate` suite + preview==export in `prepare.test.ts` + v2→v3 migration) + in-browser checks (pane mounts, canvas renders, served-source confirmed) | `5155446` |
 
 ## 8. Todo list (working backlog)
 
@@ -403,14 +415,15 @@ in-session task tracker.
     the guard onto each attribute (`visited@e1`, `tile-type@target`, `[A@r1@e5]`; no path = current tile;
     `@target`/`@tile N` terminal); move/edge token `edge N` → `eN`. Groundwork for the DSL-driven traversers
     below *(verified 2026-07-03, `2aec24b`)*
-  - [x] **Auto-place seeding (DSL)** — `auto-place line {angle, percent, edge} if <predicate>` in a traverser
-    definition seeds walkers by a **grid-relative** rule (resolved against whatever grid renders, so it lines
-    the edge on the big export grid too, unlike a hand-placed seed's absolute centre-offset). angle 0=row /
-    90=column / ±45=diagonal; percent 0–100 from the top-left; edge = absolute heading (`% sides`); the `if`
-    reuses the tile-predicate DSL. Ghost heads, non-removable (edit the rule → Inspect note), hand-placed seeds
-    win a shared tile; no recipe bump (rides in the traverser text). Pure `src/traverse/autoplace.ts`
-    (`lineTiles` = a thin line + the tiles it passes; `resolveAutoPlacements`; `mergeByTile`); export
-    (`prepare.ts`) + live editor share the merge *(verified 2026-07-03, `3e7a601`)*
+  - [x] **Initial-state DSL (its own pane)** — `auto-place` moved OUT of the traverser DSL into a right-dock
+    **Initial state** pane that seeds the whole starting state: traversers **+** per-tile registries
+    `[A]/[B]/[C]` **+** `visited`. `auto-place line {what, angle, percent, param}` (tiles a line crosses) /
+    `auto-place blob {what, x%, y%, radius, param}` (a point grown out `radius` tile-rings). `what` = a
+    traverser (`t1`/name), a registry, or `visited`; `param` **sets** heading / value / count; grid-relative
+    (preview == export); optional `if <predicate>`. Ghost heads, non-removable (edit the rule → Inspect note),
+    hand seed wins a shared tile, a set overwrites hand-paint. Pure `src/initstate/`; recipe **schema v3**
+    (+ v2→v3 migration). Traversers numbered `1:`,`2:`… (referenced `t1`/name); short-spec error names the
+    template *(started as traverser-DSL auto-place 2026-07-03 `3e7a601`; moved + extended 2026-07-04 `5155446`)*
   - [ ] DSL-driven traversers — custom rules in the Traversers pane (paint / move along edge refs / visit /
     split / guards / state terms, §5), reusing the predicate DSL; replaces the one hardcoded behaviour
   - [x] Prototype-port loader (debug) — a "Load prototype ports" button at the bottom of the Traversers
@@ -565,13 +578,20 @@ Hard-won; read before fighting the tooling again.
   `stepTraversersInto` applies them **in place** into a mutable overlay — used by the headless export run so a
   long run on a big grid is O(work), not O(ticks × visited). May import `src/tiling` + the overlay helpers; the
   basic behaviour is hardcoded, with the **DSL-driven** traversers (§5) to slot in behind the same
-  `stepTraversers` shape — so keep it pure. `autoplace.ts` (**grid-relative seeding**) — `lineTiles(tiling,
-  angle, percent)` returns the tiles an infinitely-thin line passes through (a tile is on it when its vertices
-  straddle the line; NOT single-file — a "lane-nearest" single-file variant was tried and reverted, it read
-  worse on non-square tilings), `resolveAutoPlacements(defs, tiling, overlay, indexById)` turns every def's
-  `auto-place` rules into seed Traversers (`heading = edge % sides`, per-tile predicate guard, earlier-rule
-  wins), and `mergeByTile(hand, auto)` (hand-placed seed wins a shared tile). Used by both `prepare.ts` and
-  the live Workspace so preview == export.
+  `stepTraversers` shape — so keep it pure. (Auto-place is no longer here — it moved to `src/initstate/`.)
+- `src/initstate/` — the **pure Initial-state DSL + resolver** (no React/DOM/Konva), public API via
+  `src/initstate/index.ts`. `types.ts` (`InitStmt {shape: line|blob, what, param, guard?}`; `what` = a
+  traverser / an `[A]`–`[C]` reg / `visited`), `parse.ts` (reuses the traverser `lexProgram`; `auto-place
+  line|blob {…} [if <pred>]`; a short/bad spec reports the shape TEMPLATE, not a bare `expected ","`),
+  `serialize.ts`, `compile.ts` (resolve named-predicate guards), `geometry.ts` (`lineTiles` = the tiles a
+  thin line crosses by vertex-straddle — NOT single-file, a "lane-nearest" variant was tried + reverted;
+  `blobTiles` = the nearest tile + `radius-1` BFS rings via `uniqueNeighbors`), `resolve.ts`
+  (`resolveInitialState(doc, tiling, order, defs, base, indexById)` → `{seeds, writes, unknownRefs}`, where
+  `order` = user traverser NAMES in list order for `t1`,`t2`,… — a bare name resolves directly;
+  `mergeByTile(hand, init)` hand-wins; `applyInitWrites(base, writes)` applies the SET-writes over hand-paint
+  via `applyRegistryWrites` op `'set'` + `setVisits`). Grid-relative → used by BOTH the live Workspace and
+  `prepare.ts` so preview == export. Guards run at seed time (no walker) → current-tile attributes only. The
+  traverser `Program` is back to `{settings, statements}`.
 - `src/export/` — the **pure, isomorphic image-export core** (no React/Konva), public API via
   `src/export/index.ts`. `runToCompletion.ts` (loops `stepTraversersInto` to completion, `maxTicks` cap),
   `remap.ts` (seed/paint placement by bounds-centre offset, grid-size-independent), `renderTiling.ts`
@@ -593,20 +613,23 @@ Hard-won; read before fighting the tooling again.
     a `MIGRATIONS` entry** (`{from, migrate}`) in `recipe.ts`. `parseRecipe` returns a `ParseResult`:
     it migrates an OLDER recipe up to the current shape (chain in `migrateRecipe`), and REFUSES a NEWER one
     with `reason: 'too-new'` (the reopen UI should say "update the app") — never strict-equality-reject an old
-    image. Current exports are `schemaVersion: 2` (the v1→v2 output-size migration lives in `MIGRATIONS`).
-    **Pre-release exception (2026-06-29, again 2026-07-03):** the breaking DSL changes (directives →
-    predicate-first + `@ target`, then decoration → per-attribute `@`-paths + `edge N`→`eN`) deliberately did
-    NOT bump the schema — while unreleased we hand-fix the few saved PNGs (the in-repo gallery/prototype
-    recipes are just edited) instead of shipping migration code (owner's call); resume the bump-and-migrate
-    rule once images are shared with others.
+    image. Current exports are `schemaVersion: 3` (`MIGRATIONS` holds v1→v2 output-size + v2→v3 which adds the
+    empty `initialState` doc). **Pre-release exception (2026-06-29, again 2026-07-03):** the breaking DSL
+    changes (directives → predicate-first + `@ target`, then decoration → per-attribute `@`-paths + `edge
+    N`→`eN`) deliberately did NOT bump the schema — while unreleased we hand-fix the few saved PNGs (the in-repo
+    gallery/prototype recipes are just edited) instead of shipping migration code (owner's call). The **v3 bump
+    (2026-07-04, `initialState`)** was the exception's exception: an ADDITIVE field, so a one-line v2→v3
+    migration (default `initialState: ''`) is cheaper than hand-fixing and keeps old PNGs opening. Resume the
+    always-bump-and-migrate rule once images are shared with others.
 - `src/state/` — localStorage-backed stores: `predicateStore.ts` (custom predicates as DSL text +
-  name), `coloringStore.ts` (the ordered rules, key `…:coloring:v2`), `traverserStore.ts`, `persist.ts`
+  name), `coloringStore.ts` (the ordered rules, key `…:coloring:v2`), `traverserStore.ts`,
+  `initialStateStore.ts` (the single Initial-state DSL document — `{id, text}`), `persist.ts`
   (SSR/quota-safe load/save + `newId`). Pure list updaters are unit-tested; the hooks wire them to
-  persistence. Each store has a **`setAll`** (replace the whole list — used by reopen). `pendingRecipe.ts`
+  persistence. Each store has a **`setAll`** (replace the whole list/doc — used by reopen). `pendingRecipe.ts`
   is the one-shot gallery→canvas handoff: the gallery stashes a `Recipe`, the Workspace consumes it on mount.
 - `src/data/galleryRecipes.ts` — placeholder `Recipe`s attached to the gallery images so clicking one opens a
   ready setup (fake for now; real saved creations will carry their recipe in the PNG). `Workspace.loadRecipe`
-  applies a recipe (tiling/grid/seeds/paint + the three stores' `setAll`); the canvas-stage also accepts a
+  applies a recipe (tiling/grid/seeds/paint + the four stores' `setAll`, incl. the Initial-state doc); the canvas-stage also accepts a
   dragged exported PNG (`decodeRecipeFromPng` → `parseRecipe` → `loadRecipe`).
 - `src/components/{PredicatePane,ColoringPane,ColorField,ColorPicker,ReorderableList,TrashButton}.tsx`
   — the panes + their pieces. `ReorderableList` is a dependency-free pointer drag-reorder (touch+mouse);
