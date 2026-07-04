@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:local": "node tools/seed-local.mjs && concurrently -k -n build,serve -c green,cyan \"vite build --watch\" \"wrangler pages dev\"",
+    "seed:local": "node tools/seed-local.mjs",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
     "branches": "node tools/branch-status.mjs",
-    "dev:api": "wrangler pages dev",
     "db:migrate:local": "wrangler d1 migrations apply exploroboros --local",
     "db:migrate": "wrangler d1 migrations apply exploroboros --remote",
     "deploy": "npm run build && wrangler pages deploy dist"
@@ -28,6 +29,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
+    "concurrently": "^10.0.3",
     "jsdom": "^29.1.1",
     "oxlint": "^1.69.0",
     "typescript": "~6.0.2",

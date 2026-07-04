@@ -101,9 +101,10 @@ Installed and confirmed working 2026-06-26:
   (SQLite — gallery metadata) + **R2** (compact display images). One origin → no CORS, native
   `context.env.DB`/`BUCKET` bindings, one deploy + one dashboard (also where the owner deletes bad uploads
   — no in-app admin). Supersedes the never-wired Vercel plan. New dev deps (owner-approved 2026-07-04):
-  **`wrangler` ^4.107** + **`@cloudflare/workers-types` ^4** — no router lib (file-based Functions
-  routing). The server reuses the pure `parseRecipe` to validate uploads. Config in `wrangler.toml`,
-  schema in `migrations/`; local dev `npm run dev:api` (`wrangler pages dev`, local D1+R2). **Deployed
+  **`wrangler` ^4.107** + **`@cloudflare/workers-types` ^4** (+ **`concurrently`** to run the local
+  build-watch + server together) — no router lib (file-based Functions routing). The server reuses the
+  pure `parseRecipe` to validate uploads. Config in `wrangler.toml`, schema in `migrations/`; local dev
+  with the backend = **`npm run dev:local`** (see §9). **Deployed
   2026-07-04 → https://exploroboros.pages.dev** (`npm run deploy`; D1 `exploroboros` + R2
   `exploroboros-images` on the owner's account). See the §6 gallery entry + §9.
 - **Repo:** local git repo at `E:\Code\exploroboros` (the owner's machine).
@@ -764,6 +765,27 @@ Hard-won; read before fighting the tooling again.
 **Running commands (tool shells):** `node`/`npm.cmd`/`npx.cmd` are NOT on PATH here — prepend it
 every command: `$env:Path = 'C:\Program Files\nodejs;' + $env:Path; npx.cmd vitest run`
 (`npm.cmd run build` / `npm.cmd run lint`). See §3.
+
+**Local dev WITH the gallery backend (`npm run dev:local`).** Plain `npm run dev` is FRONTEND-ONLY — no
+`/api`, so the gallery page just errors locally. To run the app *with* a working local gallery, use
+**`npm run dev:local`** → open **http://localhost:8788**. It (1) seeds sample creations into a local
+D1+R2 if the local gallery is empty (`tools/seed-local.mjs` + the committed `tools/sample-creations.json`
+fixture — 8 real gallery fractals), then (2) runs `vite build --watch` + `wrangler pages dev` together
+(via `concurrently`). **Edit → it auto-rebuilds (~2s) → refresh the browser** to see the change with the
+backend live. `npm run seed:local` re-seeds standalone. Hard-won gotchas:
+- It is **NOT** hot-module reload: `wrangler pages dev` serves the **built `dist/`** (because
+  `wrangler.toml` has `pages_build_output_dir`) and **ignores `--proxy`**, so you can't proxy the live
+  Vite dev server for true HMR — hence the build-watch + manual-refresh loop. (`wrangler pages dev` DOES
+  re-read `dist/` per request, so a rebuild shows on refresh without restarting it — verified.) `--config`
+  is also rejected by `pages dev` (Pages needs the standard `wrangler.toml`), so a bindings-only dev config
+  isn't an option.
+- The local D1 lives in `.wrangler/state`, keyed by the **`database_id`** — changing that id (as we did
+  when wiring the real deployed DB) orphans the old local rows into a different sqlite; just re-run
+  `seed:local`. Seeding runs BEFORE the server starts (inside `dev:local`) so there's no file-lock clash.
+- `seed-local.mjs` invokes wrangler with an **argument array** (`execFileSync`, no shell) so SQL with
+  parens/quotes/embedded recipe JSON passes without Windows `cmd` quoting hazards (a bare
+  `wrangler d1 execute --command "SELECT COUNT(*)…"` in a shell breaks on the parens).
+- Deploy is unaffected: `npm run deploy` is still `npm run build && wrangler pages deploy dist`.
 
 **Preview server (main checkout):** start via the preview tool using `.claude/launch.json` (name
 `dev`) — it runs Vite through `node.exe` directly on **port 5174**, dodging the npm-shim policy. Don't
