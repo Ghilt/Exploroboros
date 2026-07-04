@@ -7,8 +7,9 @@ import type { EvalContext } from './attributes'
 import { attrSpec } from './attributes'
 
 // Resolve a leaf's optional `@`-path to the context it should be read against. No path → the current
-// context. A path with no resolver (walker-free context) or one that resolves to nothing (boundary /
-// missing tile) → null; the caller then yields the attribute's default / 0 / a false shape test.
+// context. When the context supplies no resolver, or the path resolves to nothing (a relative hop in a
+// walker-free context, a boundary, a missing tile) → null; the caller then yields the attribute's
+// default / 0 / a false shape test.
 function ctxForLeaf(ctx: EvalContext, path: TilePath | undefined): EvalContext | null {
   if (!path || path.length === 0) return ctx
   const node = ctx.nodeForPath?.(path)
