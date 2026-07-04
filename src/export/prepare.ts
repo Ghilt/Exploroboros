@@ -6,7 +6,8 @@
 import type { Tiling } from '../tiling'
 import { nodeById, nearestEdge } from '../tiling'
 import type { TileState } from '../canvas'
-import { compileProgram, mergeByTile, resolveAutoPlacements, type Program, type Traverser } from '../traverse'
+import { compileProgram, type Program, type Traverser } from '../traverse'
+import { applyInitWrites, compileDoc, mergeByTile, resolveInitialState } from '../initstate'
 import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
 import type { Recipe } from './recipe'
 import { placeOffset } from './remap'
@@ -112,11 +113,18 @@ export function remapPaint(paint: Recipe['paint'], tiling: Tiling): Map<string, 
 export function prepareFromRecipe(recipe: Recipe, tiling: Tiling): Prepared {
   const defs = buildDefs(recipe.traversers, recipe.predicates)
   const indexById = buildIndexById(tiling)
-  const baseOverlay = remapPaint(recipe.paint, tiling)
-  // Grid-relative `auto-place` seeds (resolved against the EXPORT tiling) + the hand-placed seeds remapped
-  // by centre-offset — hand-placed win on a shared tile. Mirrors the live run's merge in Workspace.
-  const auto = resolveAutoPlacements(defs, tiling, baseOverlay, indexById)
-  const seeds = mergeByTile(remapSeeds(recipe.seeds, tiling), auto)
+  const handOverlay = remapPaint(recipe.paint, tiling)
+  // The Initial-state document, resolved against the EXPORT tiling (grid-relative) — seed walkers +
+  // registry/visited set-writes. Mirrors the live Workspace assembly so preview == export: referenced
+  // traversers resolve by number (list order) or name; hand-placed seeds win a shared tile; init
+  // registry/visited set-writes overwrite hand-paint.
+  const order = recipe.traversers.map((t) => t.name)
+  const compiled = compileDoc(recipe.initialState ?? '', buildPredicateNames(recipe.predicates))
+  const init = compiled.ok
+    ? resolveInitialState(compiled.value, tiling, order, defs, handOverlay, indexById)
+    : { seeds: [], writes: [] }
+  const baseOverlay = applyInitWrites(handOverlay, init.writes)
+  const seeds = mergeByTile(remapSeeds(recipe.seeds, tiling), init.seeds)
   return {
     defs,
     predicateText: buildPredicateText(recipe.predicates),

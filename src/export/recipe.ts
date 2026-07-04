@@ -23,7 +23,7 @@ import { boundsCenter, tileOffset } from './remap'
 //     this version, and refuses one that's NEWER than this build (with reason 'too-new' → "update the app").
 //   APP_VERSION — a human-readable stamp of the build that made the image, for display + bug tracing
 //     only; never branched on. Bump freely.
-export const RECIPE_SCHEMA_VERSION = 2
+export const RECIPE_SCHEMA_VERSION = 3
 export const APP_VERSION = '0.1.0'
 export const RECIPE_KEYWORD = 'exploroboros:recipe'
 
@@ -67,6 +67,9 @@ export type Recipe = {
   predicates: StoredPredicate[]
   traversers: StoredTraverser[]
   coloringRules: ColoringRule[]
+  // The Initial-state DSL document (the `auto-place` lines) — seeds traversers + registries + visited by
+  // grid-relative rules, resolved against the export grid on reopen. Empty string = none. (schema v3)
+  initialState: string
 }
 
 export type RecipeInput = {
@@ -81,6 +84,7 @@ export type RecipeInput = {
   predicates: ReadonlyArray<StoredPredicate>
   traversers: ReadonlyArray<StoredTraverser>
   coloringRules: ReadonlyArray<ColoringRule>
+  initialState: string
   output: RecipeOutput
 }
 
@@ -126,6 +130,7 @@ export function buildRecipe(input: RecipeInput): Recipe {
     predicates: input.predicates.map((p) => ({ ...p })),
     traversers: input.traversers.map((t) => ({ ...t })),
     coloringRules: input.coloringRules.map((r) => ({ ...r })),
+    initialState: input.initialState,
   }
 }
 
@@ -152,6 +157,13 @@ const MIGRATIONS: ReadonlyArray<Migration> = [
       const edge = typeof out.longEdgePx === 'number' ? out.longEdgePx : 2048
       return { ...r, output: { width: edge, height: edge, edges: !!out.edges, background: out.background ?? null } }
     },
+  },
+  // v2 → v3: the Initial-state DSL (auto-place lines) moved OUT of the traverser text into its own
+  // document. Older images have none, so default it to empty — their traversers still carry their
+  // behaviour (any old auto-place lines that lived inside a traverser simply no longer compile).
+  {
+    from: 2,
+    migrate: (r) => ({ ...r, initialState: '' }),
   },
 ]
 
@@ -187,6 +199,7 @@ function isCurrentShape(r: AnyRecipe): boolean {
   if (typeof r.tilingId !== 'string' || typeof r.gridN !== 'number') return false
   if (!Array.isArray(r.seeds) || !Array.isArray(r.paint)) return false
   if (!Array.isArray(r.predicates) || !Array.isArray(r.traversers) || !Array.isArray(r.coloringRules)) return false
+  if (typeof r.initialState !== 'string') return false
   const out = r.output as RecipeOutput | undefined
   if (!out || typeof out.width !== 'number' || typeof out.height !== 'number') return false
   for (const s of r.seeds) if (!isVec2((s as RecipeSeed).offset)) return false

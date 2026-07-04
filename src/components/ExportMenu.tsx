@@ -37,11 +37,14 @@ type Props = {
   predicates: ReadonlyArray<StoredPredicate>
   traversers: ReadonlyArray<StoredTraverser>
   coloringRules: ReadonlyArray<ColoringRule>
+  // The Initial-state DSL document (auto-place lines) — embedded in the recipe and re-resolved against
+  // the export grid so grid-relative seeding lands on the big grid too.
+  initialState: string
   // Kick off a background export job (the dialog closes immediately; the job shows in the strip).
   onStartExport: (params: ExportParams) => void
 }
 
-export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, predicates, traversers, coloringRules, onStartExport }: Props) {
+export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, predicates, traversers, coloringRules, initialState, onStartExport }: Props) {
   const [open, setOpen] = useState(false)
   // Detail is set as "pixels per tile"; the grid size (tile count) is derived from it + the resolution.
   const [pxPerTile, setPxPerTile] = useState(24)
@@ -105,6 +108,7 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
       predicates,
       traversers,
       coloringRules,
+      initialState,
       output: { width, height, edges, background: BG_COLOR[background] },
     })
     onStartExport({ recipe, palette: PALETTE, caps: mobile ? MOBILE_CAPS : DESKTOP_CAPS })

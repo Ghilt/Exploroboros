@@ -1,0 +1,42 @@
+/* Initial-state pane — reuses PredicatePane.css for the frame; these are the document textarea + the
+   collapsible syntax reference. */
+
+.init-text {
+  min-height: clamp(6rem, 30vh, 20rem);
+  resize: vertical;
+}
+
+.init-syntax {
+  margin-top: 0.6rem;
+}
+.init-syntax-body {
+  margin-top: 0.4rem;
+}
+.init-syntax-code {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.6rem;
+  margin: 0;
+  color: var(--fg);
+  overflow-x: auto;
+}
+.init-legend {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.init-legend code {
+  font-family: var(--mono);
+  color: var(--fg);
+}

@@ -47,7 +47,7 @@ export function Guide() {
         <a href="#registries">Registries</a>
         <a href="#directives">Directives</a>
         <a href="#morph">Morph &amp; update</a>
-        <a href="#autoplace">Auto-place</a>
+        <a href="#initial-state">Initial state</a>
         <a href="#examples">Examples</a>
       </nav>
 
@@ -416,42 +416,53 @@ move straight`}</pre>
         </p>
       </section>
 
-      <section className="guide-section" id="autoplace">
-        <h2>Auto-place</h2>
+      <section className="guide-section" id="initial-state">
+        <h2>Initial state</h2>
         <p>
-          Normally you place walkers by hand on the canvas. <strong>Auto-place</strong> instead seeds them by
-          a <em>rule</em> that is re-evaluated against whatever grid is showing — so a pattern you author on
-          the small exploration grid still lands correctly when you <strong>export</strong> at a much larger
-          size. (A hand-placed walker keeps its absolute distance from the centre, so on a bigger grid it
-          drifts inward — auto-place is the grid-relative alternative.) Write the rule inside a definition:
+          A fractal's starting point is more than walkers — it can also include per-tile{' '}
+          <strong>registries</strong> (<code>[A]</code>/<code>[B]</code>/<code>[C]</code>) and{' '}
+          <strong>visited</strong> marks the rules read. The <strong>Initial state</strong> pane seeds all of
+          it by <em>rules</em> re-evaluated against whatever grid is showing — so a setup you author on the
+          small exploration grid still lands correctly when you <strong>export</strong> at a much larger size.
+          (A hand-placed walker keeps its absolute distance from the centre, so on a bigger grid it drifts
+          inward — these rules are the grid-relative alternative.)
         </p>
-        <pre className="guide-code">{`auto-place line {0, 0, 0} if tile-type == octagon
-move nearest-unvisited`}</pre>
+        <pre className="guide-code">{`auto-place line {t1, 0, 0, 0} if tile-type == octagon
+auto-place blob {[A], 50, 50, 3, 1}`}</pre>
         <p>
-          <code>auto-place line {'{'}angle, percent, edge{'}'}</code> drops a walker on every tile the line
-          crosses:
+          Each line places <strong>one thing</strong> on the tiles a <em>shape</em> covers. The first slot is{' '}
+          <strong>what</strong> to place; the last slot <strong>sets</strong> a value on each of those tiles:
         </p>
         <table className="guide-table">
           <thead>
-            <tr><th>Field</th><th>Meaning</th></tr>
+            <tr><th>Slot</th><th>Meaning</th></tr>
           </thead>
           <tbody>
-            <tr><td><code>angle</code></td><td>The line's angle in degrees — <code>0</code> = a row (horizontal), <code>90</code> = a column (vertical), <code>45</code> / <code>-45</code> = the diagonals.</td></tr>
-            <tr><td><code>percent</code></td><td>How far across, measured from the <strong>top-left</strong>: <code>0</code> = the top (for a row) or left (for a column) edge, <code>100</code> = the far side. Diagonals are less intuitive — experiment.</td></tr>
-            <tr><td><code>edge</code></td><td>The <strong>absolute edge number</strong> (0 = the top edge, clockwise) each walker aims at. A number past a tile's edge count just wraps.</td></tr>
+            <tr><td><code>what</code></td><td>What to place: a <strong>traverser</strong> by number (<code>t1</code>, <code>t2</code>, … as numbered in the Traversers pane) or by name; a registry <code>[A]</code>/<code>[B]</code>/<code>[C]</code>; or <code>visited</code>.</td></tr>
+            <tr><td><code>param</code> <em>(last slot)</em></td><td>The value it <strong>sets</strong>: a traverser's <strong>heading edge</strong> (0 = top, clockwise; wraps past the edge count); a registry's <strong>value</strong>; or the number of <code>visited</code> marks (<code>0</code> = mark once). It overwrites any hand-painted value on that tile.</td></tr>
+          </tbody>
+        </table>
+        <p>The two shapes choose which tiles:</p>
+        <table className="guide-table">
+          <thead>
+            <tr><th>Shape</th><th>Fields</th><th>Picks</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>line</code></td><td><code>{'{'}what, angle, percent, param{'}'}</code></td><td>Every tile a line crosses. <code>angle</code>: 0 = row, 90 = column, ±45 = diagonal. <code>percent</code> 0–100 across from the top-left.</td></tr>
+            <tr><td><code>blob</code></td><td><code>{'{'}what, x%, y%, radius, param{'}'}</code></td><td>A point (<code>x%,y%</code> from the top-left; 50,50 = centre) grown out <code>radius</code> tile-rings — 1 = one tile, 2 = it + its neighbours, and so on.</td></tr>
           </tbody>
         </table>
         <p>
           The optional <code>if &lt;predicate&gt;</code> is an ordinary <a href="#predicates">tile predicate</a> —
-          only tiles on the line that match get a walker (drop it to place on all of them). There's no walker
-          yet at placement time, so walker-relative paths (<code>@target</code>, …) have nothing to read;
-          stick to tile facts like <code>tile-type</code>, <code>orientation</code>, <code>coordinate</code>.
+          only tiles the shape covers that match are placed (drop it to place on all of them). There's no walker
+          yet at placement time, so stick to tile facts like <code>tile-type</code>, <code>orientation</code>,{' '}
+          <code>coordinate</code>.
         </p>
         <p className="guide-note">
-          Auto-placed walkers appear <strong>ghostly</strong> on the canvas and can't be removed with the
-          canvas controls — edit or delete the <code>auto-place</code> line to change them. Where a
-          hand-placed walker shares a tile, the hand-placed one wins. Every definition's own{' '}
-          <code>auto-place</code> lines contribute, so comment a line out to switch it off.
+          Rule-placed walkers appear <strong>ghostly</strong> on the canvas and can't be removed with the
+          canvas controls — edit the line to change them. Where a hand-placed walker shares a tile, the
+          hand-placed one wins; a registry / <code>visited</code> set overwrites hand-paint. Comment a line
+          out with <code>#</code> to switch it off.
         </p>
       </section>
 

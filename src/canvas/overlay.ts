@@ -126,6 +126,21 @@ export function applyRegistryWrites(
   return next
 }
 
+// Replace a tile's visit log with `count` hand-made (MANUAL_STEP) visits — the Initial-state DSL's
+// `visited` set-write. Overwrites any existing visits on that tile (init "set" wins over hand-paint);
+// the A/B/C registries are left untouched. `count` is clamped to >= 0 (the resolver passes >= 1).
+export function setVisits(
+  overlay: ReadonlyMap<string, TileState>,
+  id: string,
+  count: number,
+): Map<string, TileState> {
+  const next = new Map(overlay)
+  const prev = next.get(id) ?? EMPTY_TILE_STATE
+  const n = Math.max(0, Math.round(count))
+  next.set(id, { ...prev, visits: new Array<number>(n).fill(MANUAL_STEP) })
+  return next
+}
+
 // Append a visit stamped with a real tick `step` to each given tile in one pass — the traverser
 // tick's batch write (mirrors applyPaint's visited stroke, but a real step instead of MANUAL_STEP).
 export function addVisits(

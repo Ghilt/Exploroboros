@@ -14,6 +14,9 @@ const isAlpha = (c: string) => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 
 // Multi-char symbols matched before their single-char prefixes.
 const MULTI = ['->', '==', '!=', '<=', '>=']
+// `{` `}` aren't used by the traverser statement grammar itself — they're here because the
+// Initial-state DSL (src/initstate) reuses this generic tokenizer, and its `auto-place … {…}` spec
+// needs braces. Harmless in a traverser program (they'd just fail in the parser).
 const SINGLE = '(){}[],@=<>+-*/%!'
 
 function fail(message: string, span: Span): Result<Tok[]> {

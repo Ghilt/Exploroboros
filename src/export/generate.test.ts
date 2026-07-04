@@ -7,7 +7,7 @@ import type { Recipe } from './recipe'
 // a tile is visited. Exercises the whole pure pipeline (build → remap → run → colorize → size).
 function recipe(overrides: Partial<Recipe> = {}): Recipe {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     app: 'exploroboros',
     tilingId: 'square',
     gridN: 6,
@@ -19,6 +19,7 @@ function recipe(overrides: Partial<Recipe> = {}): Recipe {
     predicates: [],
     traversers: [],
     coloringRules: [{ id: 'r', predicate: { kind: 'ref', id: 'visited' }, color: { kind: 'flat', hex: '#ff0000' }, opacity: 1 }],
+    initialState: '',
     ...overrides,
   }
 }
@@ -43,12 +44,13 @@ describe('computeExport', () => {
     expect(out.colorFor.size).toBe(0)
   })
 
-  it('seeds walkers from an auto-place rule (no hand seeds) and runs them', () => {
+  it('seeds walkers from the Initial-state document (no hand seeds) and runs them', () => {
     const out = computeExport(
       recipe({
         seeds: [],
         gridN: 8,
-        traversers: [{ id: 't', name: 'Edge', text: 'auto-place line {0, 0, 0}\nmove nearest-unvisited' }],
+        traversers: [{ id: 't', name: 'edge', text: 'move nearest-unvisited' }],
+        initialState: 'auto-place line {t1, 0, 0, 0}', // t1 = the first traverser ("edge") on the top row
       }),
       DESKTOP_CAPS,
     )

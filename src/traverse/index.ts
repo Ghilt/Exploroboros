@@ -8,8 +8,5 @@ export { stepTraversers, stepTraversersTraced, stepTraversersInto, rotateHeading
 export type { TickTrace, TraverserTrace, StmtTrace, CandidateTrace, GuardEval, ReadTile, RejectReason, CoalesceTrace, DropTrace } from './trace'
 
 // The traverser-program DSL (parse / serialize / compile / run + AST types).
-export type { Program, Settings, Movement, Stmt, Action, AutoPlaceLine, AutoPlaceRule } from './lang'
-export { parseProgram, serializeProgram, serializeAutoPlace, compileProgram, DEFAULT_SETTINGS } from './lang'
-
-// Seed placement from `auto-place` rules (grid-relative), + the hand-wins seed merge.
-export { resolveAutoPlacements, mergeByTile, lineTiles } from './autoplace'
+export type { Program, Settings, Movement, Stmt, Action } from './lang'
+export { parseProgram, serializeProgram, compileProgram, DEFAULT_SETTINGS } from './lang'

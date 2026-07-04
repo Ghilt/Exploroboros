@@ -107,6 +107,7 @@ const recipe = (background: string, seeds: RecipeSeed[], traverser: StoredTraver
   predicates: [],
   traversers: [traverser],
   coloringRules,
+  initialState: '',
 })
 
 // Shared move lists.

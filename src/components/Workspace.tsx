@@ -21,7 +21,8 @@ import {
   MANUAL_STEP,
 } from '../canvas'
 import type { TileClip, TileState, Registry, PaintTarget } from '../canvas'
-import { stepTraversers, stepTraversersTraced, rotateHeading, compileProgram, resolveAutoPlacements, mergeByTile, DEFAULT_SETTINGS, type Traverser, type Program, type TickTrace } from '../traverse'
+import { stepTraversers, stepTraversersTraced, rotateHeading, compileProgram, DEFAULT_SETTINGS, type Traverser, type Program, type TickTrace } from '../traverse'
+import { compileDoc, resolveInitialState, mergeByTile, applyInitWrites, type InitResolved } from '../initstate'
 import { TilingCanvas, type DisplayMode, type DragMode, type HighlightGroups } from './TilingCanvas'
 import { TilingPicker } from './TilingPicker'
 import { Panel } from './Panel'
@@ -35,12 +36,14 @@ import { DebugPane } from './DebugPane'
 import { PredicatePane } from './PredicatePane'
 import { TraversersPane } from './TraversersPane'
 import { ColoringPane } from './ColoringPane'
+import { InitialStatePane } from './InitialStatePane'
 import { ExportMenu } from './ExportMenu'
 import { ExportStrip, type ExportItem } from './ExportStrip'
 import { ImageViewer } from './ImageViewer'
 import { usePredicateStore } from '../state/predicateStore'
 import { useTraverserStore } from '../state/traverserStore'
 import { useColoringStore } from '../state/coloringStore'
+import { useInitialStateStore, makeInitialState } from '../state/initialStateStore'
 import { colorize } from '../colorizer'
 import { downloadBlob, exportFilename } from '../export/download'
 import { generateExport, isAbortError, type ExportParams } from '../export/exportImage'
@@ -50,6 +53,10 @@ import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
 
 const GRID_MIN = 10
 const GRID_MAX = 140
+
+// A stable empty Initial-state resolution — used when the document is blank or fails to compile, so the
+// downstream memos don't churn on a fresh object each render.
+const EMPTY_INIT: InitResolved = { seeds: [], writes: [], unknownRefs: [] }
 
 // Debug log: keep at most this many recent ticks' decision traces (a ring) — plenty to scrub back
 // through while step-debugging, but bounded so a fast run can't grow it without limit.
@@ -157,6 +164,7 @@ export function Workspace() {
   const predicateStore = usePredicateStore()
   const traverserStore = useTraverserStore()
   const coloringStore = useColoringStore()
+  const initialStateStore = useInitialStateStore()
   // Which definition the Inspect "Place" buttons instantiate.
   const [placeDef, setPlaceDef] = useState(BUILTIN_WALKER)
 
@@ -216,11 +224,42 @@ export function Workspace() {
   // Fall back to the first available definition if the chosen one was deleted/renamed.
   const effectiveDef = defs.has(placeDef) ? placeDef : defOptions[0] ?? BUILTIN_WALKER
 
+  // The hand-authored base for an export: manual paint + registries only (traverser visits are
+  // re-derived by re-running on the export grid). Same as what Stop restores. Also the board the
+  // Initial-state guards read.
+  const exportBase = useMemo(() => clearTraverserVisits(overlay), [overlay])
+
+  // The Initial-state document, compiled + resolved against the CURRENT tiling into seed walkers +
+  // registry/visited set-writes. Grid-relative, so it re-lays as the grid size changes and matches the
+  // export (prepare.ts resolves the same document against the big grid). Referenced traversers are found
+  // by number (t1, t2, … in list order) or name. Never stored in `seeds`/`overlay`, so canvas controls
+  // can't remove them — you edit the document to change them.
+  const initDoc = useMemo(
+    () => compileDoc(initialStateStore.text, predicateNames),
+    [initialStateStore.text, predicateNames],
+  )
+  const traverserOrder = useMemo(() => traverserStore.traversers.map((t) => t.name), [traverserStore.traversers])
+  const initResolved = useMemo<InitResolved>(
+    () =>
+      initDoc.ok ? resolveInitialState(initDoc.value, tiling, traverserOrder, defs, exportBase, indexById) : EMPTY_INIT,
+    [initDoc, tiling, traverserOrder, defs, exportBase, indexById],
+  )
+  const initSeeds = initResolved.seeds
+  const initWrites = initResolved.writes
+
+  // The overlay to DISPLAY + colour: while stopped, the hand-paint plus the Initial-state set-writes (so
+  // authored registries/visited show); during a run the live overlay already contains them (baked in at
+  // initRun), so use it directly.
+  const displayOverlay = useMemo(
+    () => (runLive ? overlay : applyInitWrites(overlay, initWrites)),
+    [runLive, overlay, initWrites],
+  )
+
   // The tiling's appearance: evaluate the coloring rules per tile, once per input change (not per
   // frame). Tiles with no matching rule are absent and keep the base fill.
   const colorFor = useMemo(
-    () => colorize(coloringStore.rules, predicateText, tiling, overlay, indexById),
-    [coloringStore.rules, predicateText, tiling, overlay, indexById],
+    () => colorize(coloringStore.rules, predicateText, tiling, displayOverlay, indexById),
+    [coloringStore.rules, predicateText, tiling, displayOverlay, indexById],
   )
 
   // Tile id -> heading for the canvas to draw each walker's arrow (stats mode only). Show the live
@@ -231,28 +270,16 @@ export function Workspace() {
     return m
   }, [runLive, seeds])
 
-  // The hand-authored base for an export: manual paint + registries only (traverser visits are
-  // re-derived by re-running on the export grid). Same as what Stop restores.
-  const exportBase = useMemo(() => clearTraverserVisits(overlay), [overlay])
-
-  // Auto-placed walkers — DERIVED from the traverser defs' `auto-place` rules against the CURRENT tiling,
-  // so they re-lay along the grid as its size changes (the grid-relative seeding that survives export).
-  // Resolved against the hand-paint base only (matching the export path in prepare.ts); never stored in
-  // `seeds`, so canvas controls can't remove them — you edit the rule to change them.
-  const autoSeeds = useMemo(
-    () => resolveAutoPlacements(defs, tiling, exportBase, indexById),
-    [defs, tiling, exportBase, indexById],
-  )
-  // Ghost heads for the auto-placed walkers — only while stopped (during a run they're merged into
-  // runLive and drawn solid). Skip any tile already carrying a hand seed (hand wins, drawn solid).
+  // Ghost heads for the Initial-state (rule-placed) walkers — only while stopped (during a run they're
+  // merged into runLive and drawn solid). Skip any tile already carrying a hand seed (hand wins).
   const autoTraverserHeads = useMemo(() => {
     const m = new Map<string, number>()
     if (runLive === null) {
       const hand = new Set(seeds.map((s) => s.tile))
-      for (const t of autoSeeds) if (!hand.has(t.tile)) m.set(t.tile, t.heading)
+      for (const t of initSeeds) if (!hand.has(t.tile)) m.set(t.tile, t.heading)
     }
     return m
-  }, [runLive, seeds, autoSeeds])
+  }, [runLive, seeds, initSeeds])
 
   // The export currently open in the viewer (null = show the live canvas). Only a finished item is
   // viewable; a running/cap-evicted id resolves to null and the canvas comes back.
@@ -360,6 +387,7 @@ export function Workspace() {
     predicateStore.setAll(recipe.predicates)
     traverserStore.setAll(recipe.traversers)
     coloringStore.setAll(recipe.coloringRules)
+    initialStateStore.setAll(makeInitialState(recipe.initialState ?? ''))
     setFitNonce((n) => n + 1)
   }
   // A ref keeps the mount effect + drop handler calling the latest loadRecipe without re-subscribing.
@@ -499,12 +527,12 @@ export function Workspace() {
   // (place/remove/aim) is only allowed while stopped (`runLive === null`).
   const walkers = runLive ?? seeds
   const stopped = runLive === null
-  // Something to run: a paused/playing run, hand-placed seeds, or grid-relative auto-placed walkers.
-  const hasWalkers = runLive !== null || seeds.length > 0 || autoSeeds.length > 0
+  // Something to run: a paused/playing run, hand-placed seeds, or grid-relative Initial-state walkers.
+  const hasWalkers = runLive !== null || seeds.length > 0 || initSeeds.length > 0
   const selectedTraverser = selected ? walkers.find((t) => t.tile === selected.id) ?? null : null
-  // An auto-placed walker on the selected tile (only while stopped — during a run it's part of runLive,
-  // found via selectedTraverser). Drives a read-only "placed by a rule" note in Inspect.
-  const selectedAuto = selected && stopped ? autoSeeds.find((t) => t.tile === selected.id) ?? null : null
+  // An Initial-state (rule-placed) walker on the selected tile (only while stopped — during a run it's
+  // part of runLive, found via selectedTraverser). Drives a read-only "placed by a rule" note in Inspect.
+  const selectedAuto = selected && stopped ? initSeeds.find((t) => t.tile === selected.id) ?? null : null
 
   // ---- traverser run controls ----
   // Start a fresh run from the authored seeds on a COPY (so the seeds stay intact for Stop to
@@ -513,16 +541,18 @@ export function Workspace() {
   const initRun = () => {
     clearDebug() // a fresh run starts a fresh log
     authoredOverlayRef.current = overlay // snapshot the authored board so Stop can revert run registry writes
-    // Hand-placed seeds + the grid-relative auto-placed walkers (hand wins a shared tile). Same merge as
-    // the export path (prepare.ts) so the preview grows exactly what an export would.
-    const start = mergeByTile(seeds, autoSeeds)
+    // Hand-placed seeds + the grid-relative Initial-state walkers (hand wins a shared tile). Same merge
+    // as the export path (prepare.ts) so the preview grows exactly what an export would.
+    const start = mergeByTile(seeds, initSeeds)
     const live = start.map((s) => {
       const set = defs.get(s.def)?.settings ?? DEFAULT_SETTINGS
       return { ...s, steps: 0, splits: 0, p: 0, q: 0, r: 0, maxSplit: set.maxSplit, maxSteps: set.maxSteps, movement: set.movement }
     })
     setRunLive(live)
     setStep(0)
-    setOverlay((prev) => addVisits(prev, live.map((t) => t.tile), 0))
+    // Start the run overlay from the hand-paint PLUS the Initial-state set-writes (registries/visited),
+    // then stamp step-0 visits on the starting tiles.
+    setOverlay((prev) => addVisits(applyInitWrites(prev, initWrites), live.map((t) => t.tile), 0))
   }
   const play = () => {
     if (!hasWalkers) return
@@ -561,7 +591,7 @@ export function Workspace() {
   const stepOnce = () => {
     if (running) setRunning(false)
     if (runLive === null) {
-      if (seeds.length === 0 && autoSeeds.length === 0) return
+      if (seeds.length === 0 && initSeeds.length === 0) return
       initRun()
       return
     }
@@ -769,6 +799,7 @@ export function Workspace() {
           predicates={predicateStore.predicates}
           traversers={traverserStore.traversers}
           coloringRules={coloringStore.rules}
+          initialState={initialStateStore.text}
           onStartExport={startExport}
         />
       </div>
@@ -803,7 +834,7 @@ export function Workspace() {
               displayMode={displayMode}
               dragMode={dragMode}
               selectedIds={selectedIds}
-              overlay={overlay}
+              overlay={displayOverlay}
               colorFor={colorFor}
               traverserHeads={traverserHeads}
               autoTraverserHeads={autoTraverserHeads}
@@ -867,6 +898,14 @@ export function Workspace() {
         ) : (
           <p className="pane-hint">Click a tile to inspect it — or switch drag to “select” and box a group.</p>
         )}
+      </Panel>
+
+      <Panel title="Initial state" side="right" defaultCollapsed wide>
+        <InitialStatePane
+          store={initialStateStore}
+          predicateNames={predicateNames}
+          traverserNames={traverserOrder}
+        />
       </Panel>
 
       {debug && (
@@ -1014,7 +1053,7 @@ function InspectContent({
                 <HeadingArrow node={node} heading={traverserHeading ?? 0} />
               </span>
             </div>
-            <p className="trav-note">Placed by an auto-place rule — edit the rule in the Traversers pane to change it.</p>
+            <p className="trav-note">Placed by an Initial-state rule — edit it in the Initial state pane to change it.</p>
           </div>
         ) : traverserHeading === null ? (
           <div className="trav-place-row seg-shell">

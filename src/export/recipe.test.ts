@@ -29,6 +29,7 @@ function input(): RecipeInput {
     predicates: [{ id: 'p1', name: 'café', text: 'visited > 1', autoName: false }],
     traversers: [{ id: 't1', name: 'spiral', text: 'move turn r1' }],
     coloringRules: [rule],
+    initialState: 'auto-place line {t1, 0, 0, 0}',
     output: { width: 3200, height: 3200, edges: false, background: null },
   }
 }
@@ -53,6 +54,7 @@ describe('recipe', () => {
     expect(r.predicates[0].text).toBe('visited > 1')
     expect(r.traversers[0].text).toBe('move turn r1')
     expect(r.coloringRules[0]).toMatchObject({ id: 'r1' })
+    expect(r.initialState).toBe('auto-place line {t1, 0, 0, 0}')
   })
 
   it('round-trips through JSON via parseRecipe (incl. Unicode names)', () => {
@@ -112,10 +114,18 @@ describe('migrateRecipe (the upgrade chain that keeps old images readable)', () 
 
   it('the real v1→v2 migration maps output.longEdgePx to width × height', () => {
     // Uses the built-in MIGRATIONS (default arg) — the actual upgrade an old saved image goes through.
-    const out = migrateRecipe({ schemaVersion: 1, output: { longEdgePx: 1500, edges: true, background: '#000000' } }, RECIPE_SCHEMA_VERSION)
+    const out = migrateRecipe({ schemaVersion: 1, output: { longEdgePx: 1500, edges: true, background: '#000000' } }, 2)
     expect(out).toMatchObject({
       schemaVersion: 2,
       output: { width: 1500, height: 1500, edges: true, background: '#000000' },
     })
+  })
+
+  it('the real v2→v3 migration adds an empty initialState (an old image had none)', () => {
+    const out = migrateRecipe(
+      { schemaVersion: 2, output: { width: 100, height: 100, edges: false, background: null } },
+      RECIPE_SCHEMA_VERSION,
+    )
+    expect(out).toMatchObject({ schemaVersion: 3, initialState: '' })
   })
 })

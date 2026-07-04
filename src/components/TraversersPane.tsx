@@ -73,13 +73,10 @@ export function TraversersPane({
             <strong>last-writer-wins</strong> — so prefer <code>increase</code> when several walkers may meet.
           </p>
           <p>
-            <strong>Auto-place</strong> seeds walkers by a rule that scales with the grid (so it still
-            lines the edge when you export much bigger):{' '}
-            <code>auto-place line {'{'}0, 0, 0{'}'} if tile-type == octagon</code>. The three numbers are{' '}
-            <code>{'{'}angle, percent, edge{'}'}</code> — the line’s angle (0 = row, 90 = column, ±45 =
-            diagonal), how far across from the top-left (0–100%), and the absolute edge each walker aims at.
-            Auto-placed walkers show <strong>ghostly</strong> and are changed by editing the rule, not from
-            the canvas.
+            <strong>Seeding:</strong> place walkers on the canvas by hand, or seed them by a
+            grid-relative rule in the <strong>Initial state</strong> pane (which can also preset tile
+            registries and <code>visited</code>). There a traverser is named by its number below —{' '}
+            <code>t1</code>, <code>t2</code>, … — or by name.
           </p>
           <p className="help-readmore">
             <a href="#/guide">Read the full guide → </a>
@@ -107,10 +104,13 @@ export function TraversersPane({
         </header>
         {store.traversers.length > 0 ? (
           <ul className="pred-list">
-            {store.traversers.map((t) => (
+            {store.traversers.map((t, i) => (
               <li key={t.id}>
                 <div className="pred-row">
                   <button type="button" className="pred-name" onClick={() => setEditingId(t.id)}>
+                    <span className="trav-ord" title={`reference as t${i + 1} or by name in the Initial state pane`}>
+                      {i + 1}:
+                    </span>{' '}
                     {t.name || '(unnamed)'}
                   </button>
                   <TrashButton label={`delete ${t.name || 'traverser'}`} onClick={() => remove(t.id)} />
@@ -176,10 +176,7 @@ function TraverserEditor({
       />
 
       {result.ok ? (
-        <p className="pred-status pred-status--ok">
-          ✓ {result.value.statements.length} rule(s)
-          {result.value.placements.length > 0 ? ` · ${result.value.placements.length} auto-place` : ''}
-        </p>
+        <p className="pred-status pred-status--ok">✓ {result.value.statements.length} rule(s)</p>
       ) : (
         <p className="pred-status pred-status--err" role="alert">
           {result.error.message}

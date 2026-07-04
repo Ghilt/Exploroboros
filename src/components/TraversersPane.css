@@ -55,6 +55,14 @@
   color: var(--accent);
 }
 
+/* The 1-based index shown before each traverser's name ("1:", "2:", …). The Initial-state DSL refers to
+   it by that position as t1, t2, … (or by name). Muted + monospace so it reads as a handle. */
+.trav-ord {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
 /* A muted debug control pinned to the bottom of the list pane: loads the hardcoded prototype-port
    traverser definitions. `margin-top: auto` works because .predicate-pane is a fill-height flex
    column. */

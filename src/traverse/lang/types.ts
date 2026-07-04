@@ -57,17 +57,6 @@ export type Directive = { kind: 'directive'; allow: boolean; guard: Guard }
 export type Reset = { kind: 'reset' }
 export type Stmt = Rule | Directive | Reset
 
-// Auto-place: seed walkers by a geometric RULE, resolved against whatever tiling renders (the small
-// preview grid OR the big export grid) — so a pattern like "the top row, aiming north" scales with the
-// grid, unlike a hand-placed seed that keeps its absolute offset from the centre. A `line` picks the
-// tiles that a line at `angle` degrees (0 = row/horizontal, 90 = column/vertical) and `percent` across
-// the plane (0 = top/left, 100 = bottom/right, measured from the top-left) passes through; each gets a
-// walker aiming at absolute edge `edge` (mod the tile's side count). The optional guard is the ordinary
-// tile predicate. Resolved at SEED time — no walker exists yet, so walker-relative `@`-paths fall back
-// to defaults (see src/traverse/autoplace.ts). Kept OUT of `statements` so the tick (exec.ts) never runs it.
-export type AutoPlaceLine = { angle: number; percent: number; edge: number }
-export type AutoPlaceRule = { shape: 'line'; spec: AutoPlaceLine; guard?: Guard }
-
 export type Settings = {
   maxSplit: number
   heading?: number // default heading as an edge NUMBER (0 = top, clockwise); overridable when placed
@@ -78,8 +67,6 @@ export type Settings = {
 export type Program = {
   settings: Settings
   statements: ReadonlyArray<Stmt>
-  // Seed-placement rules (the `auto-place` lines) — resolved separately at seed time, never ticked.
-  placements: ReadonlyArray<AutoPlaceRule>
 }
 
 export const DEFAULT_SETTINGS: Settings = {

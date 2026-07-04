@@ -53,7 +53,8 @@ type Palette = {
   accent2: string
   accent3: string
   traverser: string
-  // A ghostly, half-transparent head for auto-placed walkers — reads as "placed by a rule, not by hand".
+  // A ghostly, half-transparent head for rule-placed (Initial-state) walkers — reads as "placed by a
+  // rule, not by hand".
   traverserAuto: string
   mono: string
 }
@@ -113,7 +114,8 @@ type Props = {
   // Tile id -> heading (an edge NUMBER) for each hand-placed / running walker, drawn as a solid arrow
   // (any display mode) — and a tile with a head shows ONLY the arrow, no printed labels.
   traverserHeads?: ReadonlyMap<string, number>
-  // Same, for AUTO-placed walkers (from `auto-place` rules) — drawn ghostly so they read as rule-placed.
+  // Same, for rule-placed walkers (from the Initial-state pane) — drawn ghostly so they read as
+  // rule-placed, not hand-placed.
   autoTraverserHeads?: ReadonlyMap<string, number>
   // Debug overlay: tiles to outline by role (decision-log hover). Undefined / empty = nothing drawn.
   highlightGroups?: HighlightGroups

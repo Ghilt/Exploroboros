@@ -5,7 +5,7 @@
 
 import { parsePredicate, type Result } from '../../dsl'
 import { parseProgram } from './parse'
-import type { AutoPlaceRule, Guard, Program, Stmt } from './types'
+import type { Guard, Program, Stmt } from './types'
 
 function resolveGuard(guard: Guard, names: ReadonlyMap<string, string>): Result<Guard> {
   if (guard.pred.kind !== 'named') return { ok: true, value: guard }
@@ -35,17 +35,7 @@ export function resolveNames(prog: Program, names: ReadonlyMap<string, string>):
       statements.push(s)
     }
   }
-  const placements: AutoPlaceRule[] = []
-  for (const p of prog.placements) {
-    if (!p.guard) {
-      placements.push(p)
-      continue
-    }
-    const r = resolveGuard(p.guard, names)
-    if (!r.ok) return r
-    placements.push({ ...p, guard: r.value })
-  }
-  return { ok: true, value: { settings: prog.settings, statements, placements } }
+  return { ok: true, value: { settings: prog.settings, statements } }
 }
 
 // Parse + resolve in one step — what the store uses to turn definition text into a Program.

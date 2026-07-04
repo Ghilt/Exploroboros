@@ -18,6 +18,7 @@ export {
   bumpRegistry,
   applyPaint,
   applyRegistryWrites,
+  setVisits,
   addVisits,
   clearTraverserVisits,
   restoreRegistries,
