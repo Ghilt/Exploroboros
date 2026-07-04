@@ -787,6 +787,51 @@ backend live. `npm run seed:local` re-seeds standalone. Hard-won gotchas:
   `wrangler d1 execute --command "SELECT COUNT(*)…"` in a shell breaks on the parens).
 - Deploy is unaffected: `npm run deploy` is still `npm run build && wrangler pages deploy dist`.
 
+**Running the gallery backend across SEVERAL worktrees/agents at once.** No shared local database — each
+worktree's `.wrangler/state` lives inside that worktree's OWN directory (it's gitignored, never synced),
+so every worktree that runs the backend gets its own private, throwaway local D1 + R2, seeded
+independently. Two worktrees can seed/upload/experiment locally without ever touching each other's data.
+The **only** truly shared thing is the REAL production database + bucket on Cloudflare — reached only by
+an explicit `--remote` flag (`db:migrate`) or an actual `deploy`. Be deliberate before ever typing
+`--remote` from a worktree session; local dev commands never need it.
+
+The real danger is **ports**, and it's worse here than the existing Vite gotcha above. **`wrangler pages
+dev` does NOT refuse an already-taken port the way Vite's `--strictPort` does** — verified by running two
+instances on the same port at once: BOTH printed `Ready on http://127.0.0.1:8788`, and `netstat` showed
+**two separate `workerd.exe` processes simultaneously `LISTENING` on the identical port**, with no
+reliable way to know which one actually answers a given request. Unlike the Vite trap (predictably serves
+the wrong tree), this is silently nondeterministic — don't rely on "it printed Ready" as proof you have
+the port.
+
+**The fix — give each worktree's backend its own port, same convention as the Vite preview port, offset
+into a non-colliding range:** `8800 + (sum of the worktree folder name's char codes) % 500` (Vite uses
+`5200 + … % 500`, so the two never collide with each other OR with the human's plain `8788` default).
+Example: `gifted-colden-816061` → Vite port `5356` (matches this session's actual `.claude/launch.json`)
+→ backend port `8956`.
+
+**For AGENT verification, skip `npm run dev:local` entirely** (it's a human convenience: a live
+build-watch loop defaulting to the fixed port 8788). Instead, reuse the exact `.claude/launch.json` +
+`preview_start` recipe from the section below, just pointing at `wrangler pages dev` instead of Vite —
+one build, one serve, an explicit unique port, no watch loop needed for a verification pass:
+```json
+{ "name": "gallery-<suffix>",
+  "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+  "runtimeArgs": ["<worktree-abs-path>\\node_modules\\wrangler\\bin\\wrangler.js", "pages", "dev", "--port", "<PORT>"],
+  "port": <PORT> }
+```
+Run `npm run build` first (and after each source edit — no watcher in this mode), then `preview_start`.
+Seed once with `npm run seed:local` (or `node tools/seed-local.mjs`) before or after — it's independent of
+which port later serves it.
+
+**Never `taskkill /IM workerd.exe` blindly** — it kills EVERY worktree's (and the owner's) backend
+process, not just yours (this session did exactly that during testing, before realizing the risk — got
+away with it only because nothing else was running at the time). Always kill by the **specific PID** you
+started or found via `netstat -ano | findstr :<your-port>`, same rule as the Vite-port discipline above.
+
+**`npm run branches` does not (yet) show backend/gallery servers** — it only tracks the plain Vite
+frontend dev-server ports (5170–5700). A worktree's `wrangler pages dev`/`dev:local` backend on an 88xx
+port is invisible to it; check that separately (`netstat -ano | findstr :89` or just try the URL).
+
 **Preview server (main checkout):** start via the preview tool using `.claude/launch.json` (name
 `dev`) — it runs Vite through `node.exe` directly on **port 5174**, dodging the npm-shim policy. Don't
 launch the dev server through Bash. **If you're in a git worktree, this default is wrong and will make
