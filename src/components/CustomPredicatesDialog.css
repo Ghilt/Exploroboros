@@ -1,0 +1,74 @@
+/* Custom-predicates modal — the HelpButton/TilingPicker modal pattern, sized to host the predicate library. */
+.preds-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1rem, 4vw, 3rem);
+  background: color-mix(in srgb, #000 55%, transparent);
+  backdrop-filter: blur(2px);
+  animation: preds-modal-fade 0.15s ease;
+}
+@keyframes preds-modal-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.preds-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(34rem, 100%);
+  max-height: min(80vh, 48rem);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--elev-3, 0 24px 60px rgba(0, 0, 0, 0.4));
+  animation: preds-dialog-pop 0.16s ease;
+}
+.preds-dialog:focus {
+  outline: none;
+}
+@keyframes preds-dialog-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+}
+
+.preds-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.preds-dialog-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--fg);
+}
+.preds-dialog-close {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 1.4rem;
+  line-height: 1;
+  padding: 0 0.3rem;
+  cursor: pointer;
+}
+.preds-dialog-close:hover {
+  color: var(--fg);
+}
+
+/* The pane provides its own layout; the body just scrolls it and holds the corner "?" anchor
+   (.predicate-pane is position:relative, so its help button pins to the pane, not the viewport). */
+.preds-dialog-body {
+  padding: 1rem 1.1rem 1.2rem;
+  overflow: auto;
+  min-height: 0;
+}

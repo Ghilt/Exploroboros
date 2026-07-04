@@ -146,17 +146,6 @@
   row-gap: 0.4rem;
 }
 
-/* Debug-mode toggle in the bar (label + switch), aligned with the other controls. */
-.canvas-debug {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  height: var(--control-h);
-  font-size: 0.78rem;
-  color: var(--muted);
-  cursor: pointer;
-}
-
 /* Dropdown / menu triggers in the canvas bar — tiling picker, drag, export — share ONE look. They
    open popups, so they're dropdown buttons (rounded-rect), NOT status-chip pills (see
    docs/VISUAL-LANGUAGE.md §5/§6). Matches .tiling-picker-trigger so all three are identical. */
@@ -370,6 +359,18 @@
 
 /* Inspect pane stats */
 .tile-stats .stat-head {
+  margin: 0 0 0.7rem;
+  font-size: 1.05rem;
+}
+
+/* The per-tick traverser decision log, folded into the bottom of the Inspect pane (its own dock was
+   removed). A divider + heading set it apart from the tile stats (or the empty hint) above it. */
+.inspect-log {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+}
+.inspect-log-head {
   margin: 0 0 0.7rem;
   font-size: 1.05rem;
 }

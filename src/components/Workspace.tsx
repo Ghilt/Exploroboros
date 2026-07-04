@@ -30,10 +30,9 @@ import { HelpButton } from './HelpButton'
 import { ConfirmDialog } from './ConfirmDialog'
 import { SegmentedControl } from './SegmentedControl'
 import { SpeedBar, type SpeedStop } from './SpeedBar'
-import { Toggle } from './Toggle'
 import { Stepper } from './Stepper'
 import { DebugPane } from './DebugPane'
-import { PredicatePane } from './PredicatePane'
+import { CustomPredicatesDialog } from './CustomPredicatesDialog'
 import { TraversersPane } from './TraversersPane'
 import { ColoringPane } from './ColoringPane'
 import { InitialStatePane } from './InitialStatePane'
@@ -89,9 +88,9 @@ const BUILTIN_WALKER = 'Walker'
 const BUILTIN_WALKER_TEXT = 'move nearest-unvisited'
 
 // The Canvas-page workspace: a central canvas flanked by collapsible docks — authoring panes
-// (Traversers, Coloring) on the left, the Inspect pane on the right. It owns per-run state
-// (selection, the tile overlay) off the immutable Tiling, and builds the Tiling itself from the
-// picker choice + grid size.
+// (Traversers, Coloring) on the left, inspection panes (Inspect + its traverser log, Initial state) on
+// the right, at most one open per side at a time. It owns per-run state (selection, the tile overlay)
+// off the immutable Tiling, and builds the Tiling itself from the picker choice + grid size.
 export function Workspace() {
   // Selected tiles: one (tap / single-tile inspect) or many (select-mode box → bulk edit).
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -121,9 +120,18 @@ export function Workspace() {
   // initRun so Stop can revert the run's registry writes back to their pre-run values (registries have
   // no per-write stamp, so unlike visits they can't be surgically un-done without this).
   const authoredOverlayRef = useRef<ReadonlyMap<string, TileState>>(new Map())
-  // Debug mode: a per-tick decision log (the Debug pane) + canvas highlighting of the tiles a hovered
-  // log row is about. Off by default — when off the trace isn't built and nothing extra is drawn.
-  const [debug, setDebug] = useState(false)
+  // The docks are an accordion: at most ONE pane open per side of the canvas (opening one collapses the
+  // other on that side). Right starts on Inspect; left starts closed.
+  const [leftOpen, setLeftOpen] = useState<'traversers' | 'coloring' | null>(null)
+  const [rightOpen, setRightOpen] = useState<'inspect' | 'initial' | null>('inspect')
+  const toggleLeft = (p: 'traversers' | 'coloring') => setLeftOpen((cur) => (cur === p ? null : p))
+  const toggleRight = (p: 'inspect' | 'initial') => setRightOpen((cur) => (cur === p ? null : p))
+  // The shared Custom-predicates dialog, opened by the badge at the foot of the authoring panes (predicates
+  // no longer have their own dock).
+  const [predsOpen, setPredsOpen] = useState(false)
+  // A per-tick decision log lives at the bottom of the Inspect pane, plus canvas highlighting of the tiles a
+  // hovered log row is about. The trace is built only while the Inspect pane is open (`traceOn`, below) — the
+  // zero-cost-when-hidden replacement for the old debug toggle.
   // Recent ticks' decision traces (a bounded ring) and which one the log is viewing (null = follow the
   // latest). `hoveredHighlight` (a log-row hover) wins over `pinned` (a clicked row) for the canvas.
   const [traceHistory, setTraceHistory] = useState<TickTrace[]>([])
@@ -139,6 +147,13 @@ export function Workspace() {
     setPinned(null)
   }
   const highlightGroups = hoveredHighlight ?? pinned?.groups
+  // Build the decision trace + draw highlights only while the Inspect pane (which hosts the log) is open.
+  const traceOn = rightOpen === 'inspect'
+  // Selecting a tile opens the Inspect pane — otherwise the accordion could leave Initial state open on the
+  // right and hide the tile you just clicked. No-op when Inspect is already the open right pane.
+  useEffect(() => {
+    if (selectedIds.length > 0) setRightOpen('inspect')
+  }, [selectedIds])
   // Tile display: edged outline / no outline / outline + printed stats (number + visited + counters).
   const [displayMode, setDisplayMode] = useState<DisplayMode>('edges')
   // Mobile only: Fit / Reset / grid-size live behind a "⋯" button; this toggles that dropdown.
@@ -470,14 +485,14 @@ export function Workspace() {
   // The clock. A reassigned ref keeps the interval calling the LATEST state each tick (the
   // copyRef/pasteRef pattern below), so listeners attach once yet never read stale state. The tick
   // itself is the pure stepTraversers; we auto-pause when every walker has died.
-  // One tick of the live run, debug-aware: when debug is on it records the tick's decision trace into
-  // the history (and only then — plain stepTraversers is used otherwise, so `fast` mode pays nothing).
-  // Returns the surviving walkers (or null when not running). Shared by the clock and the manual step.
+  // One tick of the live run. When the Inspect pane is open (`traceOn`) it records the tick's decision
+  // trace into the history (and only then — plain stepTraversers is used otherwise, so a hidden log costs
+  // nothing). Returns the surviving walkers (or null when not running). Shared by the clock and manual step.
   const advanceOneTick = (): Traverser[] | null => {
     if (runLive === null) return null
     const input = { tiling, overlay, traversers: runLive, step, defs, indexById }
-    const result = debug ? stepTraversersTraced(input) : stepTraversers(input)
-    if (debug) pushTrace((result as ReturnType<typeof stepTraversersTraced>).trace)
+    const result = traceOn ? stepTraversersTraced(input) : stepTraversers(input)
+    if (traceOn) pushTrace((result as ReturnType<typeof stepTraversersTraced>).trace)
     setOverlay(result.overlay)
     setRunLive(result.traversers)
     setStep(result.step)
@@ -804,10 +819,6 @@ export function Workspace() {
             { value: 'stats', label: 'stats', title: 'numbers + heading arrows inside tiles' },
           ]}
         />
-        <label className="canvas-debug" title="Debug mode — show the per-tick decision log and highlight what a traverser is reading">
-          <span>debug</span>
-          <Toggle checked={debug} onChange={setDebug} label="Debug mode — show the per-tick decision log" />
-        </label>
         <div className="canvas-more-wrap" ref={moreRef}>
           <button type="button" className="canvas-btn canvas-more" onClick={() => setToolsOpen((o) => !o)} aria-label="more controls" aria-expanded={toolsOpen} title="More controls">⋯</button>
           <div className={`canvas-extra${toolsOpen ? ' is-open' : ''}`}>
@@ -841,16 +852,34 @@ export function Workspace() {
         {canvasControls}
       </div>
       <div className="workspace">
-      <Panel title="Traversers" side="left" defaultCollapsed wide>
-        <TraversersPane store={traverserStore} predicateNames={predicateNames} />
+      <Panel
+        title="Traversers"
+        side="left"
+        wide
+        fill
+        collapsed={leftOpen !== 'traversers'}
+        onCollapsedChange={() => toggleLeft('traversers')}
+      >
+        <TraversersPane
+          store={traverserStore}
+          predicateNames={predicateNames}
+          onOpenPredicates={() => setPredsOpen(true)}
+        />
       </Panel>
 
-      <Panel title="Predicates" side="left" defaultCollapsed>
-        <PredicatePane store={predicateStore} />
-      </Panel>
-
-      <Panel title="Coloring" side="left" defaultCollapsed>
-        <ColoringPane store={coloringStore} customPredicates={predicateStore.predicates} />
+      <Panel
+        title="Coloring"
+        side="left"
+        wide
+        fill
+        collapsed={leftOpen !== 'coloring'}
+        onCollapsedChange={() => toggleLeft('coloring')}
+      >
+        <ColoringPane
+          store={coloringStore}
+          customPredicates={predicateStore.predicates}
+          onOpenPredicates={() => setPredsOpen(true)}
+        />
       </Panel>
 
       <div className="canvas-pane">
@@ -867,7 +896,7 @@ export function Workspace() {
               colorFor={colorFor}
               traverserHeads={traverserHeads}
               autoTraverserHeads={autoTraverserHeads}
-              highlightGroups={debug ? highlightGroups : undefined}
+              highlightGroups={traceOn ? highlightGroups : undefined}
               tileNumber={(id) => indexById.get(id) ?? -1}
               onSelect={(id) => setSelectedIds([id])}
               onSelectTiles={setSelectedIds}
@@ -933,7 +962,13 @@ export function Workspace() {
         />
       )}
 
-      <Panel title="Inspect" side="right">
+      <Panel
+        title="Inspect"
+        side="right"
+        wide
+        collapsed={rightOpen !== 'inspect'}
+        onCollapsedChange={() => toggleRight('inspect')}
+      >
         {selected ? (
           <InspectContent
             tiling={tiling}
@@ -971,18 +1006,9 @@ export function Workspace() {
         ) : (
           <p className="pane-hint">Click a tile to inspect it — or switch drag to “select” and box a group.</p>
         )}
-      </Panel>
 
-      <Panel title="Initial state" side="right" defaultCollapsed wide>
-        <InitialStatePane
-          store={initialStateStore}
-          predicateNames={predicateNames}
-          traverserNames={traverserOrder}
-        />
-      </Panel>
-
-      {debug && (
-        <Panel title="Debug" side="right" wide>
+        <section className="inspect-log">
+          <h3 className="inspect-log-head">Traverser log</h3>
           <DebugPane
             history={traceHistory}
             viewedStep={viewedStep}
@@ -992,7 +1018,31 @@ export function Workspace() {
             pinnedKey={pinned?.key ?? null}
             onPinToggle={(key, groups) => setPinned((cur) => (cur?.key === key ? null : { key, groups }))}
           />
-        </Panel>
+        </section>
+      </Panel>
+
+      <Panel
+        title="Initial state"
+        side="right"
+        wide
+        fill
+        collapsed={rightOpen !== 'initial'}
+        onCollapsedChange={() => toggleRight('initial')}
+      >
+        <InitialStatePane
+          store={initialStateStore}
+          predicateNames={predicateNames}
+          traverserNames={traverserOrder}
+          onOpenPredicates={() => setPredsOpen(true)}
+        />
+      </Panel>
+
+      {predsOpen && (
+        <CustomPredicatesDialog
+          store={predicateStore}
+          traverserNames={traverserOrder}
+          onClose={() => setPredsOpen(false)}
+        />
       )}
       </div>
     </div>

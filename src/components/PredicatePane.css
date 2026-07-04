@@ -104,6 +104,21 @@
   color: var(--accent);
 }
 
+/* A red "this row has a problem" badge in the traverser list — the definition doesn't compile, or its
+   name is reserved / duplicate. Hover for the message; click the name to open the editor and fix it. */
+.pred-badge-err {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-pill);
+  background: var(--accent-strong, var(--accent));
+  color: var(--on-accent, #fff);
+  cursor: help;
+}
+
 /* Bundled expanded detail: read-only DSL + description. */
 .pred-detail {
   display: flex;
@@ -171,6 +186,10 @@
 .pred-text:focus {
   outline: none;
   border-color: var(--accent);
+}
+/* Name field flagged when the name is reserved or already taken. */
+.pred-name-input.is-error {
+  border-color: var(--accent-strong, var(--accent));
 }
 
 .pred-status {

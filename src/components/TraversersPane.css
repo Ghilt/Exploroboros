@@ -1,14 +1,15 @@
-/* Full-pane traverser editor. Only the wide Traversers dock uses this, so the fill rules are scoped
-   to .panel--wide to avoid touching the other panes. */
+/* Full-pane editor docks (Traversers, Initial state). The fill rules are scoped to .panel--fill — NOT
+   .panel--wide — because every pane is wide now, but only the editor docks should stretch their body. */
 
 /* Let the dock body (and the pane inside it) fill the panel's height so the editor can grow. */
-.panel--wide .panel-body {
+.panel--fill .panel-body {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
-.panel--wide .panel-body > .predicate-pane {
+.panel--fill .panel-body > .predicate-pane,
+.panel--fill .panel-body > .coloring-pane {
   flex: 1 1 auto;
   min-height: 0;
 }
@@ -63,12 +64,16 @@
   color: var(--muted);
 }
 
-/* A muted debug control pinned to the bottom of the list pane: loads the hardcoded prototype-port
-   traverser definitions. `margin-top: auto` works because .predicate-pane is a fill-height flex
-   column. */
-.trav-ports {
+/* The list pane's bottom footer, pinned down (`margin-top: auto` works because .predicate-pane is a
+   fill-height flex column): the "Custom predicates" badge + the muted "Load prototype ports" debug
+   control that adds the hardcoded prototype-port traverser definitions. */
+.trav-foot {
   margin-top: auto;
   padding-top: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
 }
 .trav-ports-btn {
   font-family: var(--mono);

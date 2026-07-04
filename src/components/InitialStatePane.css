@@ -40,3 +40,9 @@
   font-family: var(--mono);
   color: var(--fg);
 }
+
+/* Bottom footer, pinned down (.init-pane is a fill-height flex column): the "Custom predicates" badge. */
+.init-foot {
+  margin-top: auto;
+  padding-top: 0.8rem;
+}

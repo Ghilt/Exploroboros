@@ -17,13 +17,21 @@
   flex-basis: 34rem;
 }
 
+/* The whole header is the collapse button now — click the title (not just the chevron) to collapse. */
 .panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  width: 100%;
   padding: 0.5rem 0.7rem;
+  border: none;
   border-bottom: 1px solid var(--line);
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 .panel-title {
   font-family: var(--mono);
@@ -33,17 +41,13 @@
   color: var(--muted);
 }
 .panel-collapse {
-  border: none;
-  background: none;
   color: var(--muted);
-  cursor: pointer;
   font-size: 1rem;
   line-height: 1;
   padding: 0.1rem 0.35rem;
-  border-radius: var(--radius-sm);
 }
-.panel-collapse:hover {
-  background: var(--surface-2);
+.panel-head:hover .panel-title,
+.panel-head:hover .panel-collapse {
   color: var(--fg);
 }
 

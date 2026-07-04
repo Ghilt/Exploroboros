@@ -197,6 +197,23 @@ a {
   color: var(--muted);
 }
 
+/* "Custom predicates" badge — a small pill at the foot of the Traversers / Coloring / Initial-state
+   panes that opens the shared predicate library dialog (predicates no longer have their own dock). */
+.preds-badge {
+  align-self: flex-start;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 0.25rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--accent);
+  cursor: pointer;
+}
+.preds-badge:hover {
+  border-color: var(--accent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

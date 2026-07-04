@@ -375,7 +375,7 @@ export function TilingCanvas({
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
-      onDeselectRef.current?.() // zooming is "interacting some other way" — drop the selection
+      // Pan/zoom is navigation, not a new selection gesture — keep the current selection.
       const { minScale, maxScale } = scaleLimits(tilingRef.current, sizeRef.current)
       apply(zoomAt(viewRef.current, local(e), Math.exp(-e.deltaY * 0.0015), minScale, maxScale))
     }
@@ -394,7 +394,6 @@ export function TilingCanvas({
         // a second finger ends any stroke and starts a pinch + pan (every mode)
         e.preventDefault()
         capture(e.pointerId)
-        onDeselectRef.current?.()
         strokePainted = null
         strokeSelected = null
         lastPaintWorld = null
@@ -412,7 +411,6 @@ export function TilingCanvas({
         // middle-mouse drag pans (every mode)
         e.preventDefault()
         capture(e.pointerId)
-        onDeselectRef.current?.()
         middlePan = true
         panLast = local(e)
         host.style.cursor = 'grabbing'

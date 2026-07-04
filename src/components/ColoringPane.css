@@ -6,6 +6,13 @@
   font-size: 0.85rem;
 }
 
+/* Bottom footer, pinned down (the pane is a fill-height flex column): the "Custom predicates" badge —
+   matching the Traversers / Initial-state panes. */
+.coloring-foot {
+  margin-top: auto;
+  padding-top: 0.8rem;
+}
+
 /* The pane's "?" explainer floats in the top-right corner, not inline with the lead text. */
 .coloring-pane .pane-help {
   position: absolute;

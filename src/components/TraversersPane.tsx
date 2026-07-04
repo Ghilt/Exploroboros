@@ -2,6 +2,7 @@ import './PredicatePane.css'
 import './TraversersPane.css'
 import { useMemo, useState } from 'react'
 import { compileProgram } from '../traverse'
+import { reservedNameError } from '../dsl'
 import type { TraverserStore, StoredTraverser } from '../state/traverserStore'
 import { PROTOTYPE_PORTS } from '../data/prototypePorts'
 import { HelpButton } from './HelpButton'
@@ -14,13 +15,46 @@ import { TrashButton } from './TrashButton'
 export function TraversersPane({
   store,
   predicateNames,
+  onOpenPredicates,
 }: {
   store: TraverserStore
   // name -> DSL text, so a guard can reference a saved predicate by name (resolved at compile).
   predicateNames: ReadonlyMap<string, string>
+  // Opens the shared Custom-predicates dialog (the badge at the pane foot). Optional so tests can omit it.
+  onOpenPredicates?: () => void
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const editing = editingId ? store.traversers.find((t) => t.id === editingId) ?? null : null
+
+  // Compile every definition (memoized) so the list can flag the ones that don't compile with a red badge.
+  const compileError = useMemo(() => {
+    const m = new Map<string, string | null>()
+    for (const t of store.traversers) {
+      const c = compileProgram(t.text, predicateNames)
+      m.set(t.id, c.ok ? null : c.error.message)
+    }
+    return m
+  }, [store.traversers, predicateNames])
+
+  // Predicate names (bundled + custom) a traverser name must not collide with (case-insensitive).
+  const predNamesLower = useMemo(
+    () => new Set([...predicateNames.keys()].map((k) => k.toLowerCase())),
+    [predicateNames],
+  )
+  // A name is invalid if it's a reserved DSL word / reference pattern, or already used by a predicate or
+  // another traverser — names are referenced across the DSLs (a guard by name, a seed by `t1`/name), so
+  // they must be unique and free of grammar words.
+  const nameError = (t: StoredTraverser): string | null => {
+    const reserved = reservedNameError(t.name)
+    if (reserved) return reserved
+    const n = t.name.trim().toLowerCase()
+    if (!n) return null
+    if (predNamesLower.has(n)) return `"${t.name.trim()}" is already used by a predicate — names must be unique`
+    if (store.traversers.some((o) => o.id !== t.id && o.name.trim().toLowerCase() === n)) {
+      return `"${t.name.trim()}" is already used by another traverser`
+    }
+    return null
+  }
 
   // ---- editor mode: the editor consumes the whole pane ----
   if (editing) {
@@ -30,6 +64,7 @@ export function TraversersPane({
           key={editing.id}
           traverser={editing}
           predicateNames={predicateNames}
+          nameError={nameError(editing)}
           onSetText={store.setText}
           onRename={store.rename}
           onDone={() => setEditingId(null)}
@@ -79,7 +114,9 @@ export function TraversersPane({
             <code>t1</code>, <code>t2</code>, … — or by name.
           </p>
           <p className="help-readmore">
-            <a href="#/guide">Read the full guide → </a>
+            <a href="#/guide" target="_blank" rel="noopener noreferrer">
+              Read the full guide →{' '}
+            </a>
             <span className="help-readmore-note">(every keyword, with diagrams)</span>
           </p>
           <p>
@@ -104,27 +141,40 @@ export function TraversersPane({
         </header>
         {store.traversers.length > 0 ? (
           <ul className="pred-list">
-            {store.traversers.map((t, i) => (
-              <li key={t.id}>
-                <div className="pred-row">
-                  <button type="button" className="pred-name" onClick={() => setEditingId(t.id)}>
-                    <span className="trav-ord" title={`reference as t${i + 1} or by name in the Initial state pane`}>
-                      {i + 1}:
-                    </span>{' '}
-                    {t.name || '(unnamed)'}
-                  </button>
-                  <TrashButton label={`delete ${t.name || 'traverser'}`} onClick={() => remove(t.id)} />
-                </div>
-              </li>
-            ))}
+            {store.traversers.map((t, i) => {
+              const problem = compileError.get(t.id) || nameError(t)
+              return (
+                <li key={t.id}>
+                  <div className="pred-row">
+                    <button type="button" className="pred-name" onClick={() => setEditingId(t.id)}>
+                      <span className="trav-ord" title={`reference as t${i + 1} or by name in the Initial state pane`}>
+                        {i + 1}:
+                      </span>{' '}
+                      {t.name || '(unnamed)'}
+                    </button>
+                    {problem && (
+                      <span className="pred-badge-err" title={problem}>
+                        {compileError.get(t.id) ? 'error' : 'name'}
+                      </span>
+                    )}
+                    <TrashButton label={`delete ${t.name || 'traverser'}`} onClick={() => remove(t.id)} />
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         ) : (
           <p className="pane-hint">No traversers yet. The built-in “Walker” is always available to place.</p>
         )}
       </section>
 
-      {/* Debug: add hardcoded traverser definitions ported from the prototype (currently just gasket). */}
-      <div className="trav-ports">
+      <div className="trav-foot">
+        {onOpenPredicates && (
+          <button type="button" className="preds-badge" onClick={onOpenPredicates}>
+            Custom predicates
+          </button>
+        )}
+        {/* Debug: add hardcoded traverser definitions ported from the prototype (currently just gasket). */}
         <button
           type="button"
           className="trav-ports-btn"
@@ -143,12 +193,14 @@ export function TraversersPane({
 function TraverserEditor({
   traverser,
   predicateNames,
+  nameError,
   onSetText,
   onRename,
   onDone,
 }: {
   traverser: StoredTraverser
   predicateNames: ReadonlyMap<string, string>
+  nameError: string | null
   onSetText: (id: string, text: string) => void
   onRename: (id: string, name: string) => void
   onDone: () => void
@@ -160,12 +212,17 @@ function TraverserEditor({
       <label className="pred-field trav-edit-name">
         <span className="pred-field-label">Name</span>
         <input
-          className="pred-name-input"
+          className={`pred-name-input${nameError ? ' is-error' : ''}`}
           value={traverser.name}
           onChange={(e) => onRename(traverser.id, e.target.value)}
           aria-label="traverser name"
         />
       </label>
+      {nameError && (
+        <p className="pred-status pred-status--err" role="alert">
+          {nameError}
+        </p>
+      )}
 
       <textarea
         className="pred-text trav-edit-text"

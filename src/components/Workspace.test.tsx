@@ -28,7 +28,7 @@ vi.mock('./TilingCanvas', () => ({
       <button type="button" data-testid="mock-box" onClick={() => onSelectTiles?.(tiling.nodes.slice(0, 3).map((n) => n.id))}>
         box-select
       </button>
-      {/* Stand in for a non-selecting gesture (pan / paint / empty tap). */}
+      {/* Stand in for a non-selecting gesture (paint / empty tap; pan & zoom now keep the selection). */}
       <button type="button" data-testid="mock-deselect" onClick={() => onDeselect?.()}>
         deselect
       </button>
@@ -49,9 +49,8 @@ describe('Workspace', () => {
     expect(screen.getByRole('button', { name: /^step/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /^stop/i })).toBeTruthy()
     expect(screen.getByText(/click a tile to inspect/i)).toBeTruthy()
-    // Traversers, Predicates and Coloring start collapsed — their titles live on the rail.
+    // The left docks (Traversers, Coloring) start collapsed — their titles live on the rail.
     expect(screen.getByRole('button', { name: /expand traversers/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /expand predicates/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /expand coloring/i })).toBeTruthy()
   })
 
@@ -166,7 +165,7 @@ describe('Workspace', () => {
     expect(more.getAttribute('aria-expanded')).toBe('true')
   })
 
-  it('clears the selection on a non-selecting interaction (pan / paint / empty tap)', () => {
+  it('clears the selection on a non-selecting interaction (paint / empty tap)', () => {
     render(<Workspace />)
     fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
     expect(screen.getByText('Tile #0')).toBeTruthy()
@@ -313,5 +312,33 @@ describe('Workspace', () => {
     render(<Workspace />)
     fireEvent.click(screen.getByRole('button', { name: /collapse inspect/i }))
     expect(screen.getByRole('button', { name: /expand inspect/i })).toBeTruthy()
+  })
+
+  it('the left docks are an accordion — opening one collapses the other', () => {
+    render(<Workspace />)
+    // Both start collapsed; open Traversers.
+    fireEvent.click(screen.getByRole('button', { name: /expand traversers/i }))
+    expect(screen.getByRole('button', { name: /collapse traversers/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /expand coloring/i })).toBeTruthy()
+    // Opening Coloring collapses Traversers (only one open per side).
+    fireEvent.click(screen.getByRole('button', { name: /expand coloring/i }))
+    expect(screen.getByRole('button', { name: /collapse coloring/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /expand traversers/i })).toBeTruthy()
+  })
+
+  it('the Custom predicates badge opens the shared predicates dialog', () => {
+    render(<Workspace />)
+    fireEvent.click(screen.getByRole('button', { name: /expand coloring/i }))
+    fireEvent.click(screen.getByRole('button', { name: /custom predicates/i }))
+    expect(screen.getByRole('dialog', { name: /custom predicates/i })).toBeTruthy()
+  })
+
+  it('selecting a tile re-opens the Inspect pane when it was collapsed', () => {
+    render(<Workspace />)
+    fireEvent.click(screen.getByRole('button', { name: /collapse inspect/i }))
+    expect(screen.getByRole('button', { name: /expand inspect/i })).toBeTruthy()
+    // Clicking a tile auto-opens Inspect (the accordion would otherwise hide it) and shows the tile.
+    fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
+    expect(screen.getByText('Tile #0')).toBeTruthy()
   })
 })

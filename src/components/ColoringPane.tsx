@@ -18,9 +18,12 @@ type PredOption = { id: string; name: string }
 export function ColoringPane({
   store,
   customPredicates,
+  onOpenPredicates,
 }: {
   store: ColoringStore
   customPredicates: ReadonlyArray<PredOption>
+  // Opens the shared Custom-predicates dialog (the badge at the pane foot). Optional so tests can omit it.
+  onOpenPredicates?: () => void
 }) {
   return (
     <div className="coloring-pane">
@@ -68,6 +71,14 @@ export function ColoringPane({
       <button type="button" className="rule-add" onClick={store.add}>
         + Add rule
       </button>
+
+      {onOpenPredicates && (
+        <div className="coloring-foot">
+          <button type="button" className="preds-badge" onClick={onOpenPredicates}>
+            Custom predicates
+          </button>
+        </div>
+      )}
     </div>
   )
 }

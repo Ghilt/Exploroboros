@@ -13,12 +13,15 @@ export function InitialStatePane({
   store,
   predicateNames,
   traverserNames,
+  onOpenPredicates,
 }: {
   store: InitialStateStore
   // name -> DSL text, so an `if` guard can reference a saved predicate by name (resolved at compile).
   predicateNames: ReadonlyMap<string, string>
   // User traverser names in list order — for validating `t1`/name references and flagging typos.
   traverserNames: ReadonlyArray<string>
+  // Opens the shared Custom-predicates dialog (the badge at the pane foot). Optional so tests can omit it.
+  onOpenPredicates?: () => void
 }) {
   const [showSyntax, setShowSyntax] = useState(false)
 
@@ -65,7 +68,9 @@ export function InitialStatePane({
             changed by editing the rule, not from the canvas; a hand-placed walker wins a shared tile.
           </p>
           <p className="help-readmore">
-            <a href="#/guide">Read the full guide → </a>
+            <a href="#/guide" target="_blank" rel="noopener noreferrer">
+              Read the full guide →{' '}
+            </a>
           </p>
         </HelpButton>
       </span>
@@ -127,6 +132,14 @@ auto-place blob {what, x%, y%, radius, param} [if <predicate>]`}</pre>
           </div>
         )}
       </section>
+
+      {onOpenPredicates && (
+        <div className="init-foot">
+          <button type="button" className="preds-badge" onClick={onOpenPredicates}>
+            Custom predicates
+          </button>
+        </div>
+      )}
     </div>
   )
 }

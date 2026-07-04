@@ -1,6 +1,6 @@
 import './PredicatePane.css'
 import { useMemo, useState } from 'react'
-import { parsePredicate, serialize } from '../dsl'
+import { parsePredicate, serialize, reservedNameError } from '../dsl'
 import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
 import type { PredicateStore, StoredPredicate } from '../state/predicateStore'
 import { HelpButton } from './HelpButton'
@@ -11,13 +11,40 @@ import { SegmentedControl } from './SegmentedControl'
 // The Predicate pane: a library of reusable tile predicates. Rows show just the name; click one to
 // expand it — a bundled predicate reveals its DSL (read-only), a custom one opens its editor. "+ New"
 // makes a custom predicate from scratch. Custom predicates persist in the browser.
-export function PredicatePane({ store }: { store: PredicateStore }) {
+export function PredicatePane({
+  store,
+  traverserNames = [],
+}: {
+  store: PredicateStore
+  // Traverser names to keep predicate names distinct from (names are referenced across the DSLs). Optional
+  // so a bare PredicatePane (e.g. in tests) still works.
+  traverserNames?: ReadonlyArray<string>
+}) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const toggle = (id: string) => setExpandedId((cur) => (cur === id ? null : id))
   const add = () => setExpandedId(store.add())
   const remove = (id: string) => {
     store.remove(id)
     if (id === expandedId) setExpandedId(null)
+  }
+
+  // A custom predicate name is invalid if it's a reserved DSL word / reference pattern, or already used
+  // by a preset, another custom predicate, or a traverser (names must be unique across the DSLs).
+  const nameError = (p: StoredPredicate): string | null => {
+    const reserved = reservedNameError(p.name)
+    if (reserved) return reserved
+    const n = p.name.trim().toLowerCase()
+    if (!n) return null
+    if (BUNDLED_PREDICATES.some((b) => b.name.trim().toLowerCase() === n)) {
+      return `"${p.name.trim()}" is already a preset predicate — choose another name`
+    }
+    if (store.predicates.some((o) => o.id !== p.id && o.name.trim().toLowerCase() === n)) {
+      return `"${p.name.trim()}" is already used by another predicate`
+    }
+    if (traverserNames.some((tn) => tn.trim().toLowerCase() === n)) {
+      return `"${p.name.trim()}" is already used by a traverser — names must be unique`
+    }
+    return null
   }
 
   return (
@@ -65,7 +92,13 @@ export function PredicatePane({ store }: { store: PredicateStore }) {
                   <TrashButton label={`delete ${p.name || 'predicate'}`} onClick={() => remove(p.id)} />
                 </div>
                 {p.id === expandedId && (
-                  <PredicateEditor key={p.id} predicate={p} onSetText={store.setText} onRename={store.rename} />
+                  <PredicateEditor
+                    key={p.id}
+                    predicate={p}
+                    nameError={nameError(p)}
+                    onSetText={store.setText}
+                    onRename={store.rename}
+                  />
                 )}
               </li>
             ))}
@@ -104,10 +137,12 @@ export function PredicatePane({ store }: { store: PredicateStore }) {
 // Fully controlled by the store so the auto-name follows the text until the user types their own name.
 function PredicateEditor({
   predicate,
+  nameError,
   onSetText,
   onRename,
 }: {
   predicate: StoredPredicate
+  nameError: string | null
   onSetText: (id: string, text: string) => void
   onRename: (id: string, name: string) => void
 }) {
@@ -119,12 +154,17 @@ function PredicateEditor({
       <label className="pred-field">
         <span className="pred-field-label">Name</span>
         <input
-          className="pred-name-input"
+          className={`pred-name-input${nameError ? ' is-error' : ''}`}
           value={predicate.name}
           onChange={(e) => onRename(predicate.id, e.target.value)}
           aria-label="predicate name"
         />
       </label>
+      {nameError && (
+        <p className="pred-status pred-status--err" role="alert">
+          {nameError}
+        </p>
+      )}
 
       <div className="pred-mode">
         <SegmentedControl

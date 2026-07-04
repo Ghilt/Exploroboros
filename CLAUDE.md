@@ -520,9 +520,9 @@ Hard-won; read before fighting the tooling again.
   marquee box → every tile whose centre is inside), or **paintselect** ("paint select" — freehand: drag
   over tiles to gather a non-box selection, pushed up live). Both selecting modes call `onSelectTiles`;
   holding **Shift** at the start of a box / paint-select drag **adds** to the current selection (union)
-  instead of replacing it. Any **non-selecting** gesture (pan / zoom /
-  paint / a tap on empty space) fires `onDeselect` so the selection clears — only a tap-on-tile or a box
-  keeps it. A paint stroke flashes an **outline** on its tiles (`paintFlashRef` → `drawPaintFlash`) that
+  instead of replacing it. A **paint** stroke or a **tap on empty space** fires `onDeselect` so the
+  selection clears — but **pan and zoom keep the selection** (wheel-zoom, pinch, and middle-mouse pan are
+  navigation, not a new gesture), as does a tap-on-tile or a box. A paint stroke flashes an **outline** on its tiles (`paintFlashRef` → `drawPaintFlash`) that
   fades to 0 over ~600ms (rAF) after release. A **display chip** (Workspace) cycles tile rendering —
   `edges` / `none` / `stats`; in `stats` the tile number, visited `vN`, and any non-zero registries
   (`A# B# C#`) print inside each tile, but only once tiles are a few screen px (`MIN_LABEL_PX`), so on
@@ -535,8 +535,13 @@ Hard-won; read before fighting the tooling again.
 - `src/components/TilingDebugView.tsx` — the original dependency-free SVG renderer. Still **live**: it
   draws the tiling-picker gallery thumbnails (`TilingThumbnail.tsx` → `TilingPicker.tsx`). Not used for
   the main canvas (that's the Konva `TilingCanvas`), but don't delete it — the picker needs it.
-- `src/components/Workspace.tsx` — the Canvas-page multi-pane workspace (canvas + Inspect /
-  Traversers / Coloring docks); **builds the `Tiling`** from the picker `tilingId` + grid-size, and
+- `src/components/Workspace.tsx` — the Canvas-page multi-pane workspace: authoring docks (Traversers,
+  Coloring) left, inspection docks (Inspect, Initial state) right, **one open per side at a time** (an
+  accordion — `leftOpen`/`rightOpen`; `Panel` is controlled). Predicates have **no dock** — a **"Custom
+  predicates" badge** at the foot of the authoring panes opens the shared `CustomPredicatesDialog`. The
+  per-tick **traverser decision log** (`DebugPane`) lives at the **bottom of the Inspect pane** (there is
+  no debug toggle; its trace is built only while Inspect is open — `traceOn = rightOpen === 'inspect'`).
+  Selecting a tile **auto-opens Inspect**. It **builds the `Tiling`** from the picker `tilingId` + grid-size, and
   owns selection (`selectedIds` — one tile, or many from a select-box), the per-tile **state overlay**
   (`TileState` — a visit step-list + the A/B/C registries; see `src/canvas/overlay.ts`), the **drag**
   control (a popup choosing off / select / paint→target), and the copy/paste clipboard (all kept off the
@@ -553,7 +558,16 @@ Hard-won; read before fighting the tooling again.
   removes seeds **only while stopped** (a run owns the walkers). Grid resize is locked while a run is active
   (`runLive !== null`). On **mobile**, Fit / Reset / grid-size collapse behind a **⋯ dropdown**
   (`.canvas-more` trigger + `.canvas-extra` popover, outside-tap/Escape to close); inline on desktop.
-- `src/components/Panel.tsx` — reusable collapsible dock panel (collapses to a thin rail).
+- `src/components/Panel.tsx` — reusable collapsible dock panel (collapses to a thin rail). Collapse is
+  **controllable** (`collapsed` + `onCollapsedChange`, falling back to internal `useState` when
+  uncontrolled) so Workspace can run the one-open-per-side accordion; the **whole header is the collapse
+  button** (click the title, not just the chevron). `wide` = 2× width (34rem); `fill` (a SEPARATE marker,
+  not implied by `wide`) lets the editor docks stretch their body — the fill rules live in
+  `TraversersPane.css` scoped to `.panel--fill`, so every-pane-is-wide doesn't leak fill everywhere.
+- `src/components/CustomPredicatesDialog.tsx` (+ `.css`) — the predicate library as a modal (the
+  TilingPicker/ConfirmDialog portal recipe), hosting `<PredicatePane>` as its body. Opened by the "Custom
+  predicates" badge (`.preds-badge`, in `index.css`) at the foot of the Traversers / Coloring /
+  Initial-state panes; Workspace owns the open state (`predsOpen`).
 - `src/components/HelpButton.tsx` (+ `.css`) — the reusable faded **"?" explainer**: a small muted
   button that opens a little info dialog (reuses the TilingPicker modal pattern — portal, Escape,
   backdrop, focus). Use it for non-obvious concepts (ethos §2); the Predicate + Coloring panes float
@@ -583,7 +597,11 @@ Hard-won; read before fighting the tooling again.
   editor). Reused by the visual editor + traversers, so keep it pure. **Path-placement gotcha:** the registry
   path goes INSIDE the brackets — `[A@e2]`, NOT `[A]@e2` (the latter errors "expected a comparison"); a bare
   attribute suffixes it (`visited@e2`), and `tile-type@e0 == wedge`. `@target`/`@tile N` must be a path's
-  **only** hop (they name a tile directly); edge hops chain.
+  **only** hop (they name a tile directly); edge hops chain. `reserved.ts` (`reservedNameError` +
+  `RESERVED_WORDS`) forbids naming a predicate/traverser a grammar word (every keyword across all three
+  DSLs + attribute/registry names) or a positional reference (`t1`/`e3`/`r1`/`l2`) — the Predicate &
+  Traversers editors show it as a red inline error (uniqueness vs other predicates/traversers is checked
+  at the call site). The Traversers **list** also red-badges any definition that doesn't compile.
 - `src/colorizer/` — pure `colorize(rules, predicateText, tiling, overlay, indexById) → Map<id, rgba>`:
   evaluates each rule's predicate once, alpha-composites matching rules top→bottom (per-rule opacity =
   blend), resolves flat/ramp (modulo + optional breakpoints). Memoized in Workspace, **not** per frame.
@@ -694,11 +712,13 @@ Hard-won; read before fighting the tooling again.
   blurb: wedges name the dotted lines as their hand-crafted opposite-edge pairing (`shape.oppositeSides`
   where `straightThroughOpposite`); triangles just say right-handed (no edge is directly opposite on an
   odd-sided shape). Pure/no-Konva component, Vitest-tested with jsdom (plain SVG, unlike `TilingCanvas`).
-- **Debug mode** lives in `src/components/DebugPane.tsx` (+ `.css`) with the pure trace→tiles mapper in
-  `src/debug/highlights.ts` (Konva-free, unit-tested). It reads the engine's **opt-in** `TickTrace`
-  (`src/traverse/trace.ts`, built only by `stepTraversersTraced`). A canvas-bar **toggle** in `Workspace`
-  gates it: off → no trace is built and `TilingCanvas`'s `highlightGroups` is undefined (nothing drawn);
-  the role-coloured outline overlay is `drawHighlights` in `TilingCanvas`.
+- **The traverser decision log** lives in `src/components/DebugPane.tsx` (+ `.css`) with the pure
+  trace→tiles mapper in `src/debug/highlights.ts` (Konva-free, unit-tested). It reads the engine's
+  **opt-in** `TickTrace` (`src/traverse/trace.ts`, built only by `stepTraversersTraced`). It now sits at
+  the **bottom of the Inspect pane** (the old standalone Debug dock + its canvas-bar toggle are gone).
+  `Workspace` gates the cost with `traceOn = rightOpen === 'inspect'`: when Inspect is closed no trace is
+  built and `TilingCanvas`'s `highlightGroups` is undefined (nothing drawn) — the zero-cost-when-hidden
+  replacement for the toggle. The role-coloured outline overlay is `drawHighlights` in `TilingCanvas`.
 
 **Running commands (tool shells):** `node`/`npm.cmd`/`npx.cmd` are NOT on PATH here — prepend it
 every command: `$env:Path = 'C:\Program Files\nodejs;' + $env:Path; npx.cmd vitest run`

@@ -47,8 +47,8 @@ export function DebugPane({ history, viewedStep, onViewStep, tileNumber, onHover
         {!following && <button type="button" className="dbg-latest" onClick={() => onViewStep(null)}>latest</button>}
         <HelpButton title="Debug log">
           <p>
-            With <strong>debug</strong> on, each tick records what every walker decided. Use the
-            <strong> step</strong> speed (top bar) to advance one tick at a time and read it here.
+            Each tick records what every walker decided. Press <strong>Step</strong> to advance one tick at a
+            time — or <strong>Play</strong> a run — and read the decisions here.
           </p>
           <p>
             Each walker shows the statements it ran. <strong>Hover a row</strong> to light up the tiles
@@ -64,7 +64,12 @@ export function DebugPane({ history, viewedStep, onViewStep, tileNumber, onHover
       </header>
 
       {!trace ? (
-        <p className="pane-hint">Place a walker, then use the <strong>step</strong> speed to advance one tick — each tick’s decisions show here.</p>
+        <p className="pane-hint">
+          This is a per-tick log of every traverser’s decisions — for each walker, the statements it ran, every
+          candidate move, and why each was chosen or rejected. Place a walker and press <strong>Step</strong>{' '}
+          (or <strong>Play</strong>) to advance a tick; the decisions show here. Hover a row to highlight the
+          tiles it read.
+        </p>
       ) : trace.traversers.length === 0 ? (
         <p className="pane-hint">No walkers on this tick.</p>
       ) : (
