@@ -1,10 +1,163 @@
 .gallery-page {
   display: grid;
-  gap: clamp(1.5rem, 4vw, 2.5rem);
+  gap: clamp(1.2rem, 3vw, 2rem);
+}
+
+/* Controls: search grows, sort + tiling filter sit to the right; wraps on narrow screens. */
+.gallery-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+.gallery-search {
+  flex: 1 1 14rem;
+  min-width: 0;
+  height: 2.1rem;
+  padding: 0 0.7rem;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.gallery-search:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.gallery-filter {
+  height: 2.1rem;
+  padding: 0 0.6rem;
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
 }
 
 .gallery-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
-  gap: 1.3rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: 1.1rem;
+}
+
+/* A creation card: image on top (click → spotlight), a caption row with name + upvote. */
+.gcard {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.gcard:hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+}
+.gcard-open {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: #000;
+  cursor: pointer;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+}
+.gcard-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.2s ease;
+}
+.gcard-open:hover .gcard-img {
+  transform: scale(1.04);
+}
+.gcard-cap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
+}
+.gcard-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gcard-vote {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.55rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  background: var(--bg, transparent);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.gcard-vote:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.gcard-vote.is-voted {
+  color: var(--accent);
+  border-color: var(--accent);
+  cursor: default;
+}
+.gcard-vote-mark {
+  font-size: 0.72em;
+}
+
+/* Loading / empty / error / sentinel. */
+.gallery-status {
+  padding: 1rem 0;
+  text-align: center;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+.gallery-empty {
+  padding: 2.5rem 1rem;
+  text-align: center;
+}
+.gallery-empty-lead {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+.gallery-empty-hint {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+.gallery-error {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.88rem;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--accent-strong, #c0392b) 15%, transparent);
+  border: 1px solid var(--accent-strong, #c0392b);
+  border-radius: var(--radius);
+}
+.gallery-error .btn {
+  padding: 0.3rem 0.8rem;
+}
+.gallery-sentinel {
+  height: 1px;
 }

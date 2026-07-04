@@ -25,3 +25,7 @@ dist-ssr
 
 # Claude Code local preview launcher (machine-specific Node path)
 .claude/launch.json
+
+# Cloudflare Wrangler local state (local D1/R2 emulation) + local secrets
+.wrangler
+.dev.vars

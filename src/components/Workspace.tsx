@@ -38,6 +38,7 @@ import { ColoringPane } from './ColoringPane'
 import { InitialStatePane } from './InitialStatePane'
 import { ExportMenu } from './ExportMenu'
 import { ExportStrip, type ExportItem } from './ExportStrip'
+import { UploadDialog } from './UploadDialog'
 import { ImageViewer } from './ImageViewer'
 import { usePredicateStore } from '../state/predicateStore'
 import { useTraverserStore } from '../state/traverserStore'
@@ -193,6 +194,8 @@ export function Workspace() {
   // Drag-and-drop of an exported PNG onto the canvas to reopen it; `dropNote` is a transient result toast.
   const [dropActive, setDropActive] = useState(false)
   const [dropNote, setDropNote] = useState<string | null>(null)
+  // The finished export whose "Share to the gallery" dialog is open (null = closed).
+  const [uploadItem, setUploadItem] = useState<ExportItem | null>(null)
   // A parsed recipe waiting on the "replace your work?" confirmation (set only when the panes already
   // hold user-authored data). The hidden file input backs the clickable "import" hint (mobile's path in).
   const [pendingImport, setPendingImport] = useState<Recipe | null>(null)
@@ -346,7 +349,7 @@ export function Workspace() {
         setExports((list) =>
           list.map((x) =>
             x.id === id
-              ? { ...x, status: 'done', fullUrl, thumbUrl, full: outcome.full, width: outcome.width, height: outcome.height, hitCap: outcome.hitCap }
+              ? { ...x, status: 'done', fullUrl, thumbUrl, full: outcome.full, width: outcome.width, height: outcome.height, hitCap: outcome.hitCap, recipe }
               : x,
           ),
         )
@@ -911,8 +914,21 @@ export function Workspace() {
             onView={setViewingId}
             onReturn={() => setViewingId(null)}
             onDownload={(item) => { if (item.full) downloadBlob(item.full, item.filename) }}
+            onUpload={(item) => setUploadItem(item)}
             onRemove={removeExport}
           />
+          {uploadItem && uploadItem.full && uploadItem.recipe && (
+            <UploadDialog
+              recipe={uploadItem.recipe}
+              image={uploadItem.full}
+              previewUrl={uploadItem.thumbUrl}
+              onClose={() => setUploadItem(null)}
+              onUploaded={() => {
+                setDropNote('Shared to the gallery!')
+                window.setTimeout(() => setDropNote(null), 4000)
+              }}
+            />
+          )}
           {dropActive && (
             <div className="canvas-drop-overlay">
               <strong>Drop to import</strong>

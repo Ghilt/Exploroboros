@@ -1,0 +1,148 @@
+/* Maximized creation view — the app's modal pattern, sized to show a large image beside its details.
+   Two columns on wide screens, stacked on narrow ones. */
+.spot-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(0.8rem, 3vw, 2rem);
+  background: color-mix(in srgb, #000 68%, transparent);
+  backdrop-filter: blur(3px);
+  animation: spot-fade 0.15s ease;
+}
+@keyframes spot-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.spot-dialog {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(15rem, 1fr);
+  gap: 1rem;
+  width: min(60rem, 100%);
+  max-height: calc(100dvh - 2rem);
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--elev-3, 0 24px 60px rgba(0, 0, 0, 0.5));
+  animation: spot-pop 0.16s ease;
+}
+.spot-dialog:focus {
+  outline: none;
+}
+@keyframes spot-pop {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+}
+
+.spot-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  background: #000;
+  border-radius: calc(var(--radius) - 4px);
+  overflow: hidden;
+}
+.spot-image img {
+  max-width: 100%;
+  max-height: calc(100dvh - 4rem);
+  object-fit: contain;
+  display: block;
+}
+
+.spot-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  overflow-y: auto;
+}
+.spot-name {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--fg);
+  word-break: break-word;
+}
+.spot-tiling {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.spot-tiling strong {
+  color: var(--fg);
+}
+.spot-message {
+  margin: 0.2rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.spot-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: auto;
+  padding-top: 0.8rem;
+}
+.spot-vote {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--surface-2, var(--bg));
+  border: 1px solid var(--line);
+  color: var(--fg);
+}
+.spot-vote.is-voted {
+  color: var(--accent);
+  border-color: var(--accent);
+  cursor: default;
+}
+
+.spot-error {
+  margin: 0;
+  font-size: 0.83rem;
+  color: var(--accent-strong, #c0392b);
+}
+
+.spot-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.6rem;
+  z-index: 1;
+  width: 1.9rem;
+  height: 1.9rem;
+  display: grid;
+  place-items: center;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.spot-close:hover {
+  background: var(--surface);
+}
+
+@media (max-width: 46rem) {
+  .spot-dialog {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    overflow-y: auto;
+  }
+  .spot-image img {
+    max-height: 50dvh;
+  }
+}

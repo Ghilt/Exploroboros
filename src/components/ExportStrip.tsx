@@ -1,4 +1,5 @@
 import './ExportStrip.css'
+import type { Recipe } from '../export'
 
 // An export in the strip. A job appears immediately as `running` (placeholder thumbnail, not clickable,
 // spinner where the download button will be, X = cancel); when the worker finishes it flips to `done`
@@ -15,6 +16,8 @@ export type ExportItem = {
   width?: number
   height?: number
   hitCap?: boolean
+  // The recipe that produced this export — carried so "Share to the gallery" can upload it.
+  recipe?: Recipe
 }
 
 type Props = {
@@ -23,13 +26,15 @@ type Props = {
   onView: (id: string) => void
   onReturn: () => void
   onDownload: (item: ExportItem) => void
+  // Opens the share-to-gallery dialog for a finished export.
+  onUpload: (item: ExportItem) => void
   // Cancels a running job, or removes a finished one.
   onRemove: (id: string) => void
 }
 
 // The thumbnail strip overlaid bottom-right of the canvas stage. Each export stacks here for the
 // session. While viewing an export, a "grid" chip returns to the live canvas.
-export function ExportStrip({ items, viewingId, onView, onReturn, onDownload, onRemove }: Props) {
+export function ExportStrip({ items, viewingId, onView, onReturn, onDownload, onUpload, onRemove }: Props) {
   if (items.length === 0) return null
   return (
     <div className="export-strip">
@@ -57,6 +62,11 @@ export function ExportStrip({ items, viewingId, onView, onReturn, onDownload, on
               {item.hitCap && <span className="export-thumb-badge" title="Run hit the tick cap — may be incomplete">!</span>}
             </button>
             <div className="export-thumb-actions">
+              {item.recipe && (
+                <button type="button" onClick={() => onUpload(item)} title="Share to the gallery" aria-label="Share this export to the gallery">
+                  ⤴
+                </button>
+              )}
               <button type="button" onClick={() => onDownload(item)} title="Download again" aria-label="Download this export">
                 ↓
               </button>

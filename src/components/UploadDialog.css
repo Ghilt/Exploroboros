@@ -1,0 +1,135 @@
+/* Share-to-gallery modal — the ConfirmDialog/TilingPicker modal pattern, sized for a short form. */
+.upload-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1rem, 4vw, 3rem);
+  background: color-mix(in srgb, #000 55%, transparent);
+  backdrop-filter: blur(2px);
+  animation: upload-modal-fade 0.15s ease;
+}
+@keyframes upload-modal-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.upload-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  width: min(28rem, 100%);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  padding: 1.1rem 1.2rem 1.2rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--elev-3, 0 24px 60px rgba(0, 0, 0, 0.4));
+  animation: upload-dialog-pop 0.16s ease;
+}
+.upload-dialog:focus {
+  outline: none;
+}
+@keyframes upload-dialog-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+}
+
+.upload-dialog-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+/* Preview: the export thumbnail + which tiling it's on. */
+.upload-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.upload-preview img,
+.upload-preview-blank {
+  width: 4.5rem;
+  height: 4.5rem;
+  object-fit: cover;
+  border-radius: calc(var(--radius) - 4px);
+  border: 1px solid var(--line);
+  background: #000;
+  flex: none;
+}
+.upload-tiling {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.upload-tiling strong {
+  color: var(--fg);
+}
+
+.upload-field {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem 0.5rem;
+}
+.upload-label {
+  grid-column: 1 / -1;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+.upload-label em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--muted);
+}
+.upload-field input,
+.upload-field textarea {
+  grid-column: 1 / -1;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--fg);
+  background: var(--bg, var(--surface));
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) - 4px);
+  box-sizing: border-box;
+  resize: vertical;
+}
+.upload-field input:focus,
+.upload-field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.upload-count {
+  grid-column: 2;
+  justify-self: end;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.upload-error {
+  margin: 0;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.83rem;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--accent-strong, #c0392b) 18%, transparent);
+  border: 1px solid var(--accent-strong, #c0392b);
+  border-radius: calc(var(--radius) - 4px);
+}
+
+.upload-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.3rem;
+}
+.upload-actions .btn {
+  padding: 0.5rem 1.1rem;
+}

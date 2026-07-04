@@ -1,0 +1,21 @@
+# Cloudflare Pages config for the community gallery backend.
+#   - The SPA is served from `dist/` (Vite's default build output).
+#   - The API lives in `functions/api/**` (file-based Pages Functions) and reaches D1 + R2
+#     through the bindings below (available as `context.env.DB` / `context.env.BUCKET`).
+# Local dev uses a local SQLite D1 + local R2 (see `npm run dev:api`); the `database_id` below is a
+# placeholder — replace it with the real id printed by `wrangler d1 create exploroboros` before any
+# `--remote` migration or deploy. See the deploy runbook in CLAUDE.md.
+
+name = "exploroboros"
+compatibility_date = "2026-07-04"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "exploroboros"
+database_id = "REPLACE_WITH_wrangler_d1_create_id"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "exploroboros-images"
