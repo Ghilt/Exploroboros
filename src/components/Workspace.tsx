@@ -914,9 +914,20 @@ export function Workspace() {
             onView={setViewingId}
             onReturn={() => setViewingId(null)}
             onDownload={(item) => { if (item.full) downloadBlob(item.full, item.filename) }}
-            onUpload={(item) => setUploadItem(item)}
             onRemove={removeExport}
           />
+          {/* Big, obvious share button while viewing an exported image — the primary way into the
+              gallery. Sits where the FPS/tile HUD normally is (hidden in the image viewer). */}
+          {viewing && viewing.fullUrl && viewing.recipe && (
+            <button
+              type="button"
+              className="btn btn-primary canvas-share-cta"
+              onClick={() => setUploadItem(viewing)}
+              title="Share this creation to the community gallery"
+            >
+              ⤴ Share to the gallery
+            </button>
+          )}
           {uploadItem && uploadItem.full && uploadItem.recipe && (
             <UploadDialog
               recipe={uploadItem.recipe}

@@ -121,6 +121,19 @@
   color: var(--accent);
   border-color: var(--accent);
 }
+/* Big "Share to the gallery" CTA shown while viewing an exported image (the live canvas + its FPS/tile
+   HUD are hidden then, so the bottom-left is free). Reuses .btn.btn-primary for colour; this just sizes
+   + anchors it. */
+.canvas-share-cta {
+  position: absolute;
+  left: 0.8rem;
+  bottom: 0.8rem;
+  z-index: 30;
+  max-width: calc(100% - 1.6rem);
+  padding: 0.7rem 1.2rem;
+  font-size: 0.95rem;
+  box-shadow: var(--elev-2, 0 8px 24px rgba(0, 0, 0, 0.35));
+}
 .canvas-drop-note {
   position: absolute;
   top: 0.6rem;
