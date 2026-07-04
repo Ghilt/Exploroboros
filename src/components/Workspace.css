@@ -76,15 +76,50 @@
   inset: 0;
   z-index: 30;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.4rem;
+  padding: 1rem;
+  text-align: center;
   font-family: var(--mono);
-  font-size: 0.9rem;
   color: var(--accent);
   background: color-mix(in srgb, var(--surface) 72%, transparent);
   border: 2px dashed var(--accent);
   border-radius: var(--radius);
   pointer-events: none;
+}
+.canvas-drop-overlay strong {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.canvas-drop-overlay span {
+  max-width: 26rem;
+  font-size: 0.8rem;
+  color: var(--fg);
+  opacity: 0.85;
+}
+/* The little clickable "drag an image here to import" box — bottom-left (ExportStrip owns bottom-right).
+   Faded so it stays out of the way; also the tap-to-open-file-picker path on touch. */
+.canvas-import-hint {
+  position: absolute;
+  left: 0.6rem;
+  bottom: 0.6rem;
+  z-index: 30;
+  max-width: calc(100% - 1.2rem);
+  padding: 0.3rem 0.6rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.canvas-import-hint:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 .canvas-drop-note {
   position: absolute;

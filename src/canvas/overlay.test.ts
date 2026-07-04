@@ -8,6 +8,7 @@ import {
   bumpRegistry,
   clearTraverserVisits,
   restoreRegistries,
+  authoredBoard,
   hasTraverserVisits,
   overlayIsEmpty,
   removeManualVisit,
@@ -167,6 +168,28 @@ describe('restoreRegistries', () => {
     const o = restoreRegistries(bumpRegistry(new Map<string, TileState>(), 't1', 'c', 2), new Map())
     expect(o.has('t1')).toBe(false)
     expect(overlayIsEmpty(o)).toBe(true)
+  })
+})
+
+describe('authoredBoard', () => {
+  // Regression: exporting after a run must NOT bake the run's registry writes into the recipe. A run's
+  // A/B/C writes have no per-tick stamp (unlike visits), so with a run live they're reverted against the
+  // pre-run snapshot; hand-set registries survive.
+  it('with a run live, strips run visits AND reverts run registry writes, keeping hand-set ones', () => {
+    const authored = bumpRegistry(new Map<string, TileState>(), 't1', 'a', 5) // hand-set A = 5 on t1
+    // A run visits t1 + t2, bumps t1's A to 8, and writes A = 4 on t2 (purely run-derived).
+    let o = addVisits(authored, ['t1', 't2'], 0)
+    o = bumpRegistry(o, 't1', 'a', 3)
+    o = bumpRegistry(o, 't2', 'a', 4)
+    const base = authoredBoard(o, true, authored)
+    expect(base.get('t1')!.a).toBe(5) // hand-set A kept, not the run's 8
+    expect(base.get('t1')!.visits).toEqual([]) // run visit stripped
+    expect(base.has('t2')).toBe(false) // purely run-derived tile -> gone (no baked A = 4)
+  })
+  it('with no run live, keeps the overlay as-is (hand-set registries survive)', () => {
+    const o = bumpRegistry(new Map<string, TileState>(), 't1', 'a', 2)
+    const base = authoredBoard(o, false, new Map()) // authored snapshot unused when not running
+    expect(base.get('t1')!.a).toBe(2)
   })
 })
 

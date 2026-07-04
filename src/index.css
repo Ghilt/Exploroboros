@@ -157,6 +157,20 @@ a {
   color: var(--accent);
 }
 
+/* Offscreen but still in the a11y tree + focusable — e.g. a hidden file input triggered by a button. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* Shared page header (Canvas, Gallery). */
 .page-head {
   margin-bottom: clamp(1.5rem, 4vw, 2.5rem);

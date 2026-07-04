@@ -1,0 +1,72 @@
+/* Confirmation modal — the HelpButton/TilingPicker modal pattern, sized for a short prompt + two buttons. */
+.confirm-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1rem, 4vw, 3rem);
+  background: color-mix(in srgb, #000 55%, transparent);
+  backdrop-filter: blur(2px);
+  animation: confirm-modal-fade 0.15s ease;
+}
+@keyframes confirm-modal-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.confirm-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  width: min(26rem, 100%);
+  padding: 1.1rem 1.2rem 1.2rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--elev-3, 0 24px 60px rgba(0, 0, 0, 0.4));
+  animation: confirm-dialog-pop 0.16s ease;
+}
+.confirm-dialog:focus {
+  outline: none;
+}
+@keyframes confirm-dialog-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+}
+
+.confirm-dialog-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--fg);
+}
+.confirm-dialog-msg {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.3rem;
+}
+/* Tighter than the chunky landing-page buttons — these sit in a compact dialog footer. */
+.confirm-dialog-actions .btn {
+  padding: 0.5rem 1.1rem;
+}
+/* Destructive confirm: the warn role, so "Replace" reads as consequential. */
+.confirm-danger {
+  background: var(--accent-strong);
+}
+.confirm-danger:hover {
+  background: var(--accent-strong);
+  filter: brightness(1.08);
+}

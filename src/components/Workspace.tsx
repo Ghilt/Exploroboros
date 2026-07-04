@@ -15,8 +15,7 @@ import {
   tileState,
   visitCount,
   overlayIsEmpty,
-  clearTraverserVisits,
-  restoreRegistries,
+  authoredBoard,
   hasTraverserVisits,
   MANUAL_STEP,
 } from '../canvas'
@@ -28,6 +27,7 @@ import { TilingPicker } from './TilingPicker'
 import { Panel } from './Panel'
 import { TileMini } from './TileMini'
 import { HelpButton } from './HelpButton'
+import { ConfirmDialog } from './ConfirmDialog'
 import { SegmentedControl } from './SegmentedControl'
 import { SpeedBar, type SpeedStop } from './SpeedBar'
 import { Toggle } from './Toggle'
@@ -178,6 +178,10 @@ export function Workspace() {
   // Drag-and-drop of an exported PNG onto the canvas to reopen it; `dropNote` is a transient result toast.
   const [dropActive, setDropActive] = useState(false)
   const [dropNote, setDropNote] = useState<string | null>(null)
+  // A parsed recipe waiting on the "replace your work?" confirmation (set only when the panes already
+  // hold user-authored data). The hidden file input backs the clickable "import" hint (mobile's path in).
+  const [pendingImport, setPendingImport] = useState<Recipe | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Built here from the picker choice + grid size (CLAUDE.md §4.3). Only the square has a
   // generator today; buildTiling falls back to it for any other id.
@@ -224,10 +228,16 @@ export function Workspace() {
   // Fall back to the first available definition if the chosen one was deleted/renamed.
   const effectiveDef = defs.has(placeDef) ? placeDef : defOptions[0] ?? BUILTIN_WALKER
 
-  // The hand-authored base for an export: manual paint + registries only (traverser visits are
-  // re-derived by re-running on the export grid). Same as what Stop restores. Also the board the
-  // Initial-state guards read.
-  const exportBase = useMemo(() => clearTraverserVisits(overlay), [overlay])
+  // The hand-authored base for an export: manual paint + registries only. A run's visits AND its A/B/C
+  // registry writes are re-derived by re-running on the export grid — NOT baked in. Routed through the
+  // shared authoredBoard so it's exactly what Stop restores: while a run is live (incl. auto-paused,
+  // when the finished board still sits in the overlay) its registry writes are reverted to the pre-run
+  // snapshot (registries have no per-tick stamp to strip, unlike visits); when stopped the overlay is
+  // already the authored board. Also the board the Initial-state guards read.
+  const exportBase = useMemo(
+    () => authoredBoard(overlay, runLive !== null, authoredOverlayRef.current),
+    [overlay, runLive],
+  )
 
   // The Initial-state document, compiled + resolved against the CURRENT tiling into seed walkers +
   // registry/visited set-writes. Grid-relative, so it re-lays as the grid size changes and matches the
@@ -400,8 +410,47 @@ export function Workspace() {
     if (r) loadRecipeRef.current(r)
   }, [])
 
-  // Drag an exported PNG onto the canvas to reopen it (the real reopen-from-PNG path; the gallery uses
-  // in-memory recipes). Reads the embedded recipe, validates/migrates it, and loads it.
+  // Import a saved creation from its exported PNG — the real reopen-from-PNG path (the gallery uses
+  // in-memory recipes). Two entry points share this: dropping an image on the canvas, and the
+  // clickable "import" hint's file picker (the only way in on touch, where you can't drag a file).
+  const showDropNote = (msg: string) => {
+    setDropNote(msg)
+    window.setTimeout(() => setDropNote(null), 4000)
+  }
+  const applyImport = (recipe: Recipe) => {
+    loadRecipeRef.current(recipe)
+    showDropNote(`Opened — ${recipe.tilingId}, grid ${recipe.gridN}`)
+  }
+  // Decode + validate/migrate the recipe embedded in an image, then either load it (blank panes) or
+  // stash it for the "replace your work?" confirmation (panes already hold authored data).
+  const importFromFile = async (file: File) => {
+    let json: string | null
+    try {
+      json = decodeRecipeFromPng(new Uint8Array(await file.arrayBuffer()))
+    } catch {
+      return showDropNote('Could not read that file.')
+    }
+    if (!json) return showDropNote('No Exploroboros data in that image.')
+    const res = parseRecipe(json)
+    if (!res.ok) {
+      return showDropNote(
+        res.reason === 'too-new'
+          ? 'Made with a newer version — update to open.'
+          : 'That image’s data could not be read.',
+      )
+    }
+    // "Is there user-authored work an import would destroy?" — mirrors the Reset button's blank check,
+    // plus the authored predicate/coloring/traverser/initial-state libraries.
+    const hasUserData =
+      predicateStore.predicates.length > 0 ||
+      traverserStore.traversers.length > 0 ||
+      coloringStore.rules.length > 0 ||
+      initialStateStore.text.trim().length > 0 ||
+      seeds.length > 0 ||
+      !overlayIsEmpty(overlay)
+    if (hasUserData) setPendingImport(res.recipe)
+    else applyImport(res.recipe)
+  }
   const onCanvasDragOver = (e: DragEvent<HTMLDivElement>) => {
     if (e.dataTransfer.types.includes('Files')) {
       e.preventDefault()
@@ -411,31 +460,11 @@ export function Workspace() {
   const onCanvasDragLeave = (e: DragEvent<HTMLDivElement>) => {
     if (e.currentTarget === e.target) setDropActive(false)
   }
-  const onCanvasDrop = async (e: DragEvent<HTMLDivElement>) => {
+  const onCanvasDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     setDropActive(false)
     const file = e.dataTransfer.files?.[0]
-    if (!file) return
-    let note: string
-    try {
-      const buf = new Uint8Array(await file.arrayBuffer())
-      const json = decodeRecipeFromPng(buf)
-      if (!json) {
-        note = 'No Exploroboros data in that image.'
-      } else {
-        const res = parseRecipe(json)
-        if (res.ok) {
-          loadRecipeRef.current(res.recipe)
-          note = `Opened — ${res.recipe.tilingId}, grid ${res.recipe.gridN}`
-        } else {
-          note = res.reason === 'too-new' ? 'Made with a newer version — update to open.' : 'That image’s data could not be read.'
-        }
-      }
-    } catch {
-      note = 'Could not read that file.'
-    }
-    setDropNote(note)
-    window.setTimeout(() => setDropNote(null), 4000)
+    if (file) importFromFile(file)
   }
 
   // The clock. A reassigned ref keeps the interval calling the LATEST state each tick (the
@@ -571,7 +600,7 @@ export function Workspace() {
     setRunning(false)
     setRunLive(null)
     setStep(0)
-    setOverlay((prev) => clearTraverserVisits(restoreRegistries(prev, authoredOverlayRef.current)))
+    setOverlay((prev) => authoredBoard(prev, true, authoredOverlayRef.current))
     clearDebug()
   }
   // Full Reset: wipe everything (painting + placed walkers) and end any run.
@@ -855,10 +884,54 @@ export function Workspace() {
             onDownload={(item) => { if (item.full) downloadBlob(item.full, item.filename) }}
             onRemove={removeExport}
           />
-          {dropActive && <div className="canvas-drop-overlay">Drop an exported PNG to open it</div>}
+          {dropActive && (
+            <div className="canvas-drop-overlay">
+              <strong>Drop to import</strong>
+              <span>We’ll read this image’s metadata and rebuild its tiling, rules, and pattern here.</span>
+            </div>
+          )}
           {dropNote && <div className="canvas-drop-note">{dropNote}</div>}
+          {/* Always-present affordance for the hidden reopen-from-PNG feature: drop a saved image here,
+              or click to pick one (the only import path on touch). Shown whenever the live canvas is up
+              (hidden only while the image viewer has replaced it); pins to the very bottom-left, under
+              the tile/FPS HUD. */}
+          {!(viewing && viewing.fullUrl) && (
+            <button
+              type="button"
+              className="canvas-import-hint"
+              onClick={() => fileInputRef.current?.click()}
+              title="Drop an exported PNG here, or click to choose a file"
+            >
+              drag an image here to import
+            </button>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png"
+            className="visually-hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) importFromFile(f)
+              e.target.value = ''
+            }}
+          />
         </div>
       </div>
+      {pendingImport && (
+        <ConfirmDialog
+          title="Replace your current work?"
+          message="Importing this image rebuilds the tiling, walkers, painting, and all predicate, coloring, traverser, and initial-state rules from its metadata. Your current panes will be replaced — this can’t be undone."
+          confirmLabel="Replace"
+          cancelLabel="Keep my work"
+          danger
+          onConfirm={() => {
+            applyImport(pendingImport)
+            setPendingImport(null)
+          }}
+          onCancel={() => setPendingImport(null)}
+        />
+      )}
 
       <Panel title="Inspect" side="right">
         {selected ? (

@@ -22,6 +22,7 @@ export {
   addVisits,
   clearTraverserVisits,
   restoreRegistries,
+  authoredBoard,
   hasTraverserVisits,
 } from './overlay'
 export type { TileClip } from './clipboard'

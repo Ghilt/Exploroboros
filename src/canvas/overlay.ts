@@ -191,6 +191,23 @@ export function restoreRegistries(
   return next
 }
 
+// The authored board — hand-set state only, with any in-progress run's writes undone. This is exactly
+// what Stop restores, and what an EXPORT must capture (so a saved recipe holds only the authored base;
+// the traverser's own writes are re-derived by re-running). Visits carry a per-tick stamp, so
+// clearTraverserVisits drops the run's; A/B/C do NOT, so while a run is live (incl. auto-paused, when
+// the finished board still sits in the overlay) we revert them against the pre-run snapshot too —
+// otherwise a traverser's registry writes bake into the recipe as if hand-painted. With no run live the
+// overlay is already the authored board (Stop reverted it), so `authored` is unused. Keep Stop and the
+// export path both routed through here so they can never drift apart (that drift WAS a bug: an export
+// after a run baked the run's A/B/C into the recipe as spurious hand-set values).
+export function authoredBoard(
+  overlay: ReadonlyMap<string, TileState>,
+  runActive: boolean,
+  authored: ReadonlyMap<string, TileState>,
+): Map<string, TileState> {
+  return clearTraverserVisits(runActive ? restoreRegistries(overlay, authored) : overlay)
+}
+
 // True when any tile carries a traverser-made visit (step >= 0) — drives Stop's enabled state, the
 // way overlayIsEmpty drives the full Reset's.
 export function hasTraverserVisits(overlay: ReadonlyMap<string, TileState>): boolean {

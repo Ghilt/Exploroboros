@@ -22,11 +22,13 @@
   border-radius: 2px;
 }
 
-/* Tile count + FPS readout for the grid-size lag probe — a small HUD in the corner. */
+/* Tile count + FPS readout for the grid-size lag probe — a small HUD in the bottom-left corner.
+   Sits just ABOVE the Workspace's "drag an image here to import" box (which pins to the very bottom),
+   so the two stack in the same corner instead of overlapping. */
 .canvas-hud {
   position: absolute;
   left: 0.5rem;
-  bottom: 0.5rem;
+  bottom: 2.6rem;
   display: flex;
   gap: 0.75rem;
   padding: 0.2rem 0.5rem;
