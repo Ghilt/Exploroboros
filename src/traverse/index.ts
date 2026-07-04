@@ -10,3 +10,7 @@ export type { TickTrace, TraverserTrace, StmtTrace, CandidateTrace, GuardEval, R
 // The traverser-program DSL (parse / serialize / compile / run + AST types).
 export type { Program, Settings, Movement, Stmt, Action } from './lang'
 export { parseProgram, serializeProgram, compileProgram, DEFAULT_SETTINGS } from './lang'
+
+// Walker-free `@`-path resolver (absolute edge chains + `tile N`) — the colorizer uses this so
+// predicates like `[A@e0] > 0` can read a neighbouring tile without a walker.
+export { resolveAbsolutePath } from './lang'

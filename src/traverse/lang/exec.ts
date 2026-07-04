@@ -70,6 +70,31 @@ function segToEdgeRef(seg: PathSeg): EdgeRef | null {
   }
 }
 
+// Walker-FREE resolution of an `@`-path from a starting tile — for the coloring / predicate context,
+// which has no walker (so no heading/movement/destination). Only heading-INDEPENDENT segments resolve:
+// a chain of absolute `edge N` hops (`edge k` always lands on local edge k regardless of heading), or a
+// single terminal `tile N`. Any relative segment (`straight` / `r`/`l` turns / `nearest-unvisited`) or
+// `@target` needs a walker, so the whole path resolves to null — the reading attribute then falls back to
+// its default, exactly as when no resolver is supplied at all. Used by the colorizer's `nodeForPath`.
+export function resolveAbsolutePath(
+  tiling: Tiling,
+  overlay: ReadonlyMap<string, TileState>,
+  startId: string,
+  path: TilePath,
+): TileNode | null {
+  if (path.length === 0) return nodeById(tiling, startId) ?? null
+  const first = path[0]
+  if (first.kind === 'tile') return path.length === 1 ? tiling.nodes[first.index] ?? null : null
+  const refs: EdgeRef[] = []
+  for (const seg of path) {
+    if (seg.kind !== 'edge') return null // relative / target segments need a walker
+    refs.push({ kind: 'edge', index: seg.index })
+  }
+  // heading is irrelevant for absolute `edge` refs; pass 0 / 'relative' as inert placeholders.
+  const hop = resolveChain(tiling, overlay, startId, 0, 'relative', refs)
+  return hop ? nodeById(tiling, hop.tile) ?? null : null
+}
+
 
 // `trace`, when given, is filled with this walker's per-statement decisions (what each guard read,
 // every candidate move and why it survived/was rejected). It's the only debug-mode cost: when

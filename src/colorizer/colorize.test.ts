@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { squareTiling } from '../tiling'
 import { addVisit, type TileState } from '../canvas'
+import { parsePredicate } from '../dsl'
 import { colorize, compileRules } from './colorize'
 import type { ColoringRule, RampAttr, RuleColor } from './types'
 
@@ -88,6 +89,29 @@ describe('colorize — ramps', () => {
     const color = ramp([{ hex: '#000000', at: null }, { hex: '#ffffff', at: null }], 4, 'coordinate', 1)
     const out = run([inline('visited >= 0', color)])
     expect(out.get('sq:1,2')).toBe('rgba(128, 128, 128, 1)')
+  })
+})
+
+describe('colorize — absolute @-paths read a neighbouring tile (walker-free)', () => {
+  const reg = (a: number): TileState => ({ visits: [], a, b: 0, c: 0 })
+
+  it('[A@e1] > 0 colours the tile whose edge-1 (east) neighbour has registry A set', () => {
+    // On the 3x3 grid, sq:1,2 is east (edge 1) of sq:1,1. Give it A = 1.
+    const overlay: Overlay = new Map([['sq:1,2', reg(1)]])
+    const out = run([inline('[A@e1] > 0', flat('#00ff00'))], overlay)
+    expect(out.get('sq:1,1')).toBe('rgba(0, 255, 0, 1)') // east neighbour has A > 0
+    expect(out.has('sq:1,2')).toBe(false) // its own east neighbour is off-grid -> A defaults to 0
+  })
+
+  it('reads a numeric attribute across an edge too (visited@e1)', () => {
+    const overlay = addVisit(new Map(), 'sq:1,2') // east neighbour visited
+    expect(run([inline('visited@e1 > 0', flat('#0000ff'))], overlay).get('sq:1,1')).toBe('rgba(0, 0, 255, 1)')
+  })
+
+  it('relative @-paths still fall back (no walker) — the predicate parses but colours nothing', () => {
+    const overlay = addVisit(new Map(), 'sq:1,2')
+    expect(parsePredicate('visited@straight > 0').ok).toBe(true) // valid syntax...
+    expect(run([inline('visited@straight > 0', flat('#00ff00'))], overlay).size).toBe(0) // ...but unresolvable here
   })
 })
 

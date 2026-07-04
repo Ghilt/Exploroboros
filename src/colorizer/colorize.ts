@@ -6,6 +6,7 @@
 import type { Tiling } from '../tiling'
 import type { TileState } from '../canvas'
 import { attrSpec, evalPredicate, parsePredicate, type EvalContext, type Pred } from '../dsl'
+import { resolveAbsolutePath } from '../traverse'
 import type { ColoringRule, Ramp } from './types'
 
 type Rgb = [number, number, number]
@@ -122,7 +123,16 @@ export function colorize(
   if (compiled.length === 0) return out
 
   for (const node of tiling.nodes) {
-    const ctx: EvalContext = { node, tiling, overlay, indexById }
+    // No walker here, but absolute `@`-paths (`@e0`, edge chains, `@tile N`) don't need one — resolve
+    // them from the tile being coloured so predicates can read a neighbour (e.g. `[A@e0] > 0`). Relative
+    // hops (`@r1`, `@straight`, `@target`, …) resolve to null and fall back to the attribute's default.
+    const ctx: EvalContext = {
+      node,
+      tiling,
+      overlay,
+      indexById,
+      nodeForPath: (path) => resolveAbsolutePath(tiling, overlay, node.id, path),
+    }
     let acc: Accum | null = null
     for (const { pred, rule } of compiled) {
       if (!evalPredicate(pred, ctx)) continue

@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { squareTiling } from '../../tiling'
 import { addVisits, type TileState } from '../../canvas'
 import { parseProgram } from './parse'
-import { runProgram, type WalkerState } from './exec'
+import { runProgram, resolveAbsolutePath, type WalkerState } from './exec'
 import type { Program } from './types'
+import type { TilePath } from '../../dsl'
 
 const tiling = squareTiling(5, 5)
 const indexById = new Map(tiling.nodes.map((n, i) => [n.id, i] as const))
@@ -126,5 +127,42 @@ describe('traverser program execution', () => {
     // if north is ALSO visited the second leaf fails -> no move
     const both = addVisits(eastOnly, ['sq:3,2'], 0)
     expect(run('if visited@straight > 0 and visited@l1 == 0 then move r1', 'sq:2,2', both).branches).toHaveLength(0)
+  })
+})
+
+describe('resolveAbsolutePath — walker-free @-paths (the coloring context)', () => {
+  const empty = new Map<string, TileState>()
+  const idOf = (path: TilePath, start = 'sq:2,2') => resolveAbsolutePath(tiling, empty, start, path)?.id ?? null
+
+  it('resolves an absolute edge hop to the neighbour across that edge (heading-independent)', () => {
+    expect(idOf([{ kind: 'edge', index: 0 }])).toBe('sq:3,2') // north
+    expect(idOf([{ kind: 'edge', index: 1 }])).toBe('sq:2,3') // east
+    expect(idOf([{ kind: 'edge', index: 2 }])).toBe('sq:1,2') // south
+    expect(idOf([{ kind: 'edge', index: 3 }])).toBe('sq:2,1') // west
+  })
+
+  it('chains absolute edge hops (two norths = two tiles up)', () => {
+    expect(idOf([{ kind: 'edge', index: 0 }, { kind: 'edge', index: 0 }])).toBe('sq:4,2')
+  })
+
+  it('resolves a terminal @tile N to the tile with that absolute number', () => {
+    expect(idOf([{ kind: 'tile', index: 7 }])).toBe(tiling.nodes[7].id)
+  })
+
+  it('an empty path is the starting tile', () => {
+    expect(idOf([])).toBe('sq:2,2')
+  })
+
+  it('returns null at a boundary (the edge points off the grid)', () => {
+    expect(resolveAbsolutePath(tiling, empty, 'sq:0,0', [{ kind: 'edge', index: 2 }])).toBeNull() // no south
+  })
+
+  it('returns null for any walker-dependent segment (needs a heading/destination)', () => {
+    expect(idOf([{ kind: 'straight' }])).toBeNull()
+    expect(idOf([{ kind: 'turn', dir: 'r', n: 1 }])).toBeNull()
+    expect(idOf([{ kind: 'unvisited' }])).toBeNull()
+    expect(idOf([{ kind: 'target' }])).toBeNull()
+    // a relative seg ANYWHERE in the chain disqualifies the whole path
+    expect(idOf([{ kind: 'edge', index: 0 }, { kind: 'straight' }])).toBeNull()
   })
 })
