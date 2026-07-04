@@ -354,16 +354,18 @@ if visited@target == 0 then move [r1, l1, straight]    # split, but only onto un
           </li>
         </ul>
         <p>
-          Write with <code>put X = &lt;formula&gt;</code> (set) or <code>increase X [by &lt;formula&gt;]</code>{' '}
-          (add), where <code>X</code> is a single registry letter (<code>A</code>–<code>C</code> or{' '}
-          <code>P</code>–<code>R</code>). <strong>Read</strong> a tile registry in a formula with brackets:{' '}
-          <code>[A]</code> (lowercase <code>[a]</code> too), and <code>[A, B]</code> for the <em>sum</em>.
-          Walker registries read as bare <code>P</code> / <code>Q</code> / <code>R</code>; formulas may also
-          use any tile attribute and the walker's <code>steps</code>, <code>splits</code>, <code>heading</code>.
+          Write with <code>put [A] = &lt;formula&gt;</code> (set) or <code>increase [A] [by &lt;formula&gt;]</code>{' '}
+          (add). Tile registries are <strong>always in brackets</strong> — just like when you read them:{' '}
+          <code>[A]</code> (lowercase <code>[a]</code> too), and <code>[A, B]</code> for the <em>sum</em>{' '}
+          (reading only). Walker registries are bare <code>P</code> / <code>Q</code> / <code>R</code> for both
+          reading and writing. A <code>@</code>-path writes another tile — <code>put [B@e1] = 1</code> sets B on
+          the neighbour across edge 1. Formulas may also use any tile attribute and the walker's{' '}
+          <code>steps</code>, <code>splits</code>, <code>heading</code>.
         </p>
-        <pre className="guide-code">{`put A = visited + 1     # set tile registry A
+        <pre className="guide-code">{`put [A] = visited + 1   # set tile registry A
 increase P              # add 1 to walker registry P
 put Q = [A]             # copy the tile's A into the walker's Q
+put [B@e1] = 1          # set B on the neighbour across edge 1
 if [A, B] > 0 then ...  # true when A + B is positive`}</pre>
         <p className="guide-note">
           If two walkers share a tile in one tick, <code>increase</code> from both <strong>adds up</strong>,
@@ -479,7 +481,7 @@ move [straight, r1, l1]`}</pre>
         <p>Branches forward/left/right, but never onto a visited tile — branches die as they run out of room, leaving a tree.</p>
 
         <h3>Breadcrumb counter</h3>
-        <pre className="guide-code">{`increase A                 # tally how many times this tile is touched
+        <pre className="guide-code">{`increase [A]               # tally how many times this tile is touched
 put P = P + visited        # accumulate a trail length on the walker
 move nearest-unvisited`}</pre>
         <p>Colour the result by driving a ramp from <strong>Registry A</strong> in the Coloring pane.</p>

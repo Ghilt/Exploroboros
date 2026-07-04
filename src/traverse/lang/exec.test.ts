@@ -59,10 +59,25 @@ describe('traverser program execution', () => {
     expect(res.next.p).toBe(1)
   })
 
-  it('writes tile registries and traverser registries', () => {
-    const res = run('put A = 5\nincrease P by 3')
+  it('writes tile registries (bracketed) and walker registries', () => {
+    const res = run('put [A] = 5\nincrease P by 3')
     expect(res.tileWrites).toEqual([{ tile: 'sq:2,2', reg: 'a', op: 'set', value: 5 }])
     expect(res.next.p).toBe(3)
+  })
+
+  it('writes a tile registry on a NEIGHBOUR via an @-path (put [B@straight])', () => {
+    // facing east: @straight = the east tile (sq:2,3), @l1 = north (sq:3,2).
+    const res = run('put [B@straight] = 7\nincrease [C@l1]')
+    expect(res.tileWrites).toEqual([
+      { tile: 'sq:2,3', reg: 'b', op: 'set', value: 7 },
+      { tile: 'sq:3,2', reg: 'c', op: 'add', value: 1 },
+    ])
+  })
+
+  it('a write whose @-path runs off the grid is a no-op', () => {
+    // sq:2,4 is the east boundary column; facing east, @straight points off-grid -> no write.
+    const res = run('put [A@straight] = 1', 'sq:2,4')
+    expect(res.tileWrites).toEqual([])
   })
 
   it('reads a guard against the current tile', () => {

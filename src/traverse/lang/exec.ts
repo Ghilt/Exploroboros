@@ -15,7 +15,7 @@ import { evalNumber, evalPredicate, predReadsTarget, serializePath, type EvalCon
 import type { TileState } from '../../canvas'
 import { resolveChain } from './edges'
 import { serializeChain, serializeGuard, serializeStmt } from './serialize'
-import type { Action, DExpr, EdgeRef, EdgeTarget, Guard, Movement, Program } from './types'
+import type { Action, DExpr, EdgeRef, EdgeTarget, Guard, Movement, Program, WriteTarget } from './types'
 import type { CandidateTrace, GuardEval, ReadTile, RejectReason, TraverserTrace } from '../trace'
 
 export type WalkerState = {
@@ -246,6 +246,20 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
     }
   }
 
+  // Apply a put/increase to its target. A tile registry resolves its `@`-path to a tile (the CURRENT
+  // tile when path-less; an off-grid path is a no-op, mirroring how an off-grid READ falls back to a
+  // default); a walker register mutates the walker's own P/Q/R in place for the rest of the tick.
+  const applyWrite = (target: WriteTarget, op: 'set' | 'add', value: number) => {
+    if (target.kind === 'walker-reg') {
+      if (target.reg === 'P') self.p = op === 'set' ? value : self.p + value
+      else if (target.reg === 'Q') self.q = op === 'set' ? value : self.q + value
+      else self.r = op === 'set' ? value : self.r + value
+      return
+    }
+    const node = resolvePathNode(null, target.path ?? [])
+    if (node) tileWrites.push({ tile: node.id, reg: target.reg, op, value })
+  }
+
   const applyAction = (a: Action, perTarget?: Guard, record?: CandidateTrace[]) => {
     switch (a.kind) {
       case 'move':
@@ -254,24 +268,12 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
       case 'morph':
         addMoves(a.target, perTarget, a.def, record)
         return
-      case 'put': {
-        const v = evalDExpr(a.value)
-        if (a.reg === 'A' || a.reg === 'B' || a.reg === 'C') {
-          tileWrites.push({ tile: walker.tile, reg: a.reg.toLowerCase() as 'a' | 'b' | 'c', op: 'set', value: v })
-        } else if (a.reg === 'P') self.p = v
-        else if (a.reg === 'Q') self.q = v
-        else self.r = v
+      case 'put':
+        applyWrite(a.target, 'set', evalDExpr(a.value))
         return
-      }
-      case 'increase': {
-        const by = evalDExpr(a.by)
-        if (a.reg === 'A' || a.reg === 'B' || a.reg === 'C') {
-          tileWrites.push({ tile: walker.tile, reg: a.reg.toLowerCase() as 'a' | 'b' | 'c', op: 'add', value: by })
-        } else if (a.reg === 'P') self.p += by
-        else if (a.reg === 'Q') self.q += by
-        else self.r += by
+      case 'increase':
+        applyWrite(a.target, 'add', evalDExpr(a.by))
         return
-      }
       case 'update':
         if (a.setting === 'max-split') self.maxSplit = Math.max(0, Math.round(a.value as number))
         else if (a.setting === 'max-steps') self.maxSteps = Math.max(1, Math.round(a.value as number))

@@ -72,11 +72,34 @@ describe('traverser DSL parser', () => {
     })
   })
 
-  it('parses registry writes for tile and traverser registries', () => {
-    const p = ok('put A = visited + 1\nincrease P\nincrease Q by 2')
-    expect(p.statements[0]).toMatchObject({ kind: 'rule', action: { kind: 'put', reg: 'A' } })
-    expect(p.statements[1]).toMatchObject({ action: { kind: 'increase', reg: 'P', by: { expr: { kind: 'number', value: 1 } } } })
-    expect(p.statements[2]).toMatchObject({ action: { kind: 'increase', reg: 'Q' } })
+  it('parses registry writes for tile (bracketed) and walker registries', () => {
+    const p = ok('put [A] = visited + 1\nincrease P\nincrease Q by 2')
+    expect(p.statements[0]).toMatchObject({ kind: 'rule', action: { kind: 'put', target: { kind: 'tile-reg', reg: 'a' } } })
+    expect(p.statements[1]).toMatchObject({
+      action: { kind: 'increase', target: { kind: 'walker-reg', reg: 'P' }, by: { expr: { kind: 'number', value: 1 } } },
+    })
+    expect(p.statements[2]).toMatchObject({ action: { kind: 'increase', target: { kind: 'walker-reg', reg: 'Q' } } })
+  })
+
+  it('parses an @-path on a tile-registry write (put/increase a neighbour)', () => {
+    const p = ok('put [B@e1] = 1\nincrease [C@r1@e5] by 2')
+    expect(p.statements[0]).toMatchObject({
+      action: { kind: 'put', target: { kind: 'tile-reg', reg: 'b', path: [{ kind: 'edge', index: 1 }] } },
+    })
+    expect(p.statements[1]).toMatchObject({
+      action: {
+        kind: 'increase',
+        target: { kind: 'tile-reg', reg: 'c', path: [{ kind: 'turn', dir: 'r', n: 1 }, { kind: 'edge', index: 5 }] },
+      },
+    })
+  })
+
+  it('rejects a bare tile registry in a write, nudging to brackets', () => {
+    const r = parseProgram('put A = 1')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.message).toContain('[A]')
+    // [A, B] is a read-only sum; a write picks one registry
+    expect(parseProgram('put [A, B] = 1').ok).toBe(false)
   })
 
   it('parses morph, update, directives and reset', () => {

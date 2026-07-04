@@ -236,7 +236,7 @@ const SIERPINSKI = def('sierpinski', [
 // xor-diamond — a Rule-90-style XOR cellular automaton on registry [A], authored by the owner and the
 // first gallery piece seeded ENTIRELY by the Initial-state DSL: two walkers sweep toward each other
 // (one up from the bottom row, one down from the top), each setting [A] by the parity of its A-neighbours
-// (`put A = 1` when the XOR is odd), from two seed A-blobs at top/bottom centre — a nested diamond.
+// (`put [A] = 1` when the XOR is odd), from two seed A-blobs at top/bottom centre — a nested diamond.
 // EXTRACTED from the exported PNG's recipe metadata (the real thing, not a hand-port); the export's leaked
 // run-state `paint` (3392 tiles) was stripped so it regenerates from `initialState` alone (grow-check
 // ~54% fill on a 220² grid, natural stop). Not built by the kalleboda `recipe()` helper — it's a square
@@ -255,12 +255,12 @@ const XOR_DIAMOND: Recipe = {
     {
       id: '278cca65-8a1e-4f69-b8c0-493634458085',
       name: 'walker matt',
-      text: '\nif ([A@e2] + [A@e2@e3] + [A@e2@e1] + [A@e2@e2]) % 2 == 1 then put A = 1\nmove straight\n\n',
+      text: '\nif ([A@e2] + [A@e2@e3] + [A@e2@e1] + [A@e2@e2]) % 2 == 1 then put [A] = 1\nmove straight\n\n',
     },
     {
       id: '5beafc54-71c9-4f7b-9308-dc84226a30d9',
       name: 'downer',
-      text: 'if ([A@e0] + [A@e0@e3] + [A@e0@e1] + [A@e0@e0]) % 2 == 1 then put A = 1\nmove straight',
+      text: 'if ([A@e0] + [A@e0@e3] + [A@e0@e1] + [A@e0@e0]) % 2 == 1 then put [A] = 1\nmove straight',
     },
   ],
   coloringRules: [

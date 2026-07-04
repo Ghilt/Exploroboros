@@ -94,10 +94,10 @@ export function TraversersPane({
             <code>move straight -&gt; r1</code> hops twice in one tick.
           </p>
           <p>
-            <strong>Registries:</strong> <code>put A = [A] + 1</code>, <code>increase P</code>. A/B/C live on
-            the tile; P/Q/R travel with the walker. Read a tile registry as <code>[A]</code> (or{' '}
-            <code>[A, B]</code> to sum). Read the value on another tile with a <code>@</code>-path on the
-            attribute: <code>if visited@r1 &gt; 0 then move l1</code>. Reference a saved predicate by name. Also:{' '}
+            <strong>Registries:</strong> <code>put [A] = [A] + 1</code>, <code>increase P</code>. A/B/C live on
+            the tile (always in brackets — <code>[A]</code>, or <code>[A, B]</code> to sum when reading); P/Q/R
+            travel with the walker (bare). Read or write another tile with a <code>@</code>-path:{' '}
+            <code>if visited@r1 &gt; 0 then put [B@e1] = 1</code>. Reference a saved predicate by name. Also:{' '}
             <code>morph &lt;name&gt; …</code>, <code>update max-split 2</code>, and{' '}
             <code>directive if &lt;predicate&gt; always forbid move</code> / <code>reset directives</code>.
           </p>

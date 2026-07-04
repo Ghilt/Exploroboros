@@ -5,7 +5,7 @@
 // shorthands. A predicate/expression reads a NEIGHBOUR tile via an attribute's own `@`-path (src/dsl) —
 // `visited@e1`, `visited@target` — not a guard-level decoration.
 
-import type { Expr, Pred } from '../../dsl'
+import type { Expr, Pred, RegLetter, TilePath } from '../../dsl'
 
 export type Movement = 'relative' | 'absolute'
 
@@ -35,16 +35,22 @@ export type Guard = { pred: GuardPred }
 // A numeric value in a put/increase. Attributes inside carry their own `@`-path if they read another tile.
 export type DExpr = { expr: Expr }
 
-// Tile registries A/B/C (shared with drag-paint) and the traverser's own P/Q/R.
-export type Reg = 'A' | 'B' | 'C' | 'P' | 'Q' | 'R'
+// Where a put/increase writes, mirroring how each registry is READ in a formula:
+//  - tile-reg: a per-tile registry A/B/C, written in brackets `[A]`, with an optional `@`-path so a
+//    walker can write a NEIGHBOUR's registry (`[B@e1]` = the tile across edge 1). Shared with drag-paint.
+//  - walker-reg: the traverser's own P/Q/R — bare, no path (walker state isn't per-tile).
+// An off-grid path makes the write a no-op (see exec.ts), the same way an off-grid read defaults.
+export type WriteTarget =
+  | { kind: 'tile-reg'; reg: RegLetter; path?: TilePath }
+  | { kind: 'walker-reg'; reg: 'P' | 'Q' | 'R' }
 
 export type SettingName = 'max-split' | 'heading' | 'movement' | 'max-steps'
 
 export type Action =
   | { kind: 'move'; target: EdgeTarget }
   | { kind: 'morph'; def: string; target: EdgeTarget }
-  | { kind: 'put'; reg: Reg; value: DExpr }
-  | { kind: 'increase'; reg: Reg; by: DExpr }
+  | { kind: 'put'; target: WriteTarget; value: DExpr }
+  | { kind: 'increase'; target: WriteTarget; by: DExpr }
   | { kind: 'update'; setting: SettingName; value: number | Movement }
 
 export type Rule = { kind: 'rule'; guard?: Guard; action: Action }

@@ -4,7 +4,7 @@
 // (their error spans offset back into the full source), so there is ONE expression/predicate language.
 // Errors come back as a Result with a message + span, never thrown across the boundary.
 
-import { parseExpr, parsePredicate, type Result, type Span } from '../../dsl'
+import { parseExpr, parsePredicate, type Expr, type Result, type Span } from '../../dsl'
 import { lexProgram, type Tok } from './lex'
 import {
   DEFAULT_SETTINGS,
@@ -16,13 +16,13 @@ import {
   type Guard,
   type Movement,
   type Program,
-  type Reg,
   type SettingName,
   type Settings,
   type Stmt,
+  type WriteTarget,
 } from './types'
 
-const REGS = new Set(['A', 'B', 'C', 'P', 'Q', 'R'])
+const WALKER_REGS = new Set(['P', 'Q', 'R'])
 const SETTING_NAMES = new Set<SettingName>(['max-split', 'heading', 'movement', 'max-steps'])
 
 class ParseFail extends Error {
@@ -165,11 +165,37 @@ function parseDExprToEnd(line: Line): DExpr {
   return { expr }
 }
 
-function parseReg(line: Line): Reg {
-  const t = line.word('expected a registry: A, B, C, P, Q or R')
+// The write target of a put/increase (mirrors how each registry is read in a formula):
+//  - `[A]` / `[A@e1]` — a tile registry A/B/C, with an optional `@`-path to write a neighbour. The whole
+//    bracket is sliced and delegated to src/dsl (parseExpr → RegRead), so the `@`-path grammar is shared.
+//  - `P` / `Q` / `R` — the walker's own register, bare.
+// A bare A/B/C is rejected with a nudge to bracket it (registries are always `[…]`).
+function parseWriteTarget(line: Line): WriteTarget {
+  if (line.isSym('[')) {
+    const open = line.pos
+    let close = -1
+    for (let k = open + 1; k < line.toks.length; k += 1) {
+      const t = line.toks[k]
+      if (t.kind === 'sym' && t.text === ']') {
+        close = k
+        break
+      }
+    }
+    if (close === -1) throw new ParseFail('expected "]" to close the registry, e.g. [A]', line.spanHere())
+    const expr = delegate<Expr>(line, open, close + 1, 'expr')
+    const span = { start: line.toks[open].start, end: line.toks[close].end }
+    line.pos = close + 1
+    if (expr.kind !== 'reg') throw new ParseFail('write target must be a registry, e.g. [A]', span)
+    if (expr.regs.length !== 1) throw new ParseFail('write one registry at a time, e.g. [A] (not [A, B])', span)
+    return { kind: 'tile-reg', reg: expr.regs[0], path: expr.path }
+  }
+  const t = line.word('expected a registry: [A], [B], [C], or P, Q, R')
   const up = t.text.toUpperCase()
-  if (!REGS.has(up)) throw new ParseFail(`"${t.text}" is not a registry (A, B, C, P, Q, R)`, { start: t.start, end: t.end })
-  return up as Reg
+  if (WALKER_REGS.has(up)) return { kind: 'walker-reg', reg: up as 'P' | 'Q' | 'R' }
+  if (up === 'A' || up === 'B' || up === 'C') {
+    throw new ParseFail(`write tile registry ${up} in brackets: [${up}]`, { start: t.start, end: t.end })
+  }
+  throw new ParseFail(`"${t.text}" is not a registry — use [A], [B], [C] or P, Q, R`, { start: t.start, end: t.end })
 }
 
 function parseAction(line: Line): Action {
@@ -182,17 +208,17 @@ function parseAction(line: Line): Action {
       return { kind: 'morph', def: def.text, target: parseEdgeTarget(line) }
     }
     case 'put': {
-      const reg = parseReg(line)
+      const target = parseWriteTarget(line)
       line.expectSym('=')
-      return { kind: 'put', reg, value: parseDExprToEnd(line) }
+      return { kind: 'put', target, value: parseDExprToEnd(line) }
     }
     case 'increase': {
-      const reg = parseReg(line)
+      const target = parseWriteTarget(line)
       if (line.isWord('by')) {
         line.pos += 1
-        return { kind: 'increase', reg, by: parseDExprToEnd(line) }
+        return { kind: 'increase', target, by: parseDExprToEnd(line) }
       }
-      return { kind: 'increase', reg, by: { expr: { kind: 'number', value: 1 } } }
+      return { kind: 'increase', target, by: { expr: { kind: 'number', value: 1 } } }
     }
     case 'update': {
       const name = line.word('expected a setting: max-split, heading, movement or max-steps').text

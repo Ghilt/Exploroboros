@@ -1,9 +1,9 @@
 // Program -> canonical text. Round-trips through parseProgram, and serves as the auto-name for a
 // definition (like the predicate DSL). Inner predicates/expressions reuse src/dsl's serializers.
 
-import { serialize as serializePred, serializeExpr } from '../../dsl'
+import { serialize as serializePred, serializeExpr, serializePath } from '../../dsl'
 import { DEFAULT_SETTINGS } from './types'
-import type { Action, Chain, DExpr, EdgeRef, EdgeTarget, Guard, Program, Settings, Stmt } from './types'
+import type { Action, Chain, DExpr, EdgeRef, EdgeTarget, Guard, Program, Settings, Stmt, WriteTarget } from './types'
 
 function edgeRef(r: EdgeRef): string {
   switch (r.kind) {
@@ -41,6 +41,12 @@ function isLiteralOne(d: DExpr): boolean {
   return d.expr.kind === 'number' && d.expr.value === 1
 }
 
+// A put/increase target back to text: `[A]` / `[A@e1]` for a tile registry (matching the read form),
+// bare `P`/`Q`/`R` for a walker register.
+function writeTarget(t: WriteTarget): string {
+  return t.kind === 'walker-reg' ? t.reg : `[${t.reg.toUpperCase()}${serializePath(t.path)}]`
+}
+
 function action(a: Action): string {
   switch (a.kind) {
     case 'move':
@@ -48,9 +54,9 @@ function action(a: Action): string {
     case 'morph':
       return `morph ${a.def} ${target(a.target)}`
     case 'put':
-      return `put ${a.reg} = ${dexpr(a.value)}`
+      return `put ${writeTarget(a.target)} = ${dexpr(a.value)}`
     case 'increase':
-      return isLiteralOne(a.by) ? `increase ${a.reg}` : `increase ${a.reg} by ${dexpr(a.by)}`
+      return isLiteralOne(a.by) ? `increase ${writeTarget(a.target)}` : `increase ${writeTarget(a.target)} by ${dexpr(a.by)}`
     case 'update':
       return `update ${a.setting} ${a.value}`
   }

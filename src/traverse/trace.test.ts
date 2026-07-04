@@ -59,7 +59,7 @@ function dump(overlay: ReadonlyMap<string, TileState>) {
 
 describe('tick trace', () => {
   it('is zero-effect: traced and untraced ticks produce identical traversers + overlay', () => {
-    for (const src of ['move straight', 'max-split = 2\nmove [l1, r1]', 'put A = 5\nincrease P by 3\nmove straight']) {
+    for (const src of ['move straight', 'max-split = 2\nmove [l1, r1]', 'put [A] = 5\nincrease P by 3\nmove straight']) {
       const plain = stepTraversers(state(src))
       const traced = stepTraversersTraced(state(src))
       expect(traced.traversers).toEqual(plain.traversers)
@@ -115,9 +115,9 @@ describe('tick trace', () => {
   })
 
   it('records writes (put / increase) as statement traces', () => {
-    const ss = stmts(state('put A = 5\nincrease P by 3'))
+    const ss = stmts(state('put [A] = 5\nincrease P by 3'))
     expect(ss.map((s) => s.kind)).toEqual(['write', 'write'])
-    expect(ss.map((s) => s.source)).toEqual(['put A = 5', 'increase P by 3'])
+    expect(ss.map((s) => s.source)).toEqual(['put [A] = 5', 'increase P by 3'])
   })
 
   it('coalesces two identical branches and reports the merge', () => {

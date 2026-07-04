@@ -8,7 +8,7 @@ export type {
   GuardPred,
   Guard,
   DExpr,
-  Reg,
+  WriteTarget,
   SettingName,
   Action,
   Rule,
