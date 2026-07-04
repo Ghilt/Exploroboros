@@ -13,7 +13,7 @@ pages_build_output_dir = "dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "exploroboros"
-database_id = "REPLACE_WITH_wrangler_d1_create_id"
+database_id = "60e3b1ed-806c-43c4-8925-27c04b3d459f"
 migrations_dir = "migrations"
 
 [[r2_buckets]]
