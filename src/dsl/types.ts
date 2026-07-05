@@ -78,14 +78,31 @@ export type AttrRef = {
 export type Neg = { kind: 'neg'; operand: Expr } // unary minus
 export type Bin = { kind: 'bin'; op: ArithOp; left: Expr; right: Expr }
 export type Group = { kind: 'group'; inner: Expr } // ( expr )
-// A tile-registry read: `[A]` is registry A, `[A, B]` is the SUM of A and B. Case-insensitive on
-// input; stored lowercase. The dedicated bracket syntax replaces the old `registry-a` attribute name.
+// Reduction modifiers on a list `[…]` used in an INPUT position (a condition, or a put value). Numeric
+// reducers (sum/avg/min/max) reduce the list to ONE number; boolean reducers (all/any/none/xor) apply
+// the comparison to EACH element then combine. Default (no `:modifier`) is `sum`.
+export type Reducer = 'sum' | 'avg' | 'min' | 'max' | 'all' | 'any' | 'none' | 'xor'
+
+// A tile registry A/B/C as a VALUE. Only ever a list element — `[A]`, `[A, B]`, `[visited@e1, A@e3]` —
+// with an optional `@`-path to read it on another tile. Outside a list, registries are written `[A]`
+// (a one-element list). Case-insensitive on input; stored lowercase.
 export type RegLetter = 'a' | 'b' | 'c'
-export type RegRead = { kind: 'reg'; regs: ReadonlyArray<RegLetter>; path?: TilePath }
-export type Expr = NumberLit | AttrRef | Neg | Bin | Group | RegRead
+export type RegTerm = { kind: 'regterm'; reg: RegLetter; path?: TilePath }
+// A list of numeric value terms reduced to ONE number: `[A, B]` (sum is the default), `[a, b]:avg`
+// (rounds up), `[…]:min` / `[…]:max`. An input-position value (a comparison operand or a put RHS). The
+// boolean reducers don't make a number — a boolean-reduced list parses to a ListNumCompare/
+// ListShapeCompare (below) instead, which folds the comparison in.
+export type ListReduce = { kind: 'list'; reducer: 'sum' | 'avg' | 'min' | 'max'; elems: ReadonlyArray<Expr> }
+export type Expr = NumberLit | AttrRef | Neg | Bin | Group | RegTerm | ListReduce
 
 // ---- boolean predicates ----
 export type Compare = { kind: 'compare'; op: CompareOp; left: Expr; right: Expr }
+// A boolean-reduced numeric list: the comparison is applied to EACH element, then combined by the
+// reducer — all = AND, any = OR, none = NOR, xor = exactly one. `[visited@e1, A@e3]:all == 1`.
+export type ListNumCompare = { kind: 'listcmp'; reducer: 'all' | 'any' | 'none' | 'xor'; elems: ReadonlyArray<Expr>; op: CompareOp; right: Expr }
+// The shape flavour: each element is a tile-type read (its `@`-path, or undefined = the current tile),
+// compared to a shape name with == / !=. `[tile-type@r1, tile-type@r2]:xor == octagon`.
+export type ListShapeCompare = { kind: 'shapecmp'; reducer: 'all' | 'any' | 'none' | 'xor'; paths: ReadonlyArray<TilePath | undefined>; op: '==' | '!='; shape: string }
 // Tile type (shape class) is categorical, so it is its own leaf: `tile-type == wedge`. The shape name
 // is a free identifier (not validated at parse time) so a predicate stays portable across tilings; on
 // a tiling lacking that shape it simply matches nothing.
@@ -98,7 +115,7 @@ export type PredGroup = { kind: 'pgroup'; inner: Pred } // ( predicate )
 // enough — no quoting. The parser has no registry, so it can't validate the name eagerly;
 // resolvePredRefs inlines it (or errors on an unknown/cyclic name) before eval ever sees one.
 export type PredRef = { kind: 'predref'; name: string }
-export type Pred = Compare | ShapeTest | Not | BoolBin | PredGroup | PredRef
+export type Pred = Compare | ShapeTest | Not | BoolBin | PredGroup | PredRef | ListNumCompare | ListShapeCompare
 
 // ---- parse results (errors never thrown across the module boundary) ----
 export type Span = { start: number; end: number }

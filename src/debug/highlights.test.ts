@@ -88,7 +88,7 @@ describe('debug highlight mapping', () => {
       destType: 'square',
       heading: 0,
       survived: false,
-      reject: { by: 'per-target', guard: { text: 'visited@r1 > 0', readTiles: [{ id: 'sq:2,4', role: 'read', tileType: 'square', text: '@r1' }], result: true } },
+      reject: { by: 'own-guard', guard: { text: 'visited@r1 > 0', readTiles: [{ id: 'sq:2,4', role: 'read', tileType: 'square', text: '@r1' }], result: true } },
     }
     const g = candidateGroups(header(), c)
     expect(idsFor(g, 'decorator')).toEqual(['sq:2,4'])

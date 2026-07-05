@@ -89,23 +89,29 @@ describe('traverser DSL parser', () => {
 
   it('parses registry writes for tile (bracketed) and walker registries', () => {
     const p = ok('put [A] = visited + 1\nincrease P\nincrease Q by 2')
-    expect(p.statements[0]).toMatchObject({ kind: 'rule', action: { kind: 'put', target: { kind: 'tile-reg', reg: 'a' } } })
+    expect(p.statements[0]).toMatchObject({ kind: 'rule', action: { kind: 'put', target: [{ kind: 'tile-reg', reg: 'a' }] } })
     expect(p.statements[1]).toMatchObject({
-      action: { kind: 'increase', target: { kind: 'walker-reg', reg: 'P' }, by: { expr: { kind: 'number', value: 1 } } },
+      action: { kind: 'increase', target: [{ kind: 'walker-reg', reg: 'P' }], by: { expr: { kind: 'number', value: 1 } } },
     })
-    expect(p.statements[2]).toMatchObject({ action: { kind: 'increase', target: { kind: 'walker-reg', reg: 'Q' } } })
+    expect(p.statements[2]).toMatchObject({ action: { kind: 'increase', target: [{ kind: 'walker-reg', reg: 'Q' }] } })
   })
 
   it('parses an @-path on a tile-registry write (put/increase a neighbour)', () => {
     const p = ok('put [B@e1] = 1\nincrease [C@r1@e5] by 2')
     expect(p.statements[0]).toMatchObject({
-      action: { kind: 'put', target: { kind: 'tile-reg', reg: 'b', path: [{ kind: 'edge', index: 1 }] } },
+      action: { kind: 'put', target: [{ kind: 'tile-reg', reg: 'b', path: [{ kind: 'edge', index: 1 }] }] },
     })
     expect(p.statements[1]).toMatchObject({
       action: {
         kind: 'increase',
-        target: { kind: 'tile-reg', reg: 'c', path: [{ kind: 'turn', dir: 'r', n: 1 }, { kind: 'edge', index: 5 }] },
+        target: [{ kind: 'tile-reg', reg: 'c', path: [{ kind: 'turn', dir: 'r', n: 1 }, { kind: 'edge', index: 5 }] }],
       },
+    })
+  })
+
+  it('writes several tile registries at once: put [A, B]', () => {
+    expect(ok('put [A, B] = 1').statements[0]).toMatchObject({
+      action: { kind: 'put', target: [{ kind: 'tile-reg', reg: 'a' }, { kind: 'tile-reg', reg: 'b' }] },
     })
   })
 
@@ -113,8 +119,29 @@ describe('traverser DSL parser', () => {
     const r = parseProgram('put A = 1')
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.error.message).toContain('[A]')
-    // [A, B] is a read-only sum; a write picks one registry
-    expect(parseProgram('put [A, B] = 1').ok).toBe(false)
+  })
+
+  it('expands an edge/turn range in a move target', () => {
+    expect(ok('move [r1..r4]').statements[0]).toEqual({
+      kind: 'rule',
+      action: {
+        kind: 'move',
+        target: [
+          [{ kind: 'turn', dir: 'r', n: 1 }],
+          [{ kind: 'turn', dir: 'r', n: 2 }],
+          [{ kind: 'turn', dir: 'r', n: 3 }],
+          [{ kind: 'turn', dir: 'r', n: 4 }],
+        ],
+      },
+    })
+    expect(ok('move [e1..3, e6..e8]').statements[0]).toEqual({
+      kind: 'rule',
+      action: { kind: 'move', target: [1, 2, 3, 6, 7, 8].map((index) => [{ kind: 'edge', index }]) },
+    })
+  })
+
+  it('rejects a reducer on a move target (modifiers are for conditions / put values)', () => {
+    expect(parseProgram('move [e1, e2]:all').ok).toBe(false)
   })
 
   it('parses morph, update, directives and reset', () => {

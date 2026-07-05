@@ -26,8 +26,8 @@ describe('compileProgram — named-predicate resolution', () => {
     expect(r.guard.pred.pred).toEqual({
       kind: 'bool',
       op: 'and',
-      left: { kind: 'compare', op: '>', left: { kind: 'reg', regs: ['a'] }, right: { kind: 'number', value: 0 } },
-      right: { kind: 'compare', op: '>', left: { kind: 'reg', regs: ['c'] }, right: { kind: 'number', value: 0 } },
+      left: { kind: 'compare', op: '>', left: { kind: 'list', reducer: 'sum', elems: [{ kind: 'regterm', reg: 'a' }] }, right: { kind: 'number', value: 0 } },
+      right: { kind: 'compare', op: '>', left: { kind: 'list', reducer: 'sum', elems: [{ kind: 'regterm', reg: 'c' }] }, right: { kind: 'number', value: 0 } },
     })
   })
 
@@ -40,7 +40,7 @@ describe('compileProgram — named-predicate resolution', () => {
     expect(r.guard.pred.pred).toEqual({
       kind: 'compare',
       op: '>',
-      left: { kind: 'reg', regs: ['a'] },
+      left: { kind: 'list', reducer: 'sum', elems: [{ kind: 'regterm', reg: 'a' }] },
       right: { kind: 'number', value: 0 },
     })
   })

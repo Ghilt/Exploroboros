@@ -31,7 +31,7 @@ export type GuardEval = {
 // Why a candidate destination did not survive (the engine stops at the first blocker — same order).
 export type RejectReason =
   | { by: 'boundary' } // the edge ref hit a boundary / had no such edge
-  | { by: 'per-target'; guard: GuardEval } // the move rule's own `@ target` guard was false
+  | { by: 'own-guard'; guard: GuardEval } // the move rule's own guard was false (no directive overrode it)
   | { by: 'directive'; index: number; allow: boolean; guard: GuardEval } // an active directive blocked it
   | { by: 'max-split' } // the split cap was already reached
 

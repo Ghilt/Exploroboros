@@ -27,7 +27,7 @@ describe('parse — precedence & structure', () => {
       right: {
         kind: 'compare',
         op: '>',
-        left: { kind: 'reg', regs: ['a'] },
+        left: { kind: 'list', reducer: 'sum', elems: [{ kind: 'regterm', reg: 'a' }] },
         right: { kind: 'number', value: 0 },
       },
     })
@@ -37,13 +37,13 @@ describe('parse — precedence & structure', () => {
     expect(ok('[A] > 0')).toEqual({
       kind: 'compare',
       op: '>',
-      left: { kind: 'reg', regs: ['a'] },
+      left: { kind: 'list', reducer: 'sum', elems: [{ kind: 'regterm', reg: 'a' }] },
       right: { kind: 'number', value: 0 },
     })
     expect(ok('[A, b] == 2')).toEqual({
       kind: 'compare',
       op: '==',
-      left: { kind: 'reg', regs: ['a', 'b'] },
+      left: { kind: 'list', reducer: 'sum', elems: [{ kind: 'regterm', reg: 'a' }, { kind: 'regterm', reg: 'b' }] },
       right: { kind: 'number', value: 2 },
     })
   })
@@ -158,8 +158,8 @@ describe('parse — attribute @-paths', () => {
 
   it('parses a path on a registry read, inside the brackets', () => {
     const p = ok('[A@r1] == 2')
-    if (p.kind !== 'compare' || p.left.kind !== 'reg') throw new Error('expected a reg comparison')
-    expect(p.left).toEqual({ kind: 'reg', regs: ['a'], path: [{ kind: 'turn', dir: 'r', n: 1 }] })
+    if (p.kind !== 'compare' || p.left.kind !== 'list') throw new Error('expected a list comparison')
+    expect(p.left).toEqual({ kind: 'list', reducer: 'sum', elems: [{ kind: 'regterm', reg: 'a', path: [{ kind: 'turn', dir: 'r', n: 1 }] }] })
   })
 
   it('parses a path on a tile-type test', () => {

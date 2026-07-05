@@ -12,12 +12,14 @@ export type Tok = { kind: TokKind; text: string; start: number; end: number }
 const isDigit = (c: string) => c >= '0' && c <= '9'
 const isAlpha = (c: string) => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 
-// Multi-char symbols matched before their single-char prefixes.
-const MULTI = ['->', '==', '!=', '<=', '>=']
+// Multi-char symbols matched before their single-char prefixes. `..` is the edge range in a move target
+// (`e1..3`, `r1..r4`); the number lexer leaves it alone (a `.` not followed by a digit isn't consumed).
+const MULTI = ['->', '==', '!=', '<=', '>=', '..']
 // `{` `}` aren't used by the traverser statement grammar itself — they're here because the
 // Initial-state DSL (src/initstate) reuses this generic tokenizer, and its `auto-place … {…}` spec
-// needs braces. Harmless in a traverser program (they'd just fail in the parser).
-const SINGLE = '(){}[],@=<>+-*/%!'
+// needs braces. Harmless in a traverser program (they'd just fail in the parser). `:` is a list reducer
+// inside a guard/put value — sliced out with that region and re-lexed by src/dsl, so it's just a passthrough sym here.
+const SINGLE = '(){}[],@:=<>+-*/%!'
 
 function fail(message: string, span: Span): Result<Tok[]> {
   return { ok: false, error: { message, span } }

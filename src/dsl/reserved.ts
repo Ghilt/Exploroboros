@@ -25,6 +25,8 @@ const WORDS: ReadonlyArray<string> = [
   'directive', 'if', 'then', 'always', 'forbid', 'allow', 'reset', 'directives',
   // movement values
   'relative', 'absolute',
+  // list reducers (`[a, b]:sum` … `:xor`)
+  'sum', 'avg', 'min', 'max', 'all', 'any', 'none', 'xor',
   // registries (tile A/B/C + walker P/Q/R)
   'a', 'b', 'c', 'p', 'q', 'r',
   // initial-state DSL

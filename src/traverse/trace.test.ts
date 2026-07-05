@@ -89,7 +89,7 @@ describe('tick trace', () => {
     expect(byDest['sq:2,3'].survived).toBe(true) // east, visited
     expect(byDest['sq:3,2'].survived).toBe(true) // north, visited
     expect(byDest['sq:1,2'].survived).toBe(false) // south, unvisited
-    expect(byDest['sq:1,2'].reject?.by).toBe('per-target')
+    expect(byDest['sq:1,2'].reject?.by).toBe('own-guard')
   })
 
   it('a gate-skip reports the guard it failed and the tiles it read (the motivating case)', () => {

@@ -41,10 +41,15 @@ function isLiteralOne(d: DExpr): boolean {
   return d.expr.kind === 'number' && d.expr.value === 1
 }
 
-// A put/increase target back to text: `[A]` / `[A@e1]` for a tile registry (matching the read form),
-// bare `P`/`Q`/`R` for a walker register.
-function writeTarget(t: WriteTarget): string {
-  return t.kind === 'walker-reg' ? t.reg : `[${t.reg.toUpperCase()}${serializePath(t.path)}]`
+// A put/increase target list back to text: a single tile registry `[A]` / `[A@e1]` (matching the read
+// form), several as `[A, B]`, or a bare `P`/`Q`/`R` for a walker register.
+function writeTargets(ts: ReadonlyArray<WriteTarget>): string {
+  if (ts.length === 1) {
+    const t = ts[0]
+    return t.kind === 'walker-reg' ? t.reg : `[${t.reg.toUpperCase()}${serializePath(t.path)}]`
+  }
+  const inner = ts.map((t) => (t.kind === 'walker-reg' ? t.reg : `${t.reg.toUpperCase()}${serializePath(t.path)}`)).join(', ')
+  return `[${inner}]`
 }
 
 function action(a: Action): string {
@@ -54,9 +59,9 @@ function action(a: Action): string {
     case 'morph':
       return `morph ${a.def} ${target(a.target)}`
     case 'put':
-      return `put ${writeTarget(a.target)} = ${dexpr(a.value)}`
+      return `put ${writeTargets(a.target)} = ${dexpr(a.value)}`
     case 'increase':
-      return isLiteralOne(a.by) ? `increase ${writeTarget(a.target)}` : `increase ${writeTarget(a.target)} by ${dexpr(a.by)}`
+      return isLiteralOne(a.by) ? `increase ${writeTargets(a.target)}` : `increase ${writeTargets(a.target)} by ${dexpr(a.by)}`
     case 'update':
       return `update ${a.setting} ${a.value}`
   }

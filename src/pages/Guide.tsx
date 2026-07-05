@@ -44,6 +44,7 @@ export function Guide() {
         <a href="#tiles">Tiles &amp; attributes</a>
         <a href="#moving">Moving</a>
         <a href="#predicates">Predicates</a>
+        <a href="#lists">Lists &amp; reducers</a>
         <a href="#registries">Registries</a>
         <a href="#directives">Directives</a>
         <a href="#morph">Morph &amp; update</a>
@@ -267,6 +268,11 @@ move straight                  # a bare action — always runs`}</pre>
             <strong>Chain</strong> — <code>a -&gt; b -&gt; …</code> hops several edges in a single tick; only
             the <em>final</em> tile is visited (the ones passed through are not).
           </li>
+          <li>
+            <strong>Range</strong> — inside a split, <code>e1..e3</code> (or <code>e1..3</code>) is shorthand for
+            every edge in between; <code>r1..r4</code> works for turns. <code>move [e1..3, e6..e8]</code> branches
+            over six edges. Each still counts against <code>max-split</code>.
+          </li>
         </ul>
         <SplitChainDiagram />
 
@@ -282,6 +288,7 @@ move straight                  # a bare action — always runs`}</pre>
             <tr><td><code>move e0</code></td><td>Cross the top edge, whatever your heading.</td></tr>
             <tr><td><code>move nearest-unvisited</code></td><td>Step to the closest unvisited neighbour — the built-in Walker.</td></tr>
             <tr><td><code>move [straight, r1, l1]</code></td><td>Split: branch forward, right and left at once.</td></tr>
+            <tr><td><code>move [r1..r4]</code></td><td>Split over a range of turns — the same as <code>[r1, r2, r3, r4]</code>.</td></tr>
             <tr><td><code>move straight -&gt; r1</code></td><td>Hop two edges in one tick; only the final tile is visited.</td></tr>
             <tr><td><code>if visited@target == 0 then move [r1, l1, straight]</code></td><td>A <a href="#predicates">predicate</a> gates the move: split three ways, but keep only the branches landing on an <em>unvisited</em> tile (<code>@target</code> on the attribute tests each destination).</td></tr>
           </tbody>
@@ -348,6 +355,52 @@ move straight                  # a bare action — always runs`}</pre>
 if visited@target == 0 then move [r1, l1, straight]    # split, but only onto unvisited tiles`}</pre>
       </section>
 
+      <section className="guide-section" id="lists">
+        <h2>Lists &amp; reducers</h2>
+        <p>
+          A <strong>list</strong> is several things in <code>[…]</code>, comma-separated. <em>Where</em> a list
+          sits decides what it means:
+        </p>
+        <ul>
+          <li>
+            In an <strong>input position</strong> — a condition, or the right of a <code>put … =</code> — a list
+            is an <strong>output list</strong>: its items are <em>values</em>, boiled down to one answer by a{' '}
+            <strong>reducer</strong>. <code>[A, B]</code>, <code>[visited@e1, A@e3]:avg</code>.
+          </li>
+          <li>
+            In an <strong>output position</strong> — a <code>move [...]</code>, or the left of a{' '}
+            <code>put [...]</code> — a list is an <strong>input list</strong>: its items are <em>targets</em>{' '}
+            (edges to branch to, or registries to write). No reducer here.
+          </li>
+        </ul>
+        <p className="guide-subhead"><strong>Reducers</strong> (output lists only)</p>
+        <table className="guide-table">
+          <thead>
+            <tr><th>Reducer</th><th>The one answer it gives</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>:sum</code></td><td>Adds the items. <strong>The default</strong> — <code>[A, B]</code> means <code>[A, B]:sum</code>.</td></tr>
+            <tr><td><code>:avg</code></td><td>The average, <strong>rounded up</strong>.</td></tr>
+            <tr><td><code>:min</code> / <code>:max</code></td><td>The smallest / largest item.</td></tr>
+            <tr><td><code>:all</code></td><td>True when the comparison holds for <strong>every</strong> item.</td></tr>
+            <tr><td><code>:any</code></td><td>True when it holds for <strong>at least one</strong> item.</td></tr>
+            <tr><td><code>:none</code></td><td>True when it holds for <strong>no</strong> item.</td></tr>
+            <tr><td><code>:xor</code></td><td>True when it holds for <strong>exactly one</strong> item.</td></tr>
+          </tbody>
+        </table>
+        <p className="guide-note">
+          <code>sum</code>/<code>avg</code>/<code>min</code>/<code>max</code> make a <em>number</em> (compare it,
+          or store it with <code>put</code>). <code>all</code>/<code>any</code>/<code>none</code>/<code>xor</code>{' '}
+          apply the comparison to <em>each</em> item and make a <em>yes/no</em>, so they always need a comparison —{' '}
+          <code>[…]:any == 1</code>. A list is all one kind: all numbers, or all <code>tile-type</code> (compared to
+          a shape) — you can't mix them, and directions (<code>r1</code>, <code>e2</code>…) aren't values.
+        </p>
+        <pre className="guide-code">{`if [visited@e1, visited@e2, visited@e3]:sum == 1 then move straight   # exactly one of three neighbours visited
+if [A, B, C]:max > 5 then move r1                                     # the biggest registry is over 5
+if [tile-type@r1, tile-type@r2]:any == wedge then move l1             # a wedge on either side
+put [A, B] = [C, visited]:avg                                         # write the average into BOTH A and B`}</pre>
+      </section>
+
       <section className="guide-section" id="registries">
         <h2>Registries</h2>
         <p>
@@ -366,13 +419,15 @@ if visited@target == 0 then move [r1, l1, straight]    # split, but only onto un
         <p>
           Write with <code>put [A] = &lt;formula&gt;</code> (set) or <code>increase [A] [by &lt;formula&gt;]</code>{' '}
           (add). Tile registries are <strong>always in brackets</strong> — just like when you read them:{' '}
-          <code>[A]</code> (lowercase <code>[a]</code> too), and <code>[A, B]</code> for the <em>sum</em>{' '}
-          (reading only). Walker registries are bare <code>P</code> / <code>Q</code> / <code>R</code> for both
-          reading and writing. A <code>@</code>-path writes another tile — <code>put [B@e1] = 1</code> sets B on
-          the neighbour across edge 1. Formulas may also use any tile attribute and the walker's{' '}
+          <code>[A]</code> (lowercase <code>[a]</code> too). <code>[A, B]</code> is the <em>sum</em> when read,
+          and writes <strong>both</strong> (each gets the same value) on the left of a <code>put</code>/
+          <code>increase</code>. Walker registries are bare <code>P</code> / <code>Q</code> / <code>R</code> for
+          both reading and writing. A <code>@</code>-path writes another tile — <code>put [B@e1] = 1</code> sets B
+          on the neighbour across edge 1. Formulas may also use any tile attribute and the walker's{' '}
           <code>steps</code>, <code>splits</code>, <code>heading</code>.
         </p>
         <pre className="guide-code">{`put [A] = visited + 1   # set tile registry A
+put [A, B] = 1          # set both A and B at once
 increase P              # add 1 to walker registry P
 put Q = [A]             # copy the tile's A into the walker's Q
 put [B@e1] = 1          # set B on the neighbour across edge 1
@@ -395,12 +450,16 @@ if [A, B] > 0 then ...  # true when A + B is positive`}</pre>
 directive if <predicate> always allow  move
 reset directives`}</pre>
         <p>
-          Each candidate destination of a following move must pass every active directive: it's taken only if
-          no <code>forbid</code> predicate holds and every <code>allow</code> predicate holds
-          (<strong>forbid wins</strong>). Like any predicate the test reads the tile you're{' '}
-          <strong>on</strong> by default — so to gate by where you're <em>going</em>, add{' '}
-          <code>@target</code> to its attribute(s) (almost always what you want). Directives stack as the program runs
-          top-to-bottom; <code>reset directives</code> clears them so later moves are unconstrained again.
+          For each candidate destination of a following move, the directives decide <strong>in order</strong>:
+          a matching <code>forbid</code> <strong>blocks</strong> it; otherwise a matching <code>allow</code>{' '}
+          <strong>permits</strong> it — overriding even the move's own <code>if</code> guard; otherwise the
+          move's own guard (if any) decides; otherwise it's allowed. So <code>forbid</code> is the gate, and{' '}
+          <code>allow</code> is an <em>exception</em> that lets a move through something a <code>forbid</code> (or
+          the move's own guard) would block. <strong>Forbid beats allow</strong>, and an <code>allow</code> with
+          nothing to override does nothing. Like any predicate the test reads the tile you're{' '}
+          <strong>on</strong> by default — to gate by where you're <em>going</em>, add <code>@target</code>{' '}
+          (almost always what you want). Directives stack as the program runs top-to-bottom;{' '}
+          <code>reset directives</code> clears them so later moves are unconstrained again.
         </p>
         <DirectiveDiagram />
         <pre className="guide-code">{`directive if visited@target > 0 always forbid move     # never step onto a visited tile…
@@ -409,8 +468,10 @@ move [straight, r1, l1, r2, l2]                        # …try these, the direc
 reset directives                                       # from here on, moves are unfiltered again
 move straight`}</pre>
         <p className="guide-note">
-          A directive is just a <code>@target</code> guard made standing: it constrains the{' '}
-          <code>move</code>/<code>morph</code> lines that <em>follow</em> it — never the ones above.
+          To <strong>gate</strong> moves — "only onto unvisited tiles" — <code>forbid</code> the opposite
+          (<code>visited@target &gt; 0</code>). Reach for <code>allow</code> only to carve an exception out of a
+          broader <code>forbid</code>. A directive constrains the <code>move</code>/<code>morph</code> lines that{' '}
+          <em>follow</em> it — never the ones above.
         </p>
       </section>
 

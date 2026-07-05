@@ -51,8 +51,14 @@ function exprText(e: Expr): Texted {
       return { s: String(e.value), prec: 8 }
     case 'attr':
       return { s: attrStr(e), prec: 8 }
-    case 'reg':
-      return { s: `[${e.regs.map((r) => r.toUpperCase()).join(', ')}${pathStr(e.path)}]`, prec: 8 }
+    case 'regterm':
+      return { s: `${e.reg.toUpperCase()}${pathStr(e.path)}`, prec: 8 }
+    case 'list': {
+      // A registry stays bracketless as a term (`A`); the list adds the brackets, so `[A]`/`[A, B]`
+      // round-trip byte-stable. Sum is the default, so it's omitted from the canonical text.
+      const inner = e.elems.map((el) => exprText(el).s).join(', ')
+      return { s: `[${inner}]${e.reducer === 'sum' ? '' : `:${e.reducer}`}`, prec: 8 }
+    }
     case 'neg':
       return { s: `-${wrapExpr(e.operand, 7)}`, prec: 7 }
     case 'bin': {
@@ -87,6 +93,14 @@ function predText(p: Pred): Texted {
       return { s: `${exprText(p.left).s} ${p.op} ${exprText(p.right).s}`, prec: 4 }
     case 'shape':
       return { s: `tile-type${pathStr(p.path)} ${p.op} ${p.shape}`, prec: 4 }
+    case 'listcmp': {
+      const inner = p.elems.map((e) => exprText(e).s).join(', ')
+      return { s: `[${inner}]:${p.reducer} ${p.op} ${exprText(p.right).s}`, prec: 4 }
+    }
+    case 'shapecmp': {
+      const inner = p.paths.map((path) => `tile-type${pathStr(path)}`).join(', ')
+      return { s: `[${inner}]:${p.reducer} ${p.op} ${p.shape}`, prec: 4 }
+    }
     case 'not':
       return { s: `not ${wrapPred(p.operand, 3)}`, prec: 3 }
     case 'bool': {

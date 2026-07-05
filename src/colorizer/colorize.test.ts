@@ -113,6 +113,15 @@ describe('colorize — absolute @-paths read a neighbouring tile (walker-free)',
     expect(run([inline('visited@e1 > 0', flat('#0000ff'))], overlay).get('sq:1,1')).toBe('rgba(0, 0, 255, 1)')
   })
 
+  it('a list reducer works in a coloring predicate (absolute @-paths)', () => {
+    const overlay = addVisit(new Map(), 'sq:1,2') // only the east (edge 1) neighbour is visited; north (e0) not
+    // any of the two neighbours visited → colour; exactly one (xor) is also true here
+    expect(run([inline('[visited@e0, visited@e1]:any == 1', flat('#00ff00'))], overlay).get('sq:1,1')).toBe('rgba(0, 255, 0, 1)')
+    expect(run([inline('[visited@e0, visited@e1]:xor == 1', flat('#ff0000'))], overlay).get('sq:1,1')).toBe('rgba(255, 0, 0, 1)')
+    // both visited required → false (north unvisited)
+    expect(run([inline('[visited@e0, visited@e1]:all == 1', flat('#0000ff'))], overlay).size).toBe(0)
+  })
+
   it('relative @-paths still fall back (no walker) — the predicate parses but colours nothing', () => {
     const overlay = addVisit(new Map(), 'sq:1,2')
     expect(parsePredicate('visited@straight > 0').ok).toBe(true) // valid syntax...

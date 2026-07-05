@@ -78,7 +78,7 @@ describe('initstate parse', () => {
         kind: 'bool',
         op: 'and',
         left: { kind: 'shape', op: '==', shape: 'octagon' },
-        right: { kind: 'compare', op: '>', left: { kind: 'reg', regs: ['a'] }, right: { kind: 'number', value: 0 } },
+        right: { kind: 'compare', op: '>', left: { kind: 'list', reducer: 'sum', elems: [{ kind: 'regterm', reg: 'a' }] }, right: { kind: 'number', value: 0 } },
       },
     })
   })

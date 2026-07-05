@@ -132,15 +132,66 @@ function parseChain(line: Line): Chain {
   return refs
 }
 
+// Expand an inclusive edge/turn range (`e1..e3`, `e1..3`, `r1..r4`) into one single-hop chain per step.
+// Only edges (`eN`) and turns (`rN`/`lN`) range; the end may repeat the prefix or be a bare number but
+// must stay the same kind. Called with the range's start ref already parsed and the `..` about to be read.
+function expandRange(line: Line, first: EdgeRef): Chain[] {
+  if (first.kind !== 'edge' && first.kind !== 'turn') {
+    throw new ParseFail('a range must be over edges or turns, e.g. e1..e3 or r1..r4', line.spanHere())
+  }
+  const start = first.kind === 'edge' ? first.index : first.n
+  let end: number
+  const t = line.peek()
+  if (t && t.kind === 'num') {
+    line.pos += 1
+    end = Number(t.text)
+  } else {
+    const endRef = parseEdgeRef(line)
+    if (endRef.kind !== first.kind || (endRef.kind === 'turn' && first.kind === 'turn' && endRef.dir !== first.dir)) {
+      throw new ParseFail('a range must stay the same kind, e.g. e1..e3 or r1..r4', line.spanHere())
+    }
+    end = endRef.kind === 'edge' ? endRef.index : endRef.n
+  }
+  if (end < start) throw new ParseFail('a range must ascend, e.g. e1..e3', line.spanHere())
+  const chains: Chain[] = []
+  for (let i = start; i <= end; i += 1) {
+    chains.push([first.kind === 'edge' ? { kind: 'edge', index: i } : { kind: 'turn', dir: first.dir, n: i }])
+  }
+  return chains
+}
+
+// One item inside a move `[…]`: a range (`e1..e3`) expanding to several single-hop chains, or a chain
+// (`straight`, `r1 -> e5`). Appends the resulting chain(s) to `out`.
+function parseEdgeItem(line: Line, out: Chain[]): void {
+  const first = parseEdgeRef(line)
+  if (line.isSym('..')) {
+    line.pos += 1
+    out.push(...expandRange(line, first))
+    return
+  }
+  const refs: EdgeRef[] = [first]
+  while (line.isSym('->')) {
+    line.pos += 1
+    refs.push(parseEdgeRef(line))
+  }
+  out.push(refs)
+}
+
 function parseEdgeTarget(line: Line): EdgeTarget {
   if (line.isSym('[')) {
     line.pos += 1
-    const chains: Chain[] = [parseChain(line)]
-    while (line.isSym(',')) {
-      line.pos += 1
-      chains.push(parseChain(line))
+    const chains: Chain[] = []
+    for (;;) {
+      parseEdgeItem(line, chains)
+      if (line.isSym(',')) {
+        line.pos += 1
+        continue
+      }
+      break
     }
     line.expectSym(']')
+    // A move target is an OUTPUT list — no `:reducer` (modifiers are for conditions / put values).
+    if (line.isSym(':')) throw new ParseFail('a move target takes no reducer — modifiers are for conditions', line.spanHere())
     return chains
   }
   return [parseChain(line)]
@@ -167,12 +218,13 @@ function parseDExprToEnd(line: Line): DExpr {
   return { expr }
 }
 
-// The write target of a put/increase (mirrors how each registry is read in a formula):
-//  - `[A]` / `[A@e1]` — a tile registry A/B/C, with an optional `@`-path to write a neighbour. The whole
-//    bracket is sliced and delegated to src/dsl (parseExpr → RegRead), so the `@`-path grammar is shared.
-//  - `P` / `Q` / `R` — the walker's own register, bare.
+// The write target(s) of a put/increase (mirrors how registries are read in a formula):
+//  - `[A]` / `[A@e1]` / `[A, B]` — tile registries A/B/C, each with an optional `@`-path to write a
+//    neighbour. The whole bracket is delegated to src/dsl (parseExpr → a list) so the `@`-path grammar is
+//    shared; `[A, B]` writes BOTH (each gets the same value). A reducer or a non-registry element errors.
+//  - `P` / `Q` / `R` — the walker's own register, bare (single).
 // A bare A/B/C is rejected with a nudge to bracket it (registries are always `[…]`).
-function parseWriteTarget(line: Line): WriteTarget {
+function parseWriteTargets(line: Line): WriteTarget[] {
   if (line.isSym('[')) {
     const open = line.pos
     let close = -1
@@ -187,13 +239,19 @@ function parseWriteTarget(line: Line): WriteTarget {
     const expr = delegate<Expr>(line, open, close + 1, 'expr')
     const span = { start: line.toks[open].start, end: line.toks[close].end }
     line.pos = close + 1
-    if (expr.kind !== 'reg') throw new ParseFail('write target must be a registry, e.g. [A]', span)
-    if (expr.regs.length !== 1) throw new ParseFail('write one registry at a time, e.g. [A] (not [A, B])', span)
-    return { kind: 'tile-reg', reg: expr.regs[0], path: expr.path }
+    if (expr.kind !== 'list' || expr.reducer !== 'sum') {
+      throw new ParseFail('write target must be registries, e.g. [A] or [A, B]', span)
+    }
+    const targets: WriteTarget[] = []
+    for (const el of expr.elems) {
+      if (el.kind !== 'regterm') throw new ParseFail('write targets must be registries A/B/C, e.g. [A, B]', span)
+      targets.push(el.path ? { kind: 'tile-reg', reg: el.reg, path: el.path } : { kind: 'tile-reg', reg: el.reg })
+    }
+    return targets
   }
   const t = line.word('expected a registry: [A], [B], [C], or P, Q, R')
   const up = t.text.toUpperCase()
-  if (WALKER_REGS.has(up)) return { kind: 'walker-reg', reg: up as 'P' | 'Q' | 'R' }
+  if (WALKER_REGS.has(up)) return [{ kind: 'walker-reg', reg: up as 'P' | 'Q' | 'R' }]
   if (up === 'A' || up === 'B' || up === 'C') {
     throw new ParseFail(`write tile registry ${up} in brackets: [${up}]`, { start: t.start, end: t.end })
   }
@@ -210,12 +268,12 @@ function parseAction(line: Line): Action {
       return { kind: 'morph', def: def.text, target: parseEdgeTarget(line) }
     }
     case 'put': {
-      const target = parseWriteTarget(line)
+      const target = parseWriteTargets(line)
       line.expectSym('=')
       return { kind: 'put', target, value: parseDExprToEnd(line) }
     }
     case 'increase': {
-      const target = parseWriteTarget(line)
+      const target = parseWriteTargets(line)
       if (line.isWord('by')) {
         line.pos += 1
         return { kind: 'increase', target, by: parseDExprToEnd(line) }

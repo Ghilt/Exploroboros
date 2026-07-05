@@ -237,7 +237,7 @@ function rejectText(c: CandidateTrace): string {
       return 'boundary'
     case 'max-split':
       return 'split cap'
-    case 'per-target':
+    case 'own-guard':
       return r.guard.text
     case 'directive':
       return `${r.allow ? 'allow' : 'forbid'} ${r.guard.text}`

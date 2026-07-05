@@ -15,8 +15,10 @@ export function exprReadsTarget(expr: Expr): boolean {
       return false
     case 'attr':
       return pathHasTarget(expr.path)
-    case 'reg':
+    case 'regterm':
       return pathHasTarget(expr.path)
+    case 'list':
+      return expr.elems.some(exprReadsTarget)
     case 'neg':
       return exprReadsTarget(expr.operand)
     case 'group':
@@ -34,6 +36,10 @@ export function predReadsTarget(pred: Pred): boolean {
       return exprReadsTarget(pred.left) || exprReadsTarget(pred.right)
     case 'shape':
       return pathHasTarget(pred.path)
+    case 'listcmp':
+      return pred.elems.some(exprReadsTarget) || exprReadsTarget(pred.right)
+    case 'shapecmp':
+      return pred.paths.some(pathHasTarget)
     case 'not':
       return predReadsTarget(pred.operand)
     case 'bool':

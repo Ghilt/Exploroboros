@@ -2,9 +2,41 @@
 // clock, or RNG, so the colorizer can cache results. Division and modulo by zero return 0 (rather
 // than NaN/Infinity) so coloring always has a defined value and comparisons never go undefined.
 
-import type { Expr, Pred, TilePath } from './types'
+import type { CompareOp, Expr, Pred, TilePath } from './types'
 import type { EvalContext } from './attributes'
 import { attrSpec } from './attributes'
+
+function applyCompare(op: CompareOp, a: number, b: number): boolean {
+  switch (op) {
+    case '==':
+      return a === b
+    case '!=':
+      return a !== b
+    case '<':
+      return a < b
+    case '<=':
+      return a <= b
+    case '>':
+      return a > b
+    case '>=':
+      return a >= b
+  }
+}
+
+// Combine per-element booleans by a list's boolean reducer: all = AND, any = OR, none = NOR, xor =
+// EXACTLY one true (not parity).
+function combineList(reducer: 'all' | 'any' | 'none' | 'xor', bools: ReadonlyArray<boolean>): boolean {
+  switch (reducer) {
+    case 'all':
+      return bools.every(Boolean)
+    case 'any':
+      return bools.some(Boolean)
+    case 'none':
+      return !bools.some(Boolean)
+    case 'xor':
+      return bools.filter(Boolean).length === 1
+  }
+}
 
 // Resolve a leaf's optional `@`-path to the context it should be read against. No path → the current
 // context. When the context supplies no resolver, or the path resolves to nothing (a relative hop in a
@@ -31,16 +63,27 @@ export function evalNumber(expr: Expr, ctx: EvalContext): number {
       const v = spec ? spec.compute(sub, expr.index) : undefined
       return v ?? expr.fallback ?? 0
     }
-    case 'reg': {
-      // [A] / [A, B] — sum the named tile registries (reuse the registry-x computes).
+    case 'regterm': {
+      // A registry A/B/C as a value (a list element), optionally read across an `@`-path.
       const sub = ctxForLeaf(ctx, expr.path)
       if (!sub) return 0
-      let sum = 0
-      for (const r of expr.regs) {
-        const spec = attrSpec(`registry-${r}`)
-        sum += spec?.compute(sub) ?? 0
+      const spec = attrSpec(`registry-${expr.reg}`)
+      return spec?.compute(sub) ?? 0
+    }
+    case 'list': {
+      // A numeric list reduced to one number: sum (default) / avg (rounds up) / min / max.
+      const vals = expr.elems.map((e) => evalNumber(e, ctx))
+      if (vals.length === 0) return 0
+      switch (expr.reducer) {
+        case 'sum':
+          return vals.reduce((a, b) => a + b, 0)
+        case 'avg':
+          return Math.ceil(vals.reduce((a, b) => a + b, 0) / vals.length)
+        case 'min':
+          return Math.min(...vals)
+        case 'max':
+          return Math.max(...vals)
       }
-      return sum
     }
     case 'bin': {
       const a = evalNumber(expr.left, ctx)
@@ -81,23 +124,26 @@ export function evalPredicate(pred: Pred, ctx: EvalContext): boolean {
       return pred.op === 'and'
         ? evalPredicate(pred.left, ctx) && evalPredicate(pred.right, ctx)
         : evalPredicate(pred.left, ctx) || evalPredicate(pred.right, ctx)
-    case 'compare': {
-      const a = evalNumber(pred.left, ctx)
+    case 'compare':
+      return applyCompare(pred.op, evalNumber(pred.left, ctx), evalNumber(pred.right, ctx))
+    case 'listcmp': {
+      // Apply the comparison to each element against the (single) right value, then combine.
       const b = evalNumber(pred.right, ctx)
-      switch (pred.op) {
-        case '==':
-          return a === b
-        case '!=':
-          return a !== b
-        case '<':
-          return a < b
-        case '<=':
-          return a <= b
-        case '>':
-          return a > b
-        case '>=':
-          return a >= b
-      }
+      return combineList(
+        pred.reducer,
+        pred.elems.map((e) => applyCompare(pred.op, evalNumber(e, ctx), b)),
+      )
     }
+    case 'shapecmp':
+      // Each element is a tile-type read; a missing/off-grid tile matches nothing (false, either op).
+      return combineList(
+        pred.reducer,
+        pred.paths.map((p) => {
+          const sub = ctxForLeaf(ctx, p)
+          if (!sub) return false
+          const matches = sub.node.shape === pred.shape
+          return pred.op === '==' ? matches : !matches
+        }),
+      )
   }
 }

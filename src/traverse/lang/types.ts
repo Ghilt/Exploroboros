@@ -38,6 +38,7 @@ export type DExpr = { expr: Expr }
 // Where a put/increase writes, mirroring how each registry is READ in a formula:
 //  - tile-reg: a per-tile registry A/B/C, written in brackets `[A]`, with an optional `@`-path so a
 //    walker can write a NEIGHBOUR's registry (`[B@e1]` = the tile across edge 1). Shared with drag-paint.
+//    Several at once with `[A, B]` (each gets the same value).
 //  - walker-reg: the traverser's own P/Q/R — bare, no path (walker state isn't per-tile).
 // An off-grid path makes the write a no-op (see exec.ts), the same way an off-grid read defaults.
 export type WriteTarget =
@@ -49,16 +50,17 @@ export type SettingName = 'max-split' | 'heading' | 'movement' | 'max-steps'
 export type Action =
   | { kind: 'move'; target: EdgeTarget }
   | { kind: 'morph'; def: string; target: EdgeTarget }
-  | { kind: 'put'; target: WriteTarget; value: DExpr }
-  | { kind: 'increase'; target: WriteTarget; by: DExpr }
+  | { kind: 'put'; target: ReadonlyArray<WriteTarget>; value: DExpr }
+  | { kind: 'increase'; target: ReadonlyArray<WriteTarget>; by: DExpr }
   | { kind: 'update'; setting: SettingName; value: number | Movement }
 
 export type Rule = { kind: 'rule'; guard?: Guard; action: Action }
-// A directive gates ALL following move/morph actions: a candidate destination is allowed only if it
-// passes every active `allow` and no active `forbid` (forbid wins). Like any guard the predicate reads
-// the CURRENT tile by default; use `@target` on an attribute (e.g. `visited@target`) to test the
-// destination instead. `reset` clears the active directives. Grammar: `directive if <guard> always
-// forbid|allow move`.
+// A directive gates ALL following move/morph actions. Per candidate destination (order: forbid > allow >
+// the move's own guard): a matching `forbid` blocks it; else a matching `allow` permits it, OVERRIDING
+// the move's own guard; else the move's own guard decides; else it's allowed. So an `allow` with nothing
+// to override is a no-op. Like any guard the predicate reads the CURRENT tile by default; use `@target`
+// on an attribute (e.g. `visited@target`) to test the destination instead. `reset` clears the active
+// directives. Grammar: `directive if <guard> always forbid|allow move`.
 export type Directive = { kind: 'directive'; allow: boolean; guard: Guard }
 export type Reset = { kind: 'reset' }
 export type Stmt = Rule | Directive | Reset

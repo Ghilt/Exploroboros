@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { squareTiling } from '../../tiling'
-import { addVisits, type TileState } from '../../canvas'
+import { addVisits, bumpRegistry, type TileState } from '../../canvas'
 import { parseProgram } from './parse'
 import { runProgram, resolveAbsolutePath, type WalkerState } from './exec'
 import type { Program } from './types'
@@ -65,6 +65,31 @@ describe('traverser program execution', () => {
     expect(res.next.p).toBe(3)
   })
 
+  it('put [A, B] writes both tile registries the same value', () => {
+    const res = run('put [A, B] = 5')
+    expect(res.tileWrites).toEqual([
+      { tile: 'sq:2,2', reg: 'a', op: 'set', value: 5 },
+      { tile: 'sq:2,2', reg: 'b', op: 'set', value: 5 },
+    ])
+  })
+
+  it('put [A, B] = [C, visited]:avg — multi-target LHS + reduced RHS (the headline example)', () => {
+    // C=3 and one visit → avg = ceil((3 + 1) / 2) = 2, written into both A and B.
+    let ov: ReadonlyMap<string, TileState> = addVisits(new Map(), ['sq:2,2'], 0)
+    ov = bumpRegistry(ov, 'sq:2,2', 'c', 3)
+    const res = run('put [A, B] = [C, visited]:avg', 'sq:2,2', ov)
+    expect(res.tileWrites).toEqual([
+      { tile: 'sq:2,2', reg: 'a', op: 'set', value: 2 },
+      { tile: 'sq:2,2', reg: 'b', op: 'set', value: 2 },
+    ])
+  })
+
+  it('expands a move range into candidates (each counts against max-split)', () => {
+    // facing east on a square: r1=south, r2=west, r3=north — all on-grid from the centre sq:2,2.
+    expect(run('max-split = 3\nmove [r1..r3]').branches).toHaveLength(3)
+    expect(run('move [r1..r3]').branches).toHaveLength(1) // default max-split = 1 keeps only the first
+  })
+
   it('writes a tile registry on a NEIGHBOUR via an @-path (put [B@straight])', () => {
     // facing east: @straight = the east tile (sq:2,3), @l1 = north (sq:3,2).
     const res = run('put [B@straight] = 7\nincrease [C@l1]')
@@ -120,6 +145,35 @@ describe('traverser program execution', () => {
     const overlay = addVisits(new Map(), ['sq:2,3'], 0)
     const src = 'directive if visited@target > 0 always allow move\ndirective if visited@target > 0 always forbid move\nmove straight'
     expect(run(src, 'sq:2,2', overlay).branches).toHaveLength(0)
+  })
+
+  it('an allow directive never blocks an unguarded move (the reported bug)', () => {
+    // The allow guard matches only octagon->wedge, which never holds on a square tiling. It has no
+    // gate/forbid to override, so it must be a no-op — every unguarded move still fires. (Old buggy
+    // semantics rejected all three because the allow guard was false.)
+    const src = 'max-split = 4\ndirective if tile-type == octagon and tile-type@target == wedge always allow move\nmove [l1, r1, straight]'
+    expect(run(src).branches.map((b) => b.tile).sort()).toEqual(['sq:1,2', 'sq:2,3', 'sq:3,2'])
+  })
+
+  it('an allow directive overrides a false @target move guard (directives overpower own guards)', () => {
+    // Own guard (visited@target > 0) is false for the unvisited east tile, but the allow directive
+    // matches (east is a square) and forces the move through.
+    const src = 'directive if tile-type@target == square always allow move\nif visited@target > 0 then move straight'
+    expect(run(src).branches.map((b) => b.tile)).toEqual(['sq:2,3'])
+  })
+
+  it('an allow directive overrides a false current-tile move guard too', () => {
+    // Non-@target guard (visited > 0) is false on the unvisited current tile — it would normally skip the
+    // whole rule up front, but an active allow must still be able to resurrect the move.
+    const src = 'directive if tile-type@target == square always allow move\nif visited > 0 then move straight'
+    expect(run(src).branches.map((b) => b.tile)).toEqual(['sq:2,3'])
+  })
+
+  it('falls back to the move’s own guard when no directive matches', () => {
+    // The allow guard is false (no octagons), so it neither blocks nor permits; the own guard (false on
+    // the unvisited current tile) then drops the move.
+    const src = 'directive if tile-type == octagon always allow move\nif visited > 0 then move straight'
+    expect(run(src).branches).toHaveLength(0)
   })
 
   it('morph keeps registers and switches the definition', () => {

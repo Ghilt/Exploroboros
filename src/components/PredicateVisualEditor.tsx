@@ -6,6 +6,7 @@ import {
   parsePredicate,
   replaceAt,
   serialize,
+  serializeExpr,
   serializePath,
   type ArithOp,
   type AttrName,
@@ -165,9 +166,12 @@ export function PredicateVisualEditor({ text, onChange }: { text: string; onChan
         return <NumberChip value={e.value} ariaLabel="number" onCommit={(n) => apply(path, { kind: 'number', value: n })} />
       case 'attr':
         return attrChip(path, e)
-      case 'reg':
-        // A registry read [A] / [A, B] (+ optional @path). Shown as a static chip; edit it in Text mode.
-        return <span className="pv-static pv-reg">[{e.regs.map((r) => r.toUpperCase()).join(', ')}]{serializePath(e.path)}</span>
+      case 'regterm':
+        // A registry as a value (only inside a list). Static; the enclosing list renders the brackets.
+        return <span className="pv-static pv-reg">{e.reg.toUpperCase()}{serializePath(e.path)}</span>
+      case 'list':
+        // A list `[…]` (+ reducer). Shown as a static chip; edit it in Text mode.
+        return <span className="pv-static pv-reg">{serializeExpr(e)}</span>
 
       case 'neg':
         return (
@@ -247,6 +251,10 @@ export function PredicateVisualEditor({ text, onChange }: { text: string; onChan
             <span className="pv-paren">)</span>
           </span>
         )
+      case 'listcmp':
+      case 'shapecmp':
+        // A boolean-reduced list comparison. Shown as a static chip; edit it in Text mode.
+        return <span className="pv-static pv-reg">{serialize(p)}</span>
     }
   }
 

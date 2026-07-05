@@ -15,7 +15,8 @@ export type TokenKind =
   | 'rparen'
   | 'lbracket'
   | 'rbracket'
-  | 'comma' // separates registries in a `[A, B]` read
+  | 'comma' // separates elements in a `[A, B]` list
+  | 'colon' // : — a list reducer, `[a, b]:sum`
   | 'at' // @ — starts an attribute's edge-hop path (`visited@e1`)
   | 'op' // + - * / %
   | 'cmp' // == != < <= > >= (and bare =, normalized to == by the parser)
@@ -104,6 +105,11 @@ export function lex(src: string): Result<Token[]> {
     }
     if (c === '@') {
       tokens.push({ kind: 'at', text: c, span: { start, end: i + 1 } })
+      i += 1
+      continue
+    }
+    if (c === ':') {
+      tokens.push({ kind: 'colon', text: c, span: { start, end: i + 1 } })
       i += 1
       continue
     }

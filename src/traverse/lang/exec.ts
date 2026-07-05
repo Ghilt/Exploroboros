@@ -195,34 +195,38 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
     return ctx ? evalNumber(d.expr, ctx) : 0
   }
 
-  // A candidate destination passes if it clears the rule's own per-target guard (if any) and every
-  // active directive: each `allow` guard true AND no `forbid` guard true (forbid wins). Each guard's
-  // predicate reads the current tile unless it carries `@ target`, which points it at `dest`.
-  const moveAllowed = (dest: string, perTarget?: Guard): boolean => {
-    if (perTarget && !evalGuard(perTarget, dest)) return false
-    for (const d of directives) {
-      const g = evalGuard(d.guard, dest)
-      if (d.allow ? !g : g) return false
-    }
+  // Decide whether a candidate destination is allowed. Order (owner's spec): any active `forbid`
+  // directive whose guard matches BLOCKS (forbid is strongest); else any active `allow` directive whose
+  // guard matches ALLOWS, overriding the move's own guard; else the move's own guard (if any) decides;
+  // else allow. So directives, when they match, overpower the move's own guard — an `allow` with nothing
+  // to override is a no-op. Each guard reads the current tile unless it carries `@target` (→ `dest`).
+  const moveAllowed = (dest: string, ownGuard?: Guard): boolean => {
+    for (const d of directives) if (!d.allow && evalGuard(d.guard, dest)) return false
+    for (const d of directives) if (d.allow && evalGuard(d.guard, dest)) return true
+    if (ownGuard) return evalGuard(ownGuard, dest)
     return true
   }
-  // The same verdict as moveAllowed, but reporting the FIRST blocker (same evaluation order) for the
-  // trace. Used only when recording.
-  const moveAllowedTraced = (dest: string, perTarget?: Guard): { ok: boolean; reject?: RejectReason } => {
-    if (perTarget) {
-      const ev = evalGuardTraced(perTarget, dest)
-      if (!ev.result) return { ok: false, reject: { by: 'per-target', guard: guardEval(perTarget, ev) } }
+  // The same verdict as moveAllowed, reporting the FIRST blocker (same order) for the trace. An `allow`
+  // match short-circuits to survived; only a `forbid` match or a false own guard rejects.
+  const moveAllowedTraced = (dest: string, ownGuard?: Guard): { ok: boolean; reject?: RejectReason } => {
+    for (let i = 0; i < directives.length; i += 1) {
+      const d = directives[i]
+      if (d.allow) continue
+      const ev = evalGuardTraced(d.guard, dest)
+      if (ev.result) return { ok: false, reject: { by: 'directive', index: i, allow: false, guard: guardEval(d.guard, ev) } }
     }
     for (let i = 0; i < directives.length; i += 1) {
       const d = directives[i]
-      const ev = evalGuardTraced(d.guard, dest)
-      if (d.allow ? !ev.result : ev.result)
-        return { ok: false, reject: { by: 'directive', index: i, allow: d.allow, guard: guardEval(d.guard, ev) } }
+      if (d.allow && evalGuardTraced(d.guard, dest).result) return { ok: true }
+    }
+    if (ownGuard) {
+      const ev = evalGuardTraced(ownGuard, dest)
+      if (!ev.result) return { ok: false, reject: { by: 'own-guard', guard: guardEval(ownGuard, ev) } }
     }
     return { ok: true }
   }
 
-  const addMoves = (target: EdgeTarget, perTarget?: Guard, morphDef?: string, record?: CandidateTrace[]) => {
+  const addMoves = (target: EdgeTarget, ownGuard?: Guard, morphDef?: string, record?: CandidateTrace[]) => {
     for (const chain of target) {
       if (branches.length >= self.maxSplit) {
         if (!record) break // fast path: cap reached, nothing more can be added
@@ -236,10 +240,10 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
         continue
       }
       if (record) {
-        const v = moveAllowedTraced(hop.tile, perTarget)
+        const v = moveAllowedTraced(hop.tile, ownGuard)
         record.push({ chainText: serializeChain(chain), dest: hop.tile, destType: nodeById(tiling, hop.tile)?.shape ?? null, heading: hop.heading, survived: v.ok, reject: v.reject })
         if (!v.ok) continue
-      } else if (!moveAllowed(hop.tile, perTarget)) {
+      } else if (!moveAllowed(hop.tile, ownGuard)) {
         continue
       }
       branches.push({ tile: hop.tile, heading: hop.heading, morphDef })
@@ -260,20 +264,24 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
     if (node) tileWrites.push({ tile: node.id, reg: target.reg, op, value })
   }
 
-  const applyAction = (a: Action, perTarget?: Guard, record?: CandidateTrace[]) => {
+  const applyAction = (a: Action, ownGuard?: Guard, record?: CandidateTrace[]) => {
     switch (a.kind) {
       case 'move':
-        addMoves(a.target, perTarget, undefined, record)
+        addMoves(a.target, ownGuard, undefined, record)
         return
       case 'morph':
-        addMoves(a.target, perTarget, a.def, record)
+        addMoves(a.target, ownGuard, a.def, record)
         return
-      case 'put':
-        applyWrite(a.target, 'set', evalDExpr(a.value))
+      case 'put': {
+        const value = evalDExpr(a.value)
+        for (const t of a.target) applyWrite(t, 'set', value)
         return
-      case 'increase':
-        applyWrite(a.target, 'add', evalDExpr(a.by))
+      }
+      case 'increase': {
+        const by = evalDExpr(a.by)
+        for (const t of a.target) applyWrite(t, 'add', by)
         return
+      }
       case 'update':
         if (a.setting === 'max-split') self.maxSplit = Math.max(0, Math.round(a.value as number))
         else if (a.setting === 'max-steps') self.maxSteps = Math.max(1, Math.round(a.value as number))
@@ -294,22 +302,28 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
       if (trace) trace.statements.push({ kind: 'directive', source: serializeStmt(stmt), allow: stmt.allow })
       continue
     }
-    // A guard that reads `@target` on a move/morph filters each candidate destination (like an inline
-    // directive); any other guard gates the whole statement up front against the current tile.
     const g = stmt.guard
     const isMove = stmt.action.kind === 'move' || stmt.action.kind === 'morph'
-    const perTarget = isMove && !!g && g.pred.kind === 'inline' && predReadsTarget(g.pred.pred)
-    if (g && !perTarget) {
-      const ev = trace ? evalGuardTraced(g, null) : null
-      const ok = ev ? ev.result : evalGuard(g, null)
-      if (!ok) {
-        if (trace && ev) trace.statements.push({ kind: 'gate-skip', source: serializeStmt(stmt), guard: guardEval(g, ev) })
-        continue
-      }
-    }
     if (isMove) {
+      // The move's own guard is decided PER CANDIDATE inside moveAllowed, so an active `allow` directive
+      // can override it (forbid > allow > own guard). Fast path: a guard that neither reads `@target` nor
+      // could be overridden by an active `allow` is constant across candidates — decide it once, skipping
+      // the whole rule if false (or dropping it, so nothing re-checks it per candidate, if true).
+      const inline = g && g.pred.kind === 'inline' ? g.pred.pred : null
+      const readsTarget = !!inline && predReadsTarget(inline)
+      const hasAllow = directives.some((d) => d.allow)
+      let ownGuard: Guard | undefined = g ?? undefined
+      if (g && !readsTarget && !hasAllow) {
+        const ev = trace ? evalGuardTraced(g, null) : null
+        const ok = ev ? ev.result : evalGuard(g, null)
+        if (!ok) {
+          if (trace && ev) trace.statements.push({ kind: 'gate-skip', source: serializeStmt(stmt), guard: guardEval(g, ev) })
+          continue
+        }
+        ownGuard = undefined
+      }
       const candidates: CandidateTrace[] | undefined = trace ? [] : undefined
-      applyAction(stmt.action, perTarget ? g : undefined, candidates)
+      applyAction(stmt.action, ownGuard, candidates)
       if (trace)
         trace.statements.push({
           kind: 'move',
@@ -318,6 +332,15 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
           candidates: candidates ?? [],
         })
     } else {
+      // Non-move rules (put/increase/update): directives don't apply; a guard gates the action up front.
+      if (g) {
+        const ev = trace ? evalGuardTraced(g, null) : null
+        const ok = ev ? ev.result : evalGuard(g, null)
+        if (!ok) {
+          if (trace && ev) trace.statements.push({ kind: 'gate-skip', source: serializeStmt(stmt), guard: guardEval(g, ev) })
+          continue
+        }
+      }
       applyAction(stmt.action)
       if (trace) trace.statements.push({ kind: stmt.action.kind === 'update' ? 'update' : 'write', source: serializeStmt(stmt) })
     }

@@ -80,6 +80,13 @@ export function PredicatePane({
             with <code>rotation</code>. Attributes that might not exist for a tile (a specific step, an
             out-of-range coordinate) need a <code>default</code>, e.g. <code>step[3] default 0</code>.
           </p>
+          <p>
+            Read a <strong>neighbour</strong> with an <code>@</code>-path — <code>visited@e1</code>,{' '}
+            <code>[A@e0]</code>, <code>tile-type@e2</code> (absolute <code>eN</code> / <code>@tile N</code> hops).
+            A <strong>list</strong> <code>[…]</code> reduces several values to one: <code>[A, B]</code> (sum),{' '}
+            <code>[A, B, C]:max</code>, or test each with <code>:all</code> / <code>:any</code> /{' '}
+            <code>:none</code> / <code>:xor</code>, e.g. <code>[visited@e1, visited@e2]:any == 0</code>.
+          </p>
         </HelpButton>
       </span>
       <p className="pane-lead">Predicates ask a yes/no question about a tile.</p>

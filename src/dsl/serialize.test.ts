@@ -34,6 +34,8 @@ function nPred(p: Pred): Pred {
       return { kind: 'compare', op: p.op, left: nExpr(p.left), right: nExpr(p.right) }
     case 'shape':
     case 'predref':
+    case 'listcmp':
+    case 'shapecmp':
       return p
   }
 }

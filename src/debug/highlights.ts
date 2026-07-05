@@ -62,6 +62,6 @@ function decoratorTiles(c: CandidateTrace): Array<string | null> {
   return g.readTiles.filter((r) => r.id && r.id !== c.dest).map((r) => r.id)
 }
 function guardOf(c: CandidateTrace): GuardEval | null {
-  if (c.reject && (c.reject.by === 'per-target' || c.reject.by === 'directive')) return c.reject.guard
+  if (c.reject && (c.reject.by === 'own-guard' || c.reject.by === 'directive')) return c.reject.guard
   return null
 }

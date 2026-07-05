@@ -90,16 +90,25 @@ export function TraversersPane({
             <strong>Move</strong> by edge: <code>move straight</code>, <code>move r1</code> (weak right),{' '}
             <code>move l2</code> (stronger left), <code>move e3</code> (the numbered edge), or{' '}
             <code>move nearest-unvisited</code> (step to the closest-by-heading unvisited neighbour — the
-            built-in walker). <code>move [r1, l1]</code> splits (capped by <code>max-split</code>);{' '}
-            <code>move straight -&gt; r1</code> hops twice in one tick.
+            built-in walker). <code>move [r1, l1]</code> splits (capped by <code>max-split</code>); a range{' '}
+            <code>move [e1..e3]</code> splits over every edge between; <code>move straight -&gt; r1</code> hops
+            twice in one tick.
           </p>
           <p>
             <strong>Registries:</strong> <code>put [A] = [A] + 1</code>, <code>increase P</code>. A/B/C live on
             the tile (always in brackets — <code>[A]</code>, or <code>[A, B]</code> to sum when reading); P/Q/R
             travel with the walker (bare). Read or write another tile with a <code>@</code>-path:{' '}
-            <code>if visited@r1 &gt; 0 then put [B@e1] = 1</code>. Reference a saved predicate by name. Also:{' '}
+            <code>if visited@r1 &gt; 0 then put [B@e1] = 1</code>. Write several at once with{' '}
+            <code>put [A, B] = …</code>. Reference a saved predicate by name. Also:{' '}
             <code>morph &lt;name&gt; …</code>, <code>update max-split 2</code>, and{' '}
-            <code>directive if &lt;predicate&gt; always forbid move</code> / <code>reset directives</code>.
+            <code>directive if &lt;predicate&gt; always forbid move</code> / <code>reset directives</code>{' '}
+            (forbid gates; allow is an exception over a forbid).
+          </p>
+          <p>
+            <strong>Lists</strong> — <code>[…]</code> in a condition reduces its items to one value:{' '}
+            <code>[A, B]</code> (sum, the default), <code>:avg</code> / <code>:min</code> / <code>:max</code>, or
+            apply the comparison to each with <code>:all</code> / <code>:any</code> / <code>:none</code> /{' '}
+            <code>:xor</code> — <code>if [visited@e1, visited@e2]:xor == 1 then …</code>.
           </p>
           <p>
             Each tick reads the board <strong>as it was at the start of the tick</strong> (a walker doesn’t

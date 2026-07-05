@@ -9,6 +9,15 @@ import { lex, type Token } from './lex'
 import { attrSpec } from './attributes'
 
 const KEYWORDS = new Set(['and', 'or', 'not', 'of', 'tile', 'default'])
+const NUM_REDUCERS = new Set(['sum', 'avg', 'min', 'max'])
+const BOOL_REDUCERS = new Set(['all', 'any', 'none', 'xor'])
+const isReducer = (w: string): boolean => NUM_REDUCERS.has(w) || BOOL_REDUCERS.has(w)
+
+// A parsed `[…]` list, classified numeric vs shape (they can't mix) with its optional reducer word.
+// Shared by parseListExpr (a value) and parseListCompare (a boolean comparison).
+type ParsedList =
+  | { kind: 'num'; elems: Expr[]; reducer?: string }
+  | { kind: 'shape'; paths: (TilePath | undefined)[]; reducer?: string }
 
 class ParseFail extends Error {
   readonly span: Span
@@ -79,6 +88,7 @@ class Parser {
       const t = this.next()
       return { kind: 'predref', name: t.text }
     }
+    if (this.peek().kind === 'lbracket' && this.boolListAhead()) return this.parseListCompare()
     const left = this.parseExpr()
     const t = this.peek()
     if (t.kind !== 'cmp') {
@@ -199,7 +209,7 @@ class Parser {
       return { kind: 'group', inner }
     }
     if (t.kind === 'lbracket') {
-      return this.parseRegRead()
+      return this.parseListExpr()
     }
     if (t.kind === 'ident') {
       return this.parseAttribute()
@@ -207,28 +217,143 @@ class Parser {
     throw new ParseFail('expected a number, attribute, "[A]", or "("', t.span)
   }
 
-  // A tile-registry read: [A], [a], or [A, B] (the sum). Replaces the old registry-a attribute name.
-  private parseRegRead(): Expr {
-    const open = this.next() // '['
-    const regs: RegLetter[] = []
-    for (;;) {
-      const tok = this.peek()
-      if (tok.kind !== 'ident' || !/^[abc]$/i.test(tok.text)) {
-        throw new ParseFail('expected a registry letter A, B or C, e.g. [A] or [A, B]', tok.span)
+  // A `[…]` list used as a VALUE (an atom): numeric elements reduced by sum (default) / avg / min / max.
+  // `[A]` and `[A, B]` are the common cases (registry reads / their sum). A boolean reducer or shape
+  // elements here are an error — those only make sense compared, and are caught at the comparison level
+  // (boolListAhead / parseListCompare).
+  private parseListExpr(): Expr {
+    const span = this.peek().span
+    const list = this.parseListValue()
+    if (list.kind === 'shape') {
+      throw new ParseFail('tile-type values need a boolean reducer + comparison, e.g. [tile-type@r1, tile-type@r2]:any == square', span)
+    }
+    if (list.reducer && BOOL_REDUCERS.has(list.reducer)) {
+      throw new ParseFail(`"${list.reducer}" needs a comparison and must be on the left, e.g. [a, b]:${list.reducer} == 1`, span)
+    }
+    return { kind: 'list', reducer: (list.reducer as 'sum' | 'avg' | 'min' | 'max' | undefined) ?? 'sum', elems: list.elems }
+  }
+
+  // A boolean-reduced list comparison: `[…]:all|any|none|xor <cmp> <right>`. Reached from parseComparison
+  // only once boolListAhead has confirmed the trailing boolean reducer.
+  private parseListCompare(): Pred {
+    const span = this.peek().span
+    const list = this.parseListValue()
+    const reducer = list.reducer
+    if (!reducer || !BOOL_REDUCERS.has(reducer)) throw new ParseFail('expected a boolean reducer (all, any, none, xor)', span)
+    const red = reducer as 'all' | 'any' | 'none' | 'xor'
+    const t = this.peek()
+    if (t.kind !== 'cmp') throw new ParseFail('expected a comparison after the list, e.g. [a, b]:any == 1', t.span)
+    this.next()
+    const op: CompareOp = t.text === '=' ? '==' : (t.text as CompareOp)
+    if (list.kind === 'shape') {
+      if (op !== '==' && op !== '!=') throw new ParseFail('tile-type values compare only with == or !=', t.span)
+      const nameTok = this.peek()
+      if (nameTok.kind !== 'ident' || KEYWORDS.has(nameTok.text)) {
+        throw new ParseFail('expected a shape name, e.g. == square', nameTok.span)
       }
       this.next()
-      regs.push(tok.text.toLowerCase() as RegLetter)
+      return { kind: 'shapecmp', reducer: red, paths: list.paths, op, shape: nameTok.text }
+    }
+    const right = this.parseExpr()
+    return { kind: 'listcmp', reducer: red, elems: list.elems, op, right }
+  }
+
+  // Parse `[ elem, elem, … ]` + an optional `:reducer`, classifying the list numeric vs shape (they
+  // can't mix). Shared by the value and comparison forms above.
+  private parseListValue(): ParsedList {
+    this.expect('lbracket', 'expected "["')
+    const elems: Expr[] = []
+    const paths: (TilePath | undefined)[] = []
+    let kind: 'num' | 'shape' | null = null
+    for (;;) {
+      const el = this.parseListElem()
+      if (el.shape) {
+        if (kind === 'num') throw new ParseFail("a list can't mix tile-type with numeric values", el.span)
+        kind = 'shape'
+        paths.push(el.path)
+      } else {
+        if (kind === 'shape') throw new ParseFail("a list can't mix tile-type with numeric values", el.span)
+        kind = 'num'
+        elems.push(el.expr)
+      }
       if (this.peek().kind === 'comma') {
         this.next()
         continue
       }
       break
     }
-    // optional @path inside the brackets, after the letters, applying to the whole read: `[A@e1]`.
-    const path = this.peek().kind === 'at' ? this.parsePath() : undefined
-    this.expect('rbracket', 'expected "]"')
-    if (regs.length === 0) throw new ParseFail('a registry read needs at least one letter, e.g. [A]', open.span)
-    return path ? { kind: 'reg', regs, path } : { kind: 'reg', regs }
+    this.expect('rbracket', 'expected "," or "]" in the list')
+    let reducer: string | undefined
+    if (this.peek().kind === 'colon') {
+      this.next()
+      const w = this.peek()
+      if (w.kind !== 'ident' || !isReducer(w.text)) {
+        throw new ParseFail("expected a reducer after ':' — sum, avg, min, max, all, any, none or xor", w.span)
+      }
+      this.next()
+      reducer = w.text
+    }
+    return kind === 'shape' ? { kind: 'shape', paths, reducer } : { kind: 'num', elems, reducer }
+  }
+
+  // One list element: `tile-type[@path]` (a shape value), a registry `A`/`B`/`C[@path]`, a number, or any
+  // other attribute. A bare direction (`straight`, `r1`, `e2`…) is not a value — nudge to `visited@…`.
+  private parseListElem(): { shape: true; path?: TilePath; span: Span } | { shape: false; expr: Expr; span: Span } {
+    const t = this.peek()
+    const span = t.span
+    if (t.kind === 'ident' && t.text === 'tile-type') {
+      this.next()
+      const path = this.peek().kind === 'at' ? this.parsePath() : undefined
+      return { shape: true, path, span }
+    }
+    if (t.kind === 'ident' && /^[abc]$/i.test(t.text)) {
+      this.next()
+      const path = this.peek().kind === 'at' ? this.parsePath() : undefined
+      const reg = t.text.toLowerCase() as RegLetter
+      return { shape: false, expr: path ? { kind: 'regterm', reg, path } : { kind: 'regterm', reg }, span }
+    }
+    // A bare direction is not a value: `straight` / `s` / `nearest-unvisited`, or a letter e/r/l followed
+    // by a number (the lexer splits `r1` into `r` + `1`). Nudge to reading an attribute across it.
+    if (t.kind === 'ident') {
+      if (t.text === 'straight' || t.text === 's' || t.text === 'nearest-unvisited' || /^[erl][0-9]+$/.test(t.text)) {
+        throw new ParseFail(`"${t.text}" is a direction, not a value — read an attribute across it, e.g. visited@${t.text}`, span)
+      }
+      // Defensive: also catch a letter + a separate number token, should the lexer ever split `r1`.
+      const next = this.toks[this.pos + 1]
+      if (/^[erl]$/.test(t.text) && next && next.kind === 'number') {
+        throw new ParseFail(`"${t.text}${next.text}" is a direction, not a value — read an attribute across it, e.g. visited@${t.text}${next.text}`, span)
+      }
+    }
+    if (t.kind === 'number') {
+      this.next()
+      return { shape: false, expr: { kind: 'number', value: Number(t.text) }, span }
+    }
+    if (t.kind === 'ident') {
+      return { shape: false, expr: this.parseAttribute(), span }
+    }
+    throw new ParseFail('expected a list element: an attribute, a registry (A/B/C), a number, or tile-type', span)
+  }
+
+  // Lookahead from the current `[`: is it a list with a trailing BOOLEAN reducer (`…]:all|any|none|xor`)?
+  // Those become a ListCompare (a Pred); numeric reducers / no reducer stay a value (parseAtom). Tracks
+  // bracket depth so an inner index like `step[3]` inside the list doesn't fool the scan.
+  private boolListAhead(): boolean {
+    let depth = 0
+    let k = this.pos
+    for (; k < this.toks.length; k += 1) {
+      const kind = this.toks[k].kind
+      if (kind === 'lbracket') depth += 1
+      else if (kind === 'rbracket') {
+        depth -= 1
+        if (depth === 0) {
+          k += 1
+          break
+        }
+      } else if (kind === 'eof') return false
+    }
+    if (this.toks[k]?.kind !== 'colon') return false
+    const w = this.toks[k + 1]
+    return !!w && w.kind === 'ident' && BOOL_REDUCERS.has(w.text)
   }
   private parseAttribute(): Expr {
     const t = this.next()
