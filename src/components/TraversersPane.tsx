@@ -7,6 +7,8 @@ import type { TraverserStore, StoredTraverser } from '../state/traverserStore'
 import { PROTOTYPE_PORTS } from '../data/prototypePorts'
 import { HelpButton } from './HelpButton'
 import { TrashButton } from './TrashButton'
+import { DslTextarea } from './DslTextarea'
+import { buildDslCompletions, TRAVERSER_STARTERS } from './dslCompletions'
 
 // The Traversers pane: a library of walker DEFINITIONS, each a DSL program describing how a walker
 // moves and writes registries each tick. The pane has two modes: a LIST of definitions, and a
@@ -215,9 +217,14 @@ function TraverserEditor({
   onDone: () => void
 }) {
   const result = useMemo(() => compileProgram(traverser.text, predicateNames), [traverser.text, predicateNames])
+  const [showSyntax, setShowSyntax] = useState(false)
+  // Ctrl+Space suggestions: tile attributes, the walker's own attributes (a traverser IS a walker here),
+  // and every referenceable predicate name.
+  const completions = useMemo(() => buildDslCompletions({ predicateNames, includeTraverser: true }), [predicateNames])
 
   return (
     <div className="trav-edit">
+      <div className="trav-edit-scroll">
       <label className="pred-field trav-edit-name">
         <span className="pred-field-label">Name</span>
         <input
@@ -233,13 +240,18 @@ function TraverserEditor({
         </p>
       )}
 
-      <textarea
+      <DslTextarea
         className="pred-text trav-edit-text"
         value={traverser.text}
         spellCheck={false}
         aria-label="traverser DSL"
-        onChange={(e) => onSetText(traverser.id, e.target.value)}
+        completions={completions}
+        starters={TRAVERSER_STARTERS}
+        onValueChange={(t) => onSetText(traverser.id, t)}
       />
+      <p className="dsl-hint">
+        <kbd>Ctrl</kbd>+<kbd>Space</kbd> — suggest attributes &amp; predicates
+      </p>
 
       {result.ok ? (
         <p className="pred-status pred-status--ok">✓ {result.value.statements.length} rule(s)</p>
@@ -248,6 +260,65 @@ function TraverserEditor({
           {result.error.message}
         </p>
       )}
+
+      {/* A collapsible grammar reference, mirroring the Initial-state pane, plus a "?" leading to the
+          full guide — so the syntax is at hand while editing without leaving the maximised editor. */}
+      <section className="pred-section trav-syntax">
+        <header className="pred-section-head">
+          <span className="trav-syntax-title">
+            Syntax
+            <HelpButton title="Traverser rules">
+              <p>
+                A traverser definition is a little program, run <strong>top-to-bottom every tick</strong>:{' '}
+                <code>if &lt;predicate&gt; then &lt;action&gt;</code> lines that move the walker and write
+                registries (a bare action always fires).
+              </p>
+              <p className="help-readmore">
+                <a href="#/guide" target="_blank" rel="noopener noreferrer">
+                  Read the full guide →{' '}
+                </a>
+                <span className="help-readmore-note">(every keyword, with diagrams)</span>
+              </p>
+            </HelpButton>
+          </span>
+          <button type="button" className="pred-add" onClick={() => setShowSyntax((v) => !v)}>
+            {showSyntax ? 'Hide' : 'Show'}
+          </button>
+        </header>
+        {showSyntax && (
+          <div className="trav-syntax-body">
+            <pre className="trav-syntax-code">{`if <predicate> then <action>     run top-to-bottom each tick
+<action>                         a bare action always fires
+
+move straight | r1 | l2 | e3 | nearest-unvisited
+move [r1, l1]                    split — capped by max-split
+move straight -> r1              two hops in one tick
+put [A] = [A] + 1                write a tile registry (A/B/C)
+increase P                       bump a walker register (P/Q/R)
+directive if <predicate> always forbid move`}</pre>
+            <ul className="trav-syntax-legend">
+              <li>
+                <strong>predicate</strong> — a tile test (<code>visited-neighbors == 1</code>), a saved
+                predicate by name, or a mix with <code>and</code>/<code>or</code>/<code>not</code>. Read a
+                neighbour with an <code>@</code>-path: <code>visited@r1</code>.
+              </li>
+              <li>
+                <strong>edges</strong> — <code>straight</code>, <code>r1</code>/<code>l1</code> (turn),{' '}
+                <code>e3</code> (numbered edge), <code>nearest-unvisited</code>.
+              </li>
+              <li>
+                <strong>registries</strong> — <code>[A]</code>/<code>[B]</code>/<code>[C]</code> sit on the
+                tile; <code>P</code>/<code>Q</code>/<code>R</code> travel with the walker.
+              </li>
+              <li>
+                <strong>header</strong> (top, any order) — <code>max-split</code>, <code>heading</code>{' '}
+                (edge number), <code>movement = relative|absolute</code>, <code>max-steps</code>.
+              </li>
+            </ul>
+          </div>
+        )}
+      </section>
+      </div>
 
       <div className="trav-edit-foot">
         <button type="button" className="trav-done" onClick={onDone}>

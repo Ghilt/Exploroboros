@@ -1,0 +1,83 @@
+/* The Ctrl+Space DSL autocomplete popup — a fixed-position portal anchored at the textarea caret. */
+.dsl-ac {
+  position: fixed;
+  z-index: 1000;
+  min-width: 12rem;
+  max-width: 22rem;
+  max-height: 15rem;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+  padding: 0.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.dsl-ac-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  border-radius: calc(var(--radius-sm) - 2px);
+  padding: 0.3rem 0.45rem;
+  cursor: pointer;
+  color: var(--fg);
+}
+.dsl-ac-item:hover,
+.dsl-ac-item.is-active {
+  background: var(--surface-2);
+}
+
+.dsl-ac-val {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dsl-ac-kind {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.dsl-ac-kind--predicate {
+  color: var(--accent);
+}
+.dsl-ac-kind--keyword {
+  color: var(--accent-3, var(--accent));
+}
+.dsl-ac-hint {
+  flex: 0 0 auto;
+  font-size: 0.66rem;
+  font-style: italic;
+  color: var(--muted);
+}
+
+/* The muted "Ctrl+Space for suggestions" caption below a DSL textarea. */
+.dsl-hint {
+  flex: 0 0 auto;
+  margin: -0.2rem 0 0;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+.dsl-hint kbd {
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  padding: 0.02rem 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--surface-2);
+  color: var(--fg);
+}

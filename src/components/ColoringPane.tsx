@@ -1,5 +1,6 @@
 import './ColoringPane.css'
 import '../components/PredicatePane.css'
+import { useMemo } from 'react'
 import { parsePredicate, resolvePredRefs } from '../dsl'
 import type { ColoringRule } from '../colorizer'
 import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
@@ -7,7 +8,10 @@ import type { ColoringStore } from '../state/coloringStore'
 import { ReorderableList, type DragHandleProps } from './ReorderableList'
 import { ColorField } from './ColorField'
 import { TrashButton } from './TrashButton'
+import { EyeButton } from './EyeButton'
 import { HelpButton } from './HelpButton'
+import { DslInput } from './DslTextarea'
+import { buildDslCompletions, type DslCompletion } from './dslCompletions'
 
 const INLINE = '__inline__'
 const EMPTY_NAMES: ReadonlyMap<string, string> = new Map()
@@ -52,6 +56,8 @@ export function ColoringPane({
   onOpenPredicates?: () => void
 }) {
   const names = predicateNames ?? EMPTY_NAMES
+  // Ctrl+Space suggestions for an inline predicate: tile attributes + referenceable predicate names.
+  const completions = useMemo(() => buildDslCompletions({ predicateNames: names }), [names])
   return (
     <div className="coloring-pane">
       <span className="pane-help">
@@ -100,6 +106,7 @@ export function ColoringPane({
               rule={rule}
               customPredicates={customPredicates}
               predicateNames={names}
+              completions={completions}
               handle={handle}
               onChange={(next) => store.replace(rule.id, next)}
               onRemove={() => store.remove(rule.id)}
@@ -127,6 +134,7 @@ function ColoringRuleRow({
   rule,
   customPredicates,
   predicateNames,
+  completions,
   handle,
   onChange,
   onRemove,
@@ -134,6 +142,7 @@ function ColoringRuleRow({
   rule: ColoringRule
   customPredicates: ReadonlyArray<PredOption>
   predicateNames: ReadonlyMap<string, string>
+  completions: DslCompletion[]
   handle: DragHandleProps
   onChange: (next: ColoringRule) => void
   onRemove: () => void
@@ -155,9 +164,11 @@ function ColoringRuleRow({
       onChange({ ...rule, predicate: { kind: 'ref', id: v } })
     }
   }
+  // Absent = enabled, so old rules keep colouring; the eye toggle sets it false to switch off.
+  const enabled = rule.enabled !== false
 
   return (
-    <div className="rule-row">
+    <div className={`rule-row${enabled ? '' : ' is-disabled'}`}>
       <div className="rule-top">
         <button
           type="button"
@@ -174,6 +185,11 @@ function ColoringRuleRow({
             error
           </span>
         )}
+        <EyeButton
+          on={enabled}
+          onToggle={() => onChange({ ...rule, enabled: !enabled })}
+          label={enabled ? 'switch this rule off' : 'switch this rule on'}
+        />
         <TrashButton label="delete rule" onClick={onRemove} />
       </div>
 
@@ -209,12 +225,13 @@ function ColoringRuleRow({
 
         {rule.predicate.kind === 'inline' && (
           <>
-            <input
+            <DslInput
               className={`rule-inline${inlineError ? ' is-error' : ''}`}
               value={inlineText}
               spellCheck={false}
               aria-label="inline predicate"
-              onChange={(e) => onChange({ ...rule, predicate: { kind: 'inline', text: e.target.value } })}
+              completions={completions}
+              onValueChange={(t) => onChange({ ...rule, predicate: { kind: 'inline', text: t } })}
             />
             {inlineError && (
               <p className="pred-status pred-status--err" role="alert">

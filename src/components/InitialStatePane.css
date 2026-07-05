@@ -6,6 +6,30 @@
   resize: vertical;
 }
 
+/* A "Presets" dropdown above the textarea; picking one appends its lines to the document. */
+.init-presets {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.init-presets-label {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.init-preset-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--fg);
+  padding: 0.2rem 0.3rem;
+}
+
 .init-syntax {
   margin-top: 0.6rem;
 }

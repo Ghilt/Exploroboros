@@ -1,4 +1,6 @@
-.trash-btn {
+/* The shared flat, inheriting-colour icon button — trash, and the coloring pane's eye + dice. */
+.trash-btn,
+.icon-btn {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -12,6 +14,11 @@
   cursor: pointer;
   border-radius: var(--radius-sm);
 }
-.trash-btn:hover {
+.trash-btn:hover,
+.icon-btn:hover {
   color: var(--accent-strong, var(--accent));
+}
+/* The eye when its rule is switched OFF: dimmed, so the row reads as inactive. */
+.icon-btn.is-off {
+  opacity: 0.55;
 }

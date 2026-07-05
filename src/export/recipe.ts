@@ -24,7 +24,7 @@ import { boundsCenter, tileOffset } from './remap'
 //     this version, and refuses one that's NEWER than this build (with reason 'too-new' → "update the app").
 //   APP_VERSION — a human-readable stamp of the build that made the image, for display + bug tracing
 //     only; never branched on. Bump freely.
-export const RECIPE_SCHEMA_VERSION = 5
+export const RECIPE_SCHEMA_VERSION = 6
 export const APP_VERSION = '0.1.0'
 export const RECIPE_KEYWORD = 'exploroboros:recipe'
 
@@ -190,6 +190,13 @@ const MIGRATIONS: ReadonlyArray<Migration> = [
   {
     from: 4,
     migrate: migrateNamesV5,
+  },
+  // v5 → v6: coloring rules gained an optional `enabled` flag (the eye toggle). It's ADDITIVE and
+  // defaults to enabled when absent, so an old recipe's rules already reproduce unchanged (all on) —
+  // this step only advances the version so a v6 build accepts a v5 image (and refuses a >v6 one).
+  {
+    from: 5,
+    migrate: (r) => r,
   },
 ]
 

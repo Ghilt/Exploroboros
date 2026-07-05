@@ -683,6 +683,24 @@ function drawTiles(
     }
   }
 
+  // No-edge (flush) mode draws no per-tile outlines — but trace the whole grid's outer perimeter with a
+  // thin black line so it reads as one bounded plane instead of fills floating on the background. The
+  // boundary edges (b === null) ARE the perimeter; there are only O(perimeter) of them, so no culling.
+  if (flush) {
+    ctx.beginPath()
+    for (const e of tiling.edges) {
+      if (e.b !== null) continue
+      const p = worldToScreen(e.p, view)
+      const q = worldToScreen(e.q, view)
+      ctx.moveTo(p.x, p.y)
+      ctx.lineTo(q.x, q.y)
+    }
+    ctx.setAttr('strokeStyle', pal.edge)
+    ctx.setAttr('lineWidth', 1)
+    ctx.setAttr('lineJoin', 'round')
+    ctx.stroke()
+  }
+
   // Stats mode only: print the tile number + visited count inside each tile. Labels need a few
   // screen px to be legible (and cheap), so on very large grids at fit they hide until you zoom in.
   // Drawn in two passes (numbers, then vN); within each, the font only changes when a tile's

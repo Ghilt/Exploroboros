@@ -456,6 +456,34 @@
   font-size: 0.8rem;
   font-style: italic;
 }
+/* A placed walker: its definition name above its rotate/remove controls. */
+.trav-placed {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+/* The definition label for the walker on this tile (e.g. "0:Walker"). */
+.trav-name {
+  margin: 0 0 0.1rem;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+/* Direct-place buttons (a small library): a "Place:" label, then one accent button per definition that
+   places it in a single tap (no pre-selecting). Wraps if the names are long. */
+.trav-place-direct {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.trav-place-lead {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--muted);
+}
 .tile-stats dl {
   display: grid;
   grid-template-columns: auto 1fr;

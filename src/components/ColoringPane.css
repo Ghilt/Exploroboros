@@ -48,6 +48,11 @@
   background: var(--surface);
   padding: 0.4rem 0.5rem 0.5rem;
 }
+/* A switched-off rule (eye toggled): dim its predicate + colour, but keep the top bar (eye/trash)
+   fully lit so it can be switched back on. */
+.rule-row.is-disabled .rule-sentence {
+  opacity: 0.45;
+}
 
 /* Top bar: a wide thin drag handle (⋯) plus the trash, so neither steals a horizontal column. */
 .rule-top {

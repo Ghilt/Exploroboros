@@ -3,6 +3,14 @@ import { attrSpec } from '../dsl'
 import { MAX_RAMP_STOPS, RAMP_ATTRS, type Ramp, type RampStop, type RuleColor } from '../colorizer'
 import { ColorPicker } from './ColorPicker'
 import { TrashButton } from './TrashButton'
+import { DiceButton } from './DiceButton'
+
+// A fresh random #rrggbb for the dice button. (Math.random is fine in app code.)
+function randomHex(): string {
+  return `#${Math.floor(Math.random() * 0x1000000)
+    .toString(16)
+    .padStart(6, '0')}`
+}
 
 // The colour half of a coloring rule, written as a readable sentence. One colour is "flat"; the +
 // adds a second colour, turning it into a ramp that fades across up to 5 colours driven by an
@@ -25,6 +33,7 @@ export function ColorField({
         <p className="rule-frag">then color the tile</p>
         <div className="rule-line">
           <ColorPicker value={color.hex} onChange={(hex) => onColor({ kind: 'flat', hex })} />
+          <DiceButton label="randomize colour" onClick={() => onColor({ kind: 'flat', hex: randomHex() })} />
           <span className="rule-word">at</span>
           <OpacityInput value={opacity} onChange={onOpacity} />
           <span className="rule-word">opacity</span>
@@ -99,6 +108,7 @@ export function ColorField({
               aria-label={`breakpoint ${i + 1}`}
               onChange={(e) => setStop(i, { ...stop, at: e.target.value === '' ? null : Number(e.target.value) })}
             />
+            <DiceButton label={`randomize stop ${i + 1}`} onClick={() => setStop(i, { ...stop, hex: randomHex() })} />
             <TrashButton label={`remove stop ${i + 1}`} onClick={() => removeStop(i)} />
           </li>
         ))}

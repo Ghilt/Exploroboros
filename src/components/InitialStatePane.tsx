@@ -4,6 +4,9 @@ import { useMemo, useState } from 'react'
 import { compileDoc } from '../initstate'
 import type { InitialStateStore } from '../state/initialStateStore'
 import { HelpButton } from './HelpButton'
+import { DslTextarea } from './DslTextarea'
+import { buildDslCompletions, INIT_STARTERS } from './dslCompletions'
+import { INITIAL_STATE_PRESETS, appendPreset } from '../data/initialStatePresets'
 
 // The Initial-state pane: one DSL document of `auto-place` lines that seed a fractal's STARTING state —
 // traversers, per-tile registries, and visited marks — by grid-relative rules (resolved against
@@ -26,6 +29,9 @@ export function InitialStatePane({
   const [showSyntax, setShowSyntax] = useState(false)
 
   const compiled = useMemo(() => compileDoc(store.text, predicateNames), [store.text, predicateNames])
+  // Ctrl+Space suggestions for the `if <predicate>` guards: tile attributes + referenceable predicate
+  // names (no walker exists at seed time, so no walker attributes).
+  const completions = useMemo(() => buildDslCompletions({ predicateNames }), [predicateNames])
 
   // Traverser references that name no traverser (t1..tN or a known name) — flagged so a typo is visible.
   const unknownRefs = useMemo(() => {
@@ -80,14 +86,39 @@ export function InitialStatePane({
         <p className="pane-warn">Couldn’t save to this browser — changes last only for this session.</p>
       )}
 
-      <textarea
+      <div className="init-presets">
+        <span className="init-presets-label">Presets</span>
+        <select
+          className="init-preset-select"
+          aria-label="insert a preset"
+          value=""
+          onChange={(e) => {
+            const preset = INITIAL_STATE_PRESETS.find((p) => p.name === e.target.value)
+            if (preset) store.setText(appendPreset(store.text, preset.text))
+          }}
+        >
+          <option value="">Insert a preset…</option>
+          {INITIAL_STATE_PRESETS.map((p) => (
+            <option key={p.name} value={p.name}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <DslTextarea
         className="pred-text init-text"
         value={store.text}
         spellCheck={false}
         aria-label="initial-state DSL"
         placeholder={'auto-place line {t1, 0, 0, 0}\nauto-place blob {[A], 50, 50, 2, 5}'}
-        onChange={(e) => store.setText(e.target.value)}
+        completions={completions}
+        starters={INIT_STARTERS}
+        onValueChange={store.setText}
       />
+      <p className="dsl-hint">
+        <kbd>Ctrl</kbd>+<kbd>Space</kbd> — suggest attributes &amp; predicates
+      </p>
 
       {compiled.ok ? (
         <p className="pred-status pred-status--ok">

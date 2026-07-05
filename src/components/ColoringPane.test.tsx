@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { render, fireEvent, screen, cleanup } from '@testing-library/react'
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { ColoringPane } from './ColoringPane'
 import { useColoringStore } from '../state/coloringStore'
 import type { ColoringRule } from '../colorizer'
@@ -73,6 +73,29 @@ describe('ColoringPane', () => {
     expect(screen.getByText(/no rules yet/i)).toBeTruthy()
   })
 
+  it('the eye toggle switches a rule off (dims the row) and back on', () => {
+    const { container } = render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: '+ Add rule' }))
+    expect(container.querySelector('.rule-row.is-disabled')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /switch this rule off/i }))
+    expect(container.querySelector('.rule-row.is-disabled')).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /switch this rule on/i }))
+    expect(container.querySelector('.rule-row.is-disabled')).toBeNull()
+  })
+
+  it('the dice randomizes the flat colour', () => {
+    const spy = vi.spyOn(Math, 'random').mockReturnValue(0) // -> #000000
+    try {
+      render(<Harness />)
+      fireEvent.click(screen.getByRole('button', { name: '+ Add rule' }))
+      expect((screen.getByLabelText('colour') as HTMLInputElement).value).not.toBe('#000000') // the default fill
+      fireEvent.click(screen.getByRole('button', { name: 'randomize colour' }))
+      expect((screen.getByLabelText('colour') as HTMLInputElement).value).toBe('#000000')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it('flags an inline predicate that fails to parse, with a badge and an error message', () => {
     render(<Harness />)
     fireEvent.click(screen.getByRole('button', { name: '+ Add rule' }))
@@ -125,6 +148,20 @@ describe('ColoringPane', () => {
     fireEvent.change(screen.getByRole('combobox', { name: 'rule predicate' }), { target: { value: '__inline__' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'inline predicate' }), { target: { value: 'Has_A and Has_C' } })
     expect(screen.getByRole('alert').textContent).toMatch(/unknown predicate "Has_A"/)
+  })
+
+  it('Ctrl+Space in the inline predicate suggests attributes and predicate names (no statement keywords)', () => {
+    render(<Harness predicateNames={new Map([['Has_A', '[A] > 0']])} />)
+    fireEvent.click(screen.getByRole('button', { name: '+ Add rule' }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'rule predicate' }), { target: { value: '__inline__' } })
+    const input = screen.getByRole('textbox', { name: 'inline predicate' }) as HTMLInputElement
+    fireEvent.change(input, { target: { value: '' } })
+    input.setSelectionRange(0, 0)
+    fireEvent.keyDown(input, { key: ' ', code: 'Space', ctrlKey: true })
+    const values = screen.getAllByRole('option').map((o) => o.querySelector('.dsl-ac-val')?.textContent)
+    expect(values).toContain('visited')
+    expect(values).toContain('Has_A')
+    expect(values).not.toContain('move') // a predicate field never offers statement keywords
   })
 
   it('offers "Generate a random coloring" only while empty, and adds a rule on click', () => {

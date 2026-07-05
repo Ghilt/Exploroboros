@@ -652,15 +652,15 @@ export function Workspace() {
   // header value if it sets one (wrapped to the tile's edge count), else edge 0 (the north edge).
   // Counters/registers start at zero; the settings snapshot the def (refreshed at Play so a later edit
   // to the def takes effect).
-  const makeSeed = (tile: string): Traverser => {
-    const set = defs.get(effectiveDef)?.settings ?? DEFAULT_SETTINGS
+  const makeSeed = (tile: string, def: string = effectiveDef): Traverser => {
+    const set = defs.get(def)?.settings ?? DEFAULT_SETTINGS
     const n = nodeById(tiling, tile)?.sides.length ?? 0
     const heading = set.heading !== undefined && n > 0 ? (((Math.round(set.heading) % n) + n) % n) : 0
     return {
       id: `tr${(traverserSeq.current += 1)}`,
       tile,
       heading,
-      def: effectiveDef,
+      def,
       steps: 0,
       splits: 0,
       maxSplit: set.maxSplit,
@@ -671,9 +671,9 @@ export function Workspace() {
       r: 0,
     }
   }
-  const placeTraverser = (id: string) => {
+  const placeTraverser = (id: string, def: string) => {
     if (seeds.some((t) => t.tile === id)) return
-    setSeeds((list) => [...list, makeSeed(id)])
+    setSeeds((list) => [...list, makeSeed(id, def)])
   }
   const removeTraverser = (id: string) => setSeeds((list) => list.filter((t) => t.tile !== id))
   const rotateTraverser = (id: string, dir: 1 | -1) =>
@@ -682,14 +682,14 @@ export function Workspace() {
     )
 
   // ---- bulk edits over a box-selected set (the multi-tile Inspect view) ----
-  const placeTraversersMany = (ids: ReadonlyArray<string>) =>
+  const placeTraversersMany = (ids: ReadonlyArray<string>, def: string) =>
     setSeeds((list) => {
       const have = new Set(list.map((t) => t.tile))
       const adds: Traverser[] = []
       for (const id of ids) {
         if (have.has(id)) continue
         have.add(id)
-        adds.push(makeSeed(id))
+        adds.push(makeSeed(id, def))
       }
       return adds.length ? [...list, ...adds] : list
     })
@@ -1005,6 +1005,7 @@ export function Workspace() {
             overlay={overlay}
             clip={clip}
             traverserHeading={selectedTraverser ? selectedTraverser.heading : selectedAuto ? selectedAuto.heading : null}
+            traverserName={selectedTraverser ? selectedTraverser.def : selectedAuto ? selectedAuto.def : null}
             traverserIsAuto={selectedTraverser === null && selectedAuto !== null}
             canEditTraverser={stopped}
             defOptions={defOptions}
@@ -1025,7 +1026,7 @@ export function Workspace() {
             defOptions={defOptions}
             placeDef={effectiveDef}
             onChangeDef={setPlaceDef}
-            onPlaceTraverser={() => placeTraversersMany(selectedIds)}
+            onPlaceTraverser={(def) => placeTraversersMany(selectedIds, def)}
             onRemoveTraverser={() => removeTraversersMany(selectedIds)}
             onRotateTraverser={(dir) => rotateTraversersMany(selectedIds, dir)}
             onVisit={(delta) => bumpVisitMany(selectedIds, delta)}
@@ -1078,7 +1079,15 @@ export function Workspace() {
   )
 }
 
-// The definition picker shown before a Place button — which traverser definition to instantiate.
+// Label a definition with its id — its position in the pickable list (Walker is 0), matching how the
+// Initial-state pane refers to a traverser. e.g. "0:Walker", "1:foo_bar".
+const defLabel = (options: ReadonlyArray<string>, name: string) => {
+  const i = options.indexOf(name)
+  return i >= 0 ? `${i}:${name}` : name
+}
+
+// The definition dropdown — used when the library is large enough that a button per definition would
+// crowd the row. Each option carries its id (its index in the list).
 function DefSelect({
   options,
   value,
@@ -1092,10 +1101,57 @@ function DefSelect({
     <select className="seg-item trav-def" aria-label="traverser to place" value={value} onChange={(e) => onChange(e.target.value)}>
       {options.map((o) => (
         <option key={o} value={o}>
-          {o}
+          {defLabel(options, o)}
         </option>
       ))}
     </select>
+  )
+}
+
+// The placement control. A small library (≤3, i.e. the built-in Walker plus up to two custom
+// traversers) shows a "Place:" label followed by ONE button per definition that places it directly —
+// one tap, no pre-selecting. A larger library keeps a compact dropdown + a single Place button.
+function PlaceControl({
+  options,
+  placeDef,
+  onChangeDef,
+  onPlace,
+  label,
+}: {
+  options: ReadonlyArray<string>
+  placeDef: string
+  onChangeDef: (v: string) => void
+  // Place the given definition (a direct-place button passes its own; the dropdown passes the picked one).
+  onPlace: (def: string) => void
+  label: string
+}) {
+  if (options.length < 4) {
+    return (
+      <div className="trav-place-direct">
+        <span className="trav-place-lead">{label}:</span>
+        <div className="seg-shell">
+          {options.map((o) => (
+            <button
+              type="button"
+              key={o}
+              className="seg-item seg-item--btn trav-place"
+              title={`place ${defLabel(options, o)}`}
+              onClick={() => onPlace(o)}
+            >
+              {defLabel(options, o)}
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div className="trav-place-row seg-shell">
+      <DefSelect options={options} value={placeDef} onChange={onChangeDef} />
+      <button type="button" className="seg-item seg-item--btn trav-place" onClick={() => onPlace(placeDef)}>
+        {label}
+      </button>
+    </div>
   )
 }
 
@@ -1106,6 +1162,7 @@ function InspectContent({
   overlay,
   clip,
   traverserHeading,
+  traverserName,
   traverserIsAuto,
   canEditTraverser,
   defOptions,
@@ -1126,6 +1183,8 @@ function InspectContent({
   clip: TileClip | null
   // The heading (edge number) of the walker on this tile, or null if there isn't one here.
   traverserHeading: number | null
+  // The definition name of the walker on this tile (its `def`), or null if there isn't one here.
+  traverserName: string | null
   // True when that walker came from an auto-place rule — shown read-only (change it by editing the rule).
   traverserIsAuto: boolean
   // Whether placements can be edited — only while stopped (a run owns the walkers).
@@ -1138,7 +1197,7 @@ function InspectContent({
   onRegistry: (id: string, reg: Registry, delta: number) => void
   onCopy: () => void
   onPaste: () => void
-  onPlaceTraverser: (id: string) => void
+  onPlaceTraverser: (id: string, def: string) => void
   onRemoveTraverser: (id: string) => void
   onRotateTraverser: (id: string, dir: 1 | -1) => void
 }) {
@@ -1162,6 +1221,9 @@ function InspectContent({
         .map((opp, k) => [Math.min(k, opp[0]), Math.max(k, opp[0])] as [number, number])
         .filter(([a, b], i, arr) => arr.findIndex((p) => p[0] === a && p[1] === b) === i)
     : undefined
+
+  // The placed walker's definition, labelled with its id (e.g. "0:Walker") — shown when a walker sits here.
+  const traverserLabel = traverserName ? defLabel(defOptions, traverserName) : null
 
   return (
     <div className="tile-stats">
@@ -1200,6 +1262,7 @@ function InspectContent({
           <p className="trav-note">Stop the run to edit the walkers.</p>
         ) : traverserIsAuto ? (
           <div className="trav-auto">
+            {traverserLabel && <p className="trav-name" title="the traverser definition placed here">{traverserLabel}</p>}
             <div className="trav-controls seg-shell">
               <span className="seg-item trav-arrow">
                 <HeadingArrow node={node} heading={traverserHeading ?? 0} />
@@ -1208,36 +1271,40 @@ function InspectContent({
             <p className="trav-note">Placed by an Initial-state rule — edit it in the Initial state pane to change it.</p>
           </div>
         ) : traverserHeading === null ? (
-          <div className="trav-place-row seg-shell">
-            <DefSelect options={defOptions} value={placeDef} onChange={onChangeDef} />
-            <button type="button" className="seg-item seg-item--btn trav-place" onClick={() => onPlaceTraverser(node.id)}>
-              Place
-            </button>
-          </div>
+          <PlaceControl
+            options={defOptions}
+            placeDef={placeDef}
+            onChangeDef={onChangeDef}
+            onPlace={(def) => onPlaceTraverser(node.id, def)}
+            label="Place"
+          />
         ) : (
-          <div className="trav-controls seg-shell">
-            <button
-              type="button"
-              className="seg-item seg-item--btn trav-rot"
-              onClick={() => onRotateTraverser(node.id, -1)}
-              aria-label="rotate heading left"
-            >
-              ↺
-            </button>
-            <span className="seg-item trav-arrow">
-              <HeadingArrow node={node} heading={traverserHeading} />
-            </span>
-            <button
-              type="button"
-              className="seg-item seg-item--btn trav-rot"
-              onClick={() => onRotateTraverser(node.id, 1)}
-              aria-label="rotate heading right"
-            >
-              ↻
-            </button>
-            <button type="button" className="seg-item seg-item--btn trav-remove" onClick={() => onRemoveTraverser(node.id)}>
-              Remove
-            </button>
+          <div className="trav-placed">
+            {traverserLabel && <p className="trav-name" title="the traverser definition placed here">{traverserLabel}</p>}
+            <div className="trav-controls seg-shell">
+              <button
+                type="button"
+                className="seg-item seg-item--btn trav-rot"
+                onClick={() => onRotateTraverser(node.id, -1)}
+                aria-label="rotate heading left"
+              >
+                ↺
+              </button>
+              <span className="seg-item trav-arrow">
+                <HeadingArrow node={node} heading={traverserHeading} />
+              </span>
+              <button
+                type="button"
+                className="seg-item seg-item--btn trav-rot"
+                onClick={() => onRotateTraverser(node.id, 1)}
+                aria-label="rotate heading right"
+              >
+                ↻
+              </button>
+              <button type="button" className="seg-item seg-item--btn trav-remove" onClick={() => onRemoveTraverser(node.id)}>
+                Remove
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -1352,7 +1419,7 @@ function MultiInspectContent({
   defOptions: ReadonlyArray<string>
   placeDef: string
   onChangeDef: (name: string) => void
-  onPlaceTraverser: () => void
+  onPlaceTraverser: (def: string) => void
   onRemoveTraverser: () => void
   onRotateTraverser: (dir: 1 | -1) => void
   onVisit: (delta: number) => void
@@ -1371,12 +1438,13 @@ function MultiInspectContent({
           <p className="trav-note">Stop the run to edit the walkers.</p>
         ) : (
           <div className="trav-controls trav-controls--multi">
-            <div className="trav-place-row seg-shell">
-              <DefSelect options={defOptions} value={placeDef} onChange={onChangeDef} />
-              <button type="button" className="seg-item seg-item--btn trav-place" onClick={onPlaceTraverser}>
-                Place on all
-              </button>
-            </div>
+            <PlaceControl
+              options={defOptions}
+              placeDef={placeDef}
+              onChangeDef={onChangeDef}
+              onPlace={onPlaceTraverser}
+              label="Place on all"
+            />
             <div className="seg-shell">
               <button type="button" className="seg-item seg-item--btn trav-rot" onClick={() => onRotateTraverser(-1)} aria-label="rotate all headings left">
                 ↺

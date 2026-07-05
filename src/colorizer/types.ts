@@ -37,4 +37,8 @@ export type ColoringRule = {
   predicate: PredicateRef
   color: RuleColor
   opacity: number // 0..1, applied to the whole rule's colour
+  // Whether the rule paints. Absent = enabled (so old rules/recipes keep colouring); the eye toggle in
+  // the Coloring pane sets it false to switch a rule off without deleting it. The colorizer (live AND
+  // export) skips a disabled rule, so a switched-off rule reproduces switched-off.
+  enabled?: boolean
 }

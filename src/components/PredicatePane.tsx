@@ -7,6 +7,8 @@ import { HelpButton } from './HelpButton'
 import { TrashButton } from './TrashButton'
 import { PredicateVisualEditor } from './PredicateVisualEditor'
 import { SegmentedControl } from './SegmentedControl'
+import { DslTextarea } from './DslTextarea'
+import { buildDslCompletions } from './dslCompletions'
 
 const EMPTY_NAMES: ReadonlyMap<string, string> = new Map()
 
@@ -180,6 +182,8 @@ function PredicateEditor({
     const r = resolvePredRefs(result.value, predicateNames)
     return r.ok ? null : r.error.message
   }, [result, predicateNames])
+  // Ctrl+Space suggestions: tile attributes + referenceable predicate names.
+  const completions = useMemo(() => buildDslCompletions({ predicateNames }), [predicateNames])
 
   return (
     <div className="pred-editor">
@@ -211,17 +215,23 @@ function PredicateEditor({
       </div>
 
       {mode === 'text' ? (
-        <label className="pred-field">
-          <span className="pred-field-label">DSL</span>
-          <textarea
-            className="pred-text"
-            value={predicate.text}
-            spellCheck={false}
-            rows={3}
-            aria-label="predicate DSL"
-            onChange={(e) => onSetText(predicate.id, e.target.value)}
-          />
-        </label>
+        <>
+          <label className="pred-field">
+            <span className="pred-field-label">DSL</span>
+            <DslTextarea
+              className="pred-text"
+              value={predicate.text}
+              spellCheck={false}
+              rows={3}
+              aria-label="predicate DSL"
+              completions={completions}
+              onValueChange={(t) => onSetText(predicate.id, t)}
+            />
+          </label>
+          <p className="dsl-hint">
+            <kbd>Ctrl</kbd>+<kbd>Space</kbd> — suggest attributes &amp; predicates
+          </p>
+        </>
       ) : (
         <PredicateVisualEditor text={predicate.text} onChange={(t) => onSetText(predicate.id, t)} />
       )}

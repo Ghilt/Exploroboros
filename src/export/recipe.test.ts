@@ -156,4 +156,12 @@ describe('migrateRecipe (the upgrade chain that keeps old images readable)', () 
     expect(o.traversers[0].name).toBe('My_Walker')
     expect(o.seeds[0].def).toBe('My_Walker') // seed def renamed in step so the walker still resolves
   })
+
+  it('the real v5→v6 migration is additive — it just advances the version (coloring rules unchanged, all enabled)', () => {
+    const rules = [{ id: 'r1', predicate: { kind: 'inline', text: 'visited' }, color: { kind: 'flat', hex: '#fff' }, opacity: 1 }]
+    const out = migrateRecipe({ schemaVersion: 5, coloringRules: rules }, 6)
+    expect(out).toMatchObject({ schemaVersion: 6, coloringRules: rules })
+    // No `enabled` field is forced on — absent means enabled, so old rules keep colouring.
+    expect((out as { coloringRules: { enabled?: boolean }[] }).coloringRules[0].enabled).toBeUndefined()
+  })
 })

@@ -45,6 +45,16 @@ describe('colorize — rule stacking', () => {
     const out = run([inline('visited > 5', flat('#ff0000'))])
     expect(out.size).toBe(0)
   })
+
+  it('skips a rule switched off with enabled: false (the eye toggle)', () => {
+    const overlay = addVisit(new Map(), 'sq:0,0')
+    const on = inline('visited > 0', flat('#ff0000'), 1, 'on')
+    const off: ColoringRule = { ...inline('visited > 0', flat('#0000ff'), 1, 'off'), enabled: false }
+    // Enabled, the blue rule would win (last match); disabled, only the red rule paints.
+    expect(run([on, off], overlay).get('sq:0,0')).toBe('rgba(255, 0, 0, 1)')
+    // A lone disabled rule paints nothing.
+    expect(run([off], overlay).size).toBe(0)
+  })
 })
 
 describe('colorize — ramps', () => {

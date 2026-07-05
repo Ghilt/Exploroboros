@@ -14,13 +14,23 @@
   min-height: 0;
 }
 
-/* The editor lays out as a column: name, the textarea (grows), status, then the Done footer. */
+/* The editor is a column with a PINNED Done footer: the content (name, textarea, hint, status, syntax)
+   lives in a scrolling region that takes the remaining height, so nothing can ever ride up onto the
+   footer's line — the Done button always sits alone at the bottom, below a divider. */
 .trav-edit {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
   height: 100%;
   min-height: 0;
+}
+.trav-edit-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding-bottom: 0.6rem;
 }
 .trav-edit-name {
   flex: 0 0 auto;
@@ -38,7 +48,7 @@
   flex: 0 0 auto;
   display: flex;
   justify-content: center;
-  padding-top: 0.2rem;
+  padding-top: 0.6rem;
   border-top: 1px solid var(--line);
 }
 .trav-done {
@@ -54,6 +64,49 @@
 .trav-done:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* Collapsible grammar reference at the foot of the maximised editor (mirrors the Initial-state pane's
+   syntax block), plus the "?" that sits beside the "Syntax" heading and opens the guide link. */
+.trav-syntax {
+  flex: 0 0 auto;
+  margin-top: 0.2rem;
+}
+.trav-syntax-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.trav-syntax-body {
+  margin-top: 0.4rem;
+}
+.trav-syntax-code {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.6rem;
+  margin: 0;
+  color: var(--fg);
+  overflow-x: auto;
+}
+.trav-syntax-legend {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.trav-syntax-legend code {
+  font-family: var(--mono);
+  color: var(--fg);
 }
 
 /* The 1-based index shown before each traverser's name ("1:", "2:", …). The Initial-state DSL refers to

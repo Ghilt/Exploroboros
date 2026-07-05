@@ -104,6 +104,7 @@ export function compileRules(
 ): CompiledRule[] {
   const out: CompiledRule[] = []
   for (const rule of rules) {
+    if (rule.enabled === false) continue // switched off via the eye toggle — don't paint (live + export)
     const text = ruleText(rule, predicateText)
     if (text == null) continue
     const r = parsePredicate(text)
