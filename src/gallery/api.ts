@@ -2,7 +2,7 @@
 // origin), so relative paths — no base URL, no env var. `ApiError` carries the HTTP status + the
 // server's error code so callers can special-case (e.g. 429 daily_cap).
 
-import type { Recipe } from '../export'
+import { parseRecipe, type Recipe } from '../export'
 import type { CreationItem, GallerySort, ListResponse } from './types'
 
 const API = '/api'
@@ -72,8 +72,15 @@ export async function upvoteCreation(id: string): Promise<{ upvotes: number }> {
 export async function fetchRecipe(id: string): Promise<Recipe> {
   const res = await fetch(`${API}/creations/${encodeURIComponent(id)}/recipe`)
   if (!res.ok) return fail(res)
-  const j = (await res.json()) as { recipe: Recipe }
-  return j.recipe
+  const j = (await res.json()) as { recipe: unknown }
+  // The row was normalised to whatever schema was CURRENT when it was uploaded — an older creation
+  // predates a later schema bump, so migrate it here (the same gate the PNG-import path uses) instead
+  // of trusting the server's JSON as already the current shape.
+  const parsed = parseRecipe(JSON.stringify(j.recipe))
+  if (!parsed.ok) {
+    throw new Error(parsed.reason === 'too-new' ? 'Made with a newer version — update to open.' : "This creation's data could not be read.")
+  }
+  return parsed.recipe
 }
 
 export type { CreationItem, GallerySort, ListResponse }

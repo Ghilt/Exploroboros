@@ -20,6 +20,8 @@ const PALETTE = { edge: '#000000' }
 const MIN_RES = 64
 const DESKTOP_MAX_RES = 8192
 const MOBILE_MAX_RES = 4096
+const DEFAULT_PX_PER_TILE = 24
+const DEFAULT_RES = 2048
 
 type Background = 'white' | 'transparent' | 'black'
 const BG_COLOR: Record<Background, string | null> = { white: '#ffffff', transparent: null, black: '#000000' }
@@ -46,11 +48,20 @@ type Props = {
 
 export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, predicates, traversers, coloringRules, initialState, onStartExport }: Props) {
   const [open, setOpen] = useState(false)
-  // Detail is set as "pixels per tile"; the grid size (tile count) is derived from it + the resolution.
-  const [pxPerTile, setPxPerTile] = useState(24)
-  const [width, setWidth] = useState(2048)
-  const [height, setHeight] = useState(2048)
-  // Chain lock: when linked, editing one dimension scales the other to keep the aspect ratio.
+  const [pxPerTile, setPxPerTile] = useState(DEFAULT_PX_PER_TILE)
+  const [width, setWidth] = useState(DEFAULT_RES)
+  const [height, setHeight] = useState(DEFAULT_RES)
+  // The output Resolution is the ANCHOR: it changes ONLY when the user edits it, and never carries a ~
+  // (its own chain keeps width:height in proportion). Pixels-per-tile and grid width/height are two ways
+  // to express the SAME thing — how finely to tile that fixed resolution (grid ≈ resolution ÷ px). Edit
+  // either and the OTHER re-derives; `approx` marks whichever of {px, gridW, gridH} is that derived guess
+  // (shown as ~), never the resolution. The grid chain (`gridLinked`) just makes gridW and gridH follow
+  // each other — it does not touch the resolution.
+  const [gridW, setGridW] = useState(() => Math.max(1, Math.round(DEFAULT_RES / DEFAULT_PX_PER_TILE)))
+  const [gridH, setGridH] = useState(() => Math.max(1, Math.round(DEFAULT_RES / DEFAULT_PX_PER_TILE)))
+  const [approx, setApprox] = useState({ px: false, gridW: true, gridH: true })
+  const [gridLinked, setGridLinked] = useState(true)
+  // Chain lock for the pixel resolution: when linked, editing one dimension scales the other by ratio.
   const [linked, setLinked] = useState(true)
   const [background, setBackground] = useState<Background>('black')
   const [edges, setEdges] = useState(false)
@@ -59,17 +70,70 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
   const mobile = isMobile()
   const maxRes = mobile ? MOBILE_MAX_RES : DESKTOP_MAX_RES
   // Floor at 1 (not MIN_RES) so a partially-typed number isn't snapped mid-entry; MIN_RES is only the
-  // input's spinner hint. The export sizing caps still apply at render.
+  // input's spinner hint. Grid counts share the same ceiling so a typo can't build a runaway tiling.
   const clampRes = (n: number) => Math.min(maxRes, Math.max(1, Math.round(n || 0)))
+  const clampCount = (n: number) => Math.min(maxRes, Math.max(1, Math.round(n || 0)))
+
+  // Editing the resolution is the ONLY thing that moves the pixel size. It re-derives the grid at the
+  // current pixels-per-tile (grid marked ~); px stays the exact anchor. The res lock scales the other dim.
   const onWidth = (raw: number) => {
     const w = clampRes(raw)
-    if (linked && width > 0) setHeight(clampRes(w * (height / width)))
     setWidth(w)
+    setGridW(clampCount(w / pxPerTile))
+    if (linked && width > 0) {
+      const h = clampRes(w * (height / width))
+      setHeight(h)
+      setGridH(clampCount(h / pxPerTile))
+      setApprox({ px: false, gridW: true, gridH: true })
+    } else {
+      setApprox((a) => ({ ...a, px: false, gridW: true }))
+    }
   }
   const onHeight = (raw: number) => {
     const h = clampRes(raw)
-    if (linked && height > 0) setWidth(clampRes(h * (width / height)))
     setHeight(h)
+    setGridH(clampCount(h / pxPerTile))
+    if (linked && height > 0) {
+      const w = clampRes(h * (width / height))
+      setWidth(w)
+      setGridW(clampCount(w / pxPerTile))
+      setApprox({ px: false, gridW: true, gridH: true })
+    } else {
+      setApprox((a) => ({ ...a, px: false, gridH: true }))
+    }
+  }
+  // Pixels-per-tile and the grid are two views of the same fit into the FIXED resolution: editing the
+  // tile size re-derives both grid counts (grid ~), and never moves the resolution.
+  const onPxPerTile = (raw: number) => {
+    const px = Math.max(1, Math.round(raw || 0))
+    setPxPerTile(px)
+    setGridW(clampCount(width / px))
+    setGridH(clampCount(height / px))
+    setApprox({ px: false, gridW: true, gridH: true })
+  }
+  // A grid dimension is an exact tile count for the fixed resolution; pixels-per-tile re-derives (~) and
+  // the resolution is untouched. With the grid lock on, the OTHER grid dimension follows to keep the ratio.
+  const onGridW = (raw: number) => {
+    const gw = clampCount(raw)
+    setGridW(gw)
+    setPxPerTile(Math.max(1, Math.round(width / gw)))
+    if (gridLinked && gridW > 0) {
+      setGridH(clampCount(gw * (gridH / gridW)))
+      setApprox({ px: true, gridW: false, gridH: false })
+    } else {
+      setApprox((a) => ({ ...a, px: true, gridW: false }))
+    }
+  }
+  const onGridH = (raw: number) => {
+    const gh = clampCount(raw)
+    setGridH(gh)
+    setPxPerTile(Math.max(1, Math.round(height / gh)))
+    if (gridLinked && gridH > 0) {
+      setGridW(clampCount(gh * (gridW / gridH)))
+      setApprox({ px: true, gridW: false, gridH: false })
+    } else {
+      setApprox((a) => ({ ...a, px: true, gridH: false }))
+    }
   }
 
   // Close on outside tap / Escape.
@@ -89,11 +153,8 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
     }
   }, [open])
 
-  // Detail (tile count) is derived from px-per-tile + resolution: the tiling is square-ish and fit/
-  // centred, so the smaller canvas edge sets how many tiles fit across it. Exactness isn't important.
-  const gridN = Math.max(2, Math.round(Math.min(width, height) / Math.max(1, pxPerTile)))
-  // Rough planning readout (no full build): tile count scales ~ (gridN/liveGridN)² like the generators.
-  const estTiles = liveGridN > 0 ? Math.round(tiling.nodes.length * (gridN / liveGridN) ** 2) : tiling.nodes.length
+  // Rough planning readout (no full build): tile count scales with the area ratio vs. the live grid.
+  const estTiles = liveGridN > 0 ? Math.round(tiling.nodes.length * (gridW / liveGridN) * (gridH / liveGridN)) : tiling.nodes.length
   const heavy = estTiles > 250_000 || width * height >= 6144 * 6144
 
   // Fire-and-forget: build the recipe, hand the job to the Workspace (which shows it in the strip as a
@@ -101,7 +162,8 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
   const doExport = () => {
     const recipe = buildRecipe({
       tilingId,
-      exportGridN: Math.max(2, Math.floor(gridN)),
+      exportGridW: Math.max(2, Math.floor(gridW)),
+      exportGridH: Math.max(2, Math.floor(gridH)),
       liveTiling: tiling,
       seeds,
       baseOverlay,
@@ -139,11 +201,17 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
                 exploring) and saves the result as a PNG.
               </p>
               <p>
-                <strong>Pixels per tile</strong> is the detail — smaller tiles means more of them, so a
-                bigger, finer fractal (the readout shows the rough grid it works out to).{' '}
-                <strong>Resolution</strong> is the image’s pixel width × height; the{' '}
-                <strong>chain</strong> keeps them in proportion (click it to set them apart). Your walkers
-                keep their position relative to the centre, so the pattern grows the same — with more room.
+                <strong>Resolution</strong> is the image’s pixel size — the fixed canvas you’re filling. It
+                only changes when you edit it; its <strong>chain</strong> keeps width and height in
+                proportion.
+              </p>
+              <p>
+                <strong>Pixels per tile</strong> and <strong>Grid width/height</strong> are two ways to say
+                how finely to tile that canvas: set the tile size, or set the tile counts directly for an
+                exact (even or uneven) grid. Editing one re-derives the other, which then shows a{' '}
+                <strong>~</strong>. The grid’s own <strong>chain</strong> keeps its width and height in the
+                same ratio. Only the square tiling can truly go rectangular; other tilings average the two
+                into one size.
               </p>
               <p>
                 Export runs in the background — a thumbnail appears in the corner with a spinner; the X
@@ -153,15 +221,63 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
           </div>
 
           <label className="export-row">
-            <span>Pixels per tile</span>
+            <span>
+              Pixels per tile
+              {approx.px && (
+                <span className="export-approx" title="Approximate — derived from the grid size">
+                  ~
+                </span>
+              )}
+            </span>
+            <input type="number" min={1} step={1} value={pxPerTile} onChange={(e) => onPxPerTile(Number(e.target.value))} />
+          </label>
+
+          <div className="export-res export-grid" role="group" aria-label="grid size (tiles)">
+            <span className="export-res-label export-res-w">
+              Grid width
+              {approx.gridW && (
+                <span className="export-approx" title="Approximate — the count that fits the resolution at this tile size">
+                  ~
+                </span>
+              )}
+            </span>
             <input
               type="number"
+              className="export-res-num export-res-num-w"
               min={1}
               step={1}
-              value={pxPerTile}
-              onChange={(e) => setPxPerTile(Math.max(1, Math.round(Number(e.target.value) || 0)))}
+              value={gridW}
+              aria-label={`grid width in tiles${approx.gridW ? ' (approximate)' : ''}`}
+              onChange={(e) => onGridW(Number(e.target.value))}
             />
-          </label>
+            <button
+              type="button"
+              className={`export-lock${gridLinked ? ' is-linked' : ''}`}
+              aria-pressed={gridLinked}
+              aria-label={gridLinked ? 'grid width and height linked — click to unlink' : 'grid width and height independent — click to link'}
+              title={gridLinked ? 'Linked: grid width and height change together' : 'Unlinked: set grid width and height separately'}
+              onClick={() => setGridLinked((v) => !v)}
+            >
+              <LinkIcon broken={!gridLinked} />
+            </button>
+            <span className="export-res-label export-res-h">
+              Grid height
+              {approx.gridH && (
+                <span className="export-approx" title="Approximate — the count that fits the resolution at this tile size">
+                  ~
+                </span>
+              )}
+            </span>
+            <input
+              type="number"
+              className="export-res-num export-res-num-h"
+              min={1}
+              step={1}
+              value={gridH}
+              aria-label={`grid height in tiles${approx.gridH ? ' (approximate)' : ''}`}
+              onChange={(e) => onGridH(Number(e.target.value))}
+            />
+          </div>
 
           <div className="export-res" role="group" aria-label="resolution (pixels)">
             <span className="export-res-label export-res-w">Width</span>
@@ -212,9 +328,6 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
             <Toggle checked={edges} onChange={setEdges} label="show tile edges" />
           </div>
 
-          <p className="export-readout">
-            grid ≈ {gridN} × {gridN} tiles · {width.toLocaleString()} × {height.toLocaleString()} px
-          </p>
           {heavy && <p className="export-warn">Large export — may take a while and use a lot of memory.</p>}
 
           <button type="button" className="export-go" onClick={doExport}>

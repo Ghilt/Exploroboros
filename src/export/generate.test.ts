@@ -7,10 +7,11 @@ import type { Recipe } from './recipe'
 // a tile is visited. Exercises the whole pure pipeline (build → remap → run → colorize → size).
 function recipe(overrides: Partial<Recipe> = {}): Recipe {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     app: 'exploroboros',
     tilingId: 'square',
-    gridN: 6,
+    gridW: 6,
+    gridH: 6,
     output: { width: 240, height: 240, edges: false, background: null },
     seeds: [
       { offset: { x: 0, y: 0 }, shape: 'square', heading: 0, def: 'Walker', maxSplit: 1, maxSteps: 50000, movement: 'relative', p: 0, q: 0, r: 0 },
@@ -35,8 +36,13 @@ describe('computeExport', () => {
   })
 
   it('builds the export tiling at the recipe grid size, independent of any live grid', () => {
-    const out = computeExport(recipe({ gridN: 10 }), DESKTOP_CAPS)
+    const out = computeExport(recipe({ gridW: 10, gridH: 10 }), DESKTOP_CAPS)
     expect(out.tiling.nodes.length).toBe(100) // 10×10
+  })
+
+  it('honours independent width/height tile counts (a rectangular export grid)', () => {
+    const out = computeExport(recipe({ gridW: 10, gridH: 4 }), DESKTOP_CAPS)
+    expect(out.tiling.nodes.length).toBe(40) // 10 wide x 4 tall, not 10×10 or 4×4
   })
 
   it('produces an empty colour map when nothing matches the rules', () => {
@@ -48,7 +54,8 @@ describe('computeExport', () => {
     const out = computeExport(
       recipe({
         seeds: [],
-        gridN: 8,
+        gridW: 8,
+        gridH: 8,
         traversers: [{ id: 't', name: 'edge', text: 'move nearest-unvisited' }],
         initialState: 'auto-place line {t1, 0, 0, 0}', // t1 = the first traverser ("edge") on the top row
       }),

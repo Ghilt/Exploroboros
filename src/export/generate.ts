@@ -26,7 +26,7 @@ export function computeExport(
   caps: SizeCaps,
   onProgress?: (ticks: number, liveCount: number) => void,
 ): ComputeResult {
-  const tiling = buildTiling(recipe.tilingId, recipe.gridN)
+  const tiling = buildTiling(recipe.tilingId, recipe.gridW, recipe.gridH)
   const prep = prepareFromRecipe(recipe, tiling)
   const run = runToCompletion(
     tiling,

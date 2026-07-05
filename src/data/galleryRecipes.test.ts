@@ -9,19 +9,19 @@ import { GALLERY_RECIPES } from './galleryRecipes'
 
 const ENTRIES = Object.entries(GALLERY_RECIPES)
 const BUNDLED = new Set(['visited', 'unvisited', 'rule90', 'odd-visits', 'checker', 'has-a', 'has-b', 'has-c', 'triangles', 'squares'])
-// Cap the run grid: a recipe's export gridN can be huge (e.g. the full-plane XOR CA at 1067²), which
-// would make the grow-check crawl. The fractal's structure is the same at a modest size — initialState
-// seeding is grid-relative, and centre-seeded recipes still grow from the middle.
+// Cap the run grid: a recipe's export gridW/gridH can be huge (e.g. the full-plane XOR CA at 1067²),
+// which would make the grow-check crawl. The fractal's structure is the same at a modest size —
+// initialState seeding is grid-relative, and centre-seeded recipes still grow from the middle.
 const RUN_GRID_CAP = 120
 
-// Building kalleboda is dense; all recipes share one (tilingId, gridN), so cache it — rebuilding per
-// recipe (×23) is what timed the suite out.
+// Building kalleboda is dense; all recipes share one (tilingId, gridW, gridH), so cache it — rebuilding
+// per recipe (×23) is what timed the suite out.
 const tilingCache = new Map<string, ReturnType<typeof buildTiling>>()
-const tilingFor = (tilingId: string, gridN: number) => {
-  const key = `${tilingId}:${gridN}`
+const tilingFor = (tilingId: string, gridW: number, gridH: number) => {
+  const key = `${tilingId}:${gridW}x${gridH}`
   let t = tilingCache.get(key)
   if (!t) {
-    t = buildTiling(tilingId, gridN)
+    t = buildTiling(tilingId, gridW, gridH)
     tilingCache.set(key, t)
   }
   return t
@@ -40,7 +40,7 @@ describe('GALLERY_RECIPES (real ported fractals)', () => {
     for (const [file, r] of ENTRIES) {
       // A recipe seeds its walkers by hand (r.seeds) OR by the Initial-state document (r.initialState).
       expect(r.seeds.length > 0 || r.initialState.trim().length > 0, `${file} places no walkers`).toBe(true)
-      const t = tilingFor(r.tilingId, Math.min(r.gridN, RUN_GRID_CAP))
+      const t = tilingFor(r.tilingId, Math.min(r.gridW, RUN_GRID_CAP), Math.min(r.gridH, RUN_GRID_CAP))
       expect(t.nodes.length, file).toBeGreaterThan(0)
       for (const s of r.seeds) expect(placeOffset(t, s.offset, s.shape), `${file} seed`).toBeTruthy()
     }
@@ -73,7 +73,7 @@ describe('GALLERY_RECIPES (real ported fractals)', () => {
   // stats so the grid size can be tuned.
   it('each recipe grows a fractal when run to completion', () => {
     for (const [file, r] of ENTRIES) {
-      const t = tilingFor(r.tilingId, Math.min(r.gridN, RUN_GRID_CAP))
+      const t = tilingFor(r.tilingId, Math.min(r.gridW, RUN_GRID_CAP), Math.min(r.gridH, RUN_GRID_CAP))
       const prep = prepareFromRecipe(r, t)
       const run = runToCompletion(t, prep.seeds, prep.baseOverlay, prep.defs, prep.indexById, 200_000)
       let visited = 0

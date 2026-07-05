@@ -23,7 +23,7 @@ import { boundsCenter, tileOffset } from './remap'
 //     this version, and refuses one that's NEWER than this build (with reason 'too-new' → "update the app").
 //   APP_VERSION — a human-readable stamp of the build that made the image, for display + bug tracing
 //     only; never branched on. Bump freely.
-export const RECIPE_SCHEMA_VERSION = 3
+export const RECIPE_SCHEMA_VERSION = 4
 export const APP_VERSION = '0.1.0'
 export const RECIPE_KEYWORD = 'exploroboros:recipe'
 
@@ -49,7 +49,7 @@ export type RecipePaint = { offset: Vec2; visits: number[]; a: number; b: number
 
 // The output image is an explicit pixel WIDTH × HEIGHT. The tiling (its own aspect) is fit/centred
 // into it, so a mismatched aspect letterboxes onto the background (renderTiling fills the whole canvas
-// with it). The number of tiles (detail) is `gridN`, derived in the UI from a "pixels per tile" knob.
+// with it). The number of tiles (detail) is `gridW`/`gridH`, tied to a "pixels per tile" knob in the UI.
 export type RecipeOutput = { width: number; height: number; edges: boolean; background: string | null }
 
 export type Recipe = {
@@ -59,8 +59,11 @@ export type Recipe = {
   appVersion?: string
   app: 'exploroboros'
   tilingId: string
-  // The grid the image was generated at (the export-grid knob — usually larger than the live grid).
-  gridN: number
+  // The grid the image was generated at (the export-grid knobs — usually larger than the live grid).
+  // Independent so e.g. the square tiling can export a genuinely rectangular/uneven grid; tilings whose
+  // generator only takes one count (buildTiling) average the two.
+  gridW: number
+  gridH: number
   output: RecipeOutput
   seeds: RecipeSeed[]
   paint: RecipePaint[]
@@ -74,7 +77,8 @@ export type Recipe = {
 
 export type RecipeInput = {
   tilingId: string
-  exportGridN: number
+  exportGridW: number
+  exportGridH: number
   // The tiling the seeds/paint were authored on — used to turn their tile ids into portable offsets.
   liveTiling: Tiling
   seeds: ReadonlyArray<Traverser>
@@ -123,7 +127,8 @@ export function buildRecipe(input: RecipeInput): Recipe {
     appVersion: APP_VERSION,
     app: 'exploroboros',
     tilingId: input.tilingId,
-    gridN: input.exportGridN,
+    gridW: input.exportGridW,
+    gridH: input.exportGridH,
     output: input.output,
     seeds,
     paint,
@@ -165,6 +170,17 @@ const MIGRATIONS: ReadonlyArray<Migration> = [
     from: 2,
     migrate: (r) => ({ ...r, initialState: '' }),
   },
+  // v3 → v4: the single `gridN` (a square export grid) split into independent `gridW`/`gridH`, so the
+  // square tiling can reproduce a rectangular/uneven grid. An old recipe was always generated square,
+  // so both axes take its one value.
+  {
+    from: 3,
+    migrate: (r) => {
+      const { gridN, ...rest } = r as AnyRecipe & { gridN?: number }
+      const n = typeof gridN === 'number' ? gridN : 2
+      return { ...rest, gridW: n, gridH: n }
+    },
+  },
 ]
 
 // Upgrade `obj` from its own schemaVersion up to `target` by running the migration chain in order.
@@ -196,7 +212,7 @@ export type ParseResult =
 // Validate the current-schema shape (after any migration). Light per-entry checks on the
 // geometry-bearing fields; the DSL/colour data stays opaque.
 function isCurrentShape(r: AnyRecipe): boolean {
-  if (typeof r.tilingId !== 'string' || typeof r.gridN !== 'number') return false
+  if (typeof r.tilingId !== 'string' || typeof r.gridW !== 'number' || typeof r.gridH !== 'number') return false
   if (!Array.isArray(r.seeds) || !Array.isArray(r.paint)) return false
   if (!Array.isArray(r.predicates) || !Array.isArray(r.traversers) || !Array.isArray(r.coloringRules)) return false
   if (typeof r.initialState !== 'string') return false

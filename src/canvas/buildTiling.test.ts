@@ -34,4 +34,15 @@ describe('buildTiling', () => {
     expect(buildTiling('square', 0).nodes.length).toBe(1)
     expect(buildTiling('square', 3.7).nodes.length).toBe(9)
   })
+
+  it('builds a genuinely rectangular grid for the square tiling', () => {
+    const t = buildTiling('square', 5, 3)
+    expect(t.nodes.length).toBe(15) // 5 wide x 3 tall, not 5x5 or 3x3
+  })
+
+  it('averages the two axes for tilings that only take one scalar count', () => {
+    const uneven = buildTiling('kalleboda', 10, 20)
+    const averaged = buildTiling('kalleboda', 15) // (10+20)/2 = 15
+    expect(uneven.nodes.length).toBe(averaged.nodes.length)
+  })
 })

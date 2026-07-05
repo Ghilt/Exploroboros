@@ -326,7 +326,7 @@ export function Workspace() {
   const startExport = (params: ExportParams) => {
     const id = `ex${(exportSeq.current += 1)}`
     const { recipe } = params
-    const filename = exportFilename(recipe.tilingId, recipe.gridN, recipe.output.width, recipe.output.height)
+    const filename = exportFilename(recipe.tilingId, recipe.gridW, recipe.gridH, recipe.output.width, recipe.output.height)
     const controller = new AbortController()
     jobControllers.current.set(id, controller)
     setExports((list) => {
@@ -405,7 +405,7 @@ export function Workspace() {
     setSelectedIds([])
     setViewingId(null)
     clearDebug()
-    const editGrid = Math.max(GRID_MIN, Math.min(GRID_MAX, Math.round(recipe.gridN)))
+    const editGrid = Math.max(GRID_MIN, Math.min(GRID_MAX, Math.round((recipe.gridW + recipe.gridH) / 2)))
     setTilingId(recipe.tilingId)
     setGridInput(editGrid)
     setGridN(editGrid)
@@ -437,7 +437,7 @@ export function Workspace() {
   }
   const applyImport = (recipe: Recipe) => {
     loadRecipeRef.current(recipe)
-    showDropNote(`Opened — ${recipe.tilingId}, grid ${recipe.gridN}`)
+    showDropNote(`Opened — ${recipe.tilingId}, grid ${recipe.gridW}×${recipe.gridH}`)
   }
   // Decode + validate/migrate the recipe embedded in an image, then either load it (blank panes) or
   // stash it for the "replace your work?" confirmation (panes already hold authored data).

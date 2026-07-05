@@ -9,10 +9,11 @@ const EDGE_DEF = { id: 't', name: 'edge', text: 'move nearest-unvisited' }
 
 function recipe(overrides: Partial<Recipe> = {}): Recipe {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     app: 'exploroboros',
     tilingId: 'square',
-    gridN: 8,
+    gridW: 8,
+    gridH: 8,
     output: { width: 240, height: 240, edges: false, background: null },
     seeds: [],
     paint: [],
@@ -28,7 +29,7 @@ describe('prepareFromRecipe initial-state seeding', () => {
   it('resolves an Initial-state rule against the EXPORT grid — the top row scales with gridN', () => {
     for (const gridN of [8, 20]) {
       const seeds = prepareFromRecipe(
-        recipe({ gridN, initialState: 'auto-place line {t1, 0, 0, 0}' }),
+        recipe({ gridW: gridN, gridH: gridN, initialState: 'auto-place line {t1, 0, 0, 0}' }),
         buildTiling('square', gridN),
       ).seeds
       expect(seeds).toHaveLength(gridN) // one per top-row tile

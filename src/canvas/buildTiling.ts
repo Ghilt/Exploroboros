@@ -24,8 +24,13 @@ import {
   hatTiling,
 } from '../tiling'
 
-export function buildTiling(tilingId: string, n: number): Tiling {
-  const count = Math.max(1, Math.floor(n))
+// `nW`/`nH` are tile counts across the width/height axes. Only the square generator actually supports
+// a rectangular (rows != cols) grid; every other generator takes one scalar count, so they get the
+// average of the two axes (keeps a single-arg call — nH defaulting to nW — exactly as before).
+export function buildTiling(tilingId: string, nW: number, nH: number = nW): Tiling {
+  const w = Math.max(1, Math.floor(nW))
+  const h = Math.max(1, Math.floor(nH))
+  const count = Math.max(1, Math.round((w + h) / 2))
   switch (tilingId) {
     case 'kalleboda':
       return kallebodaTiling(count)
@@ -62,6 +67,7 @@ export function buildTiling(tilingId: string, n: number): Tiling {
     case 'hat':
       return hatTiling(count)
     case 'square':
+      return squareTiling(h, w)
     default:
       return squareTiling(count, count)
   }

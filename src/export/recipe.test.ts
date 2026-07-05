@@ -22,7 +22,8 @@ function input(): RecipeInput {
   const base = applyPaint(applyPaint(new Map<string, TileState>(), ['sq:1,1'], 'visited'), ['sq:1,1'], 'a')
   return {
     tilingId: 'square',
-    exportGridN: 200,
+    exportGridW: 200,
+    exportGridH: 150,
     liveTiling: tiling,
     seeds: [seed('sq:3,3')],
     baseOverlay: base,
@@ -39,7 +40,8 @@ describe('recipe', () => {
     const r = buildRecipe(input())
     expect(r.app).toBe('exploroboros')
     expect(r.tilingId).toBe('square')
-    expect(r.gridN).toBe(200)
+    expect(r.gridW).toBe(200)
+    expect(r.gridH).toBe(150)
     expect(r.schemaVersion).toBe(RECIPE_SCHEMA_VERSION)
     expect(r.appVersion).toBe(APP_VERSION)
     expect(r.seeds).toHaveLength(1)
@@ -122,10 +124,15 @@ describe('migrateRecipe (the upgrade chain that keeps old images readable)', () 
   })
 
   it('the real v2→v3 migration adds an empty initialState (an old image had none)', () => {
-    const out = migrateRecipe(
-      { schemaVersion: 2, output: { width: 100, height: 100, edges: false, background: null } },
-      RECIPE_SCHEMA_VERSION,
-    )
+    // Target the literal 3 (not RECIPE_SCHEMA_VERSION), so this stays a test of JUST that step as the
+    // schema keeps advancing — see the v3→v4 test below for why that distinction matters.
+    const out = migrateRecipe({ schemaVersion: 2, output: { width: 100, height: 100, edges: false, background: null } }, 3)
     expect(out).toMatchObject({ schemaVersion: 3, initialState: '' })
+  })
+
+  it('the real v3→v4 migration splits gridN into gridW/gridH (an old image was always square)', () => {
+    const out = migrateRecipe({ schemaVersion: 3, gridN: 80 }, 4)
+    expect(out).toMatchObject({ schemaVersion: 4, gridW: 80, gridH: 80 })
+    expect(out).not.toHaveProperty('gridN')
   })
 })
