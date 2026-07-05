@@ -9,10 +9,13 @@ import type { PredicateStore } from '../state/predicateStore'
 // so predicates are authored from any pane's "Custom predicates" badge instead of a dedicated dock.
 export function CustomPredicatesDialog({
   store,
+  predicateNames,
   traverserNames,
   onClose,
 }: {
   store: PredicateStore
+  // Predicate NAME -> DSL text, so a predicate's own text can reference another by name.
+  predicateNames?: ReadonlyMap<string, string>
   // Traverser names so a predicate name can be validated as unique against them too.
   traverserNames?: ReadonlyArray<string>
   onClose: () => void
@@ -65,7 +68,7 @@ export function CustomPredicatesDialog({
           </button>
         </header>
         <div className="preds-dialog-body">
-          <PredicatePane store={store} traverserNames={traverserNames} />
+          <PredicatePane store={store} predicateNames={predicateNames} traverserNames={traverserNames} />
         </div>
       </div>
     </div>,

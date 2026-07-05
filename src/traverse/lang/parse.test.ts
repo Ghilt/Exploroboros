@@ -53,6 +53,21 @@ describe('traverser DSL parser', () => {
     expect(r.guard).toEqual({ pred: { kind: 'named', name: 'isCrowded' } })
   })
 
+  it('parses a guard composing two named references with and/or', () => {
+    const p = ok('if isCrowded and Has_A then move l1')
+    const r = p.statements[0]
+    if (r.kind !== 'rule') throw new Error('expected rule')
+    expect(r.guard?.pred).toEqual({
+      kind: 'inline',
+      pred: {
+        kind: 'bool',
+        op: 'and',
+        left: { kind: 'predref', name: 'isCrowded' },
+        right: { kind: 'predref', name: 'Has_A' },
+      },
+    })
+  })
+
   it('parses an attribute @-path inside a guard (delegated to the predicate DSL)', () => {
     const p = ok('if visited@r1 > 0 then move l1')
     const r = p.statements[0]

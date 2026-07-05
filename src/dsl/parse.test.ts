@@ -246,3 +246,51 @@ describe('parse — errors carry a message and span', () => {
     expect(errOf('visited of neighbor == 1')).toMatch(/expected "tile"/)
   })
 })
+
+describe('parse — named-predicate references (predref)', () => {
+  it('parses a bare name as a predref leaf', () => {
+    expect(ok('isCrowded')).toEqual({ kind: 'predref', name: 'isCrowded' })
+  })
+
+  it('parses an underscore/digit name (Has_A, Level_2) as a predref leaf', () => {
+    expect(ok('Has_A')).toEqual({ kind: 'predref', name: 'Has_A' })
+    expect(ok('Level_2')).toEqual({ kind: 'predref', name: 'Level_2' })
+  })
+
+  it('composes refs with and/or/not', () => {
+    expect(ok('isCrowded and Has_A')).toEqual({
+      kind: 'bool',
+      op: 'and',
+      left: { kind: 'predref', name: 'isCrowded' },
+      right: { kind: 'predref', name: 'Has_A' },
+    })
+    expect(ok('not isCrowded')).toEqual({ kind: 'not', operand: { kind: 'predref', name: 'isCrowded' } })
+    expect(ok('isCrowded or hasC')).toMatchObject({ kind: 'bool', op: 'or' })
+  })
+
+  it('mixes a predref with a real comparison', () => {
+    expect(ok('visited > 0 and isCrowded')).toEqual({
+      kind: 'bool',
+      op: 'and',
+      left: { kind: 'compare', op: '>', left: expect.anything(), right: expect.anything() },
+      right: { kind: 'predref', name: 'isCrowded' },
+    })
+  })
+
+  it('accepts a lone reference wrapped in parens', () => {
+    expect(ok('(isCrowded)')).toEqual({ kind: 'pgroup', inner: { kind: 'predref', name: 'isCrowded' } })
+    expect(ok('(Has_A)')).toEqual({ kind: 'pgroup', inner: { kind: 'predref', name: 'Has_A' } })
+    expect(ok('(not isCrowded)')).toEqual({
+      kind: 'pgroup',
+      inner: { kind: 'not', operand: { kind: 'predref', name: 'isCrowded' } },
+    })
+  })
+
+  it('still requires a comparison for a real attribute name (unaffected)', () => {
+    expect(errOf('visited')).toMatch(/expected a comparison/)
+  })
+
+  it('still requires a shape name after tile-type (unaffected by the predref lookahead)', () => {
+    expect(parsePredicate('tile-type == wedge').ok).toBe(true)
+  })
+})

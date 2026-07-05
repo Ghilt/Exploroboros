@@ -33,6 +33,7 @@ function nPred(p: Pred): Pred {
     case 'compare':
       return { kind: 'compare', op: p.op, left: nExpr(p.left), right: nExpr(p.right) }
     case 'shape':
+    case 'predref':
       return p
   }
 }
@@ -85,6 +86,13 @@ describe('serialize — canonical text', () => {
     )
     expect(canon('not (visited == 1 and [A] == 2)')).toBe('not (visited == 1 and [A] == 2)')
   })
+
+  it('serializes a named-predicate reference bare (names are always valid identifiers)', () => {
+    expect(canon('isCrowded')).toBe('isCrowded')
+    expect(canon('has-a')).toBe('has-a') // hyphenated is one lexer token
+    expect(canon('Has_A')).toBe('Has_A') // underscore-joined
+    expect(canon('isCrowded and Has_A')).toBe('isCrowded and Has_A')
+  })
 })
 
 describe('serialize — round-trips through parse', () => {
@@ -107,6 +115,12 @@ describe('serialize — round-trips through parse', () => {
     '[A@r1] == 2',
     'tile-type@e0 == wedge',
     'visited@target == 0 and visited@e1 > 0',
+    'isCrowded',
+    'Has_A',
+    'isCrowded and Has_A',
+    'not Has_A',
+    '(isCrowded)',
+    'visited > 0 and isCrowded',
   ]
   for (const src of samples) {
     it(`parse(serialize(parse(${src}))) is stable`, () => {

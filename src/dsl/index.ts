@@ -19,6 +19,7 @@ export type {
   Not,
   BoolBin,
   PredGroup,
+  PredRef,
   Pred,
   PathSeg,
   TilePath,
@@ -39,3 +40,5 @@ export { evalNumber, evalPredicate } from './eval'
 export { predReadsTarget, exprReadsTarget } from './target'
 export { replaceAt, type Path } from './edit'
 export { RESERVED_WORDS, reservedNameError } from './reserved'
+export { sanitizeName, malformedNameError, VALID_NAME } from './names'
+export { resolvePredRefs } from './resolveRefs'

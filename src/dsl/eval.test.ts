@@ -214,3 +214,10 @@ describe('eval — attribute @-paths (via the nodeForPath hook)', () => {
     expect(pred('tile-type@e1 != square', ctxWithPath(sq, 'sq:0,0', null))).toBe(false) // still false
   })
 })
+
+describe('eval — an unresolved predref is defensive, not a throw', () => {
+  it('a named-predicate reference that reaches eval without being resolved first evaluates false', () => {
+    // resolvePredRefs always inlines these before eval; this only guards against one slipping through.
+    expect(pred('isCrowded', ctxFor(sq, 'sq:0,0'))).toBe(false)
+  })
+})

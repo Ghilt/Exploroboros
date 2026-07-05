@@ -1,26 +1,32 @@
-// Compile a document's text into a runnable Doc: parse it, then resolve every named-predicate guard
-// (`… if isOct`) to an inline predicate by looking its DSL text up by name. After this all guards are
-// inline, so the resolver never sees a 'named' guard. Pure — the name->text map is the user's predicate
-// library, passed in by the store. Mirrors the traverser DSL's compile.
+// Compile a document's text into a runnable Doc: parse it, then resolve every named-predicate
+// reference — a whole bare-word guard (`… if isOct`) AND any reference embedded inside a compound guard
+// (`… if isOct and hasA`) — to an inline, ref-free predicate by looking each name up. After this all
+// guards are inline, so the resolver never sees a 'named' guard or a nested predref. Pure — the
+// name->text map is the user's predicate library, passed in by the store. Mirrors the traverser DSL's
+// compile.
 
-import { parsePredicate, type Result } from '../dsl'
+import { parsePredicate, resolvePredRefs, type Result } from '../dsl'
 import { parseDoc } from './parse'
 import type { Doc, Guard, InitStmt } from './types'
 
 function resolveGuard(guard: Guard, names: ReadonlyMap<string, string>): Result<Guard> {
-  if (guard.pred.kind !== 'named') return { ok: true, value: guard }
-  const text = names.get(guard.pred.name)
-  if (text === undefined) {
-    return { ok: false, error: { message: `unknown predicate "${guard.pred.name}"`, span: { start: 0, end: 0 } } }
-  }
-  const r = parsePredicate(text)
-  if (!r.ok) {
-    return {
-      ok: false,
-      error: { message: `predicate "${guard.pred.name}": ${r.error.message}`, span: { start: 0, end: 0 } },
+  if (guard.pred.kind === 'named') {
+    const text = names.get(guard.pred.name)
+    if (text === undefined) {
+      return { ok: false, error: { message: `unknown predicate "${guard.pred.name}"`, span: { start: 0, end: 0 } } }
     }
+    const parsed = parsePredicate(text)
+    if (!parsed.ok) {
+      return {
+        ok: false,
+        error: { message: `predicate "${guard.pred.name}": ${parsed.error.message}`, span: { start: 0, end: 0 } },
+      }
+    }
+    const resolved = resolvePredRefs(parsed.value, names, [guard.pred.name])
+    return resolved.ok ? { ok: true, value: { pred: { kind: 'inline', pred: resolved.value } } } : resolved
   }
-  return { ok: true, value: { pred: { kind: 'inline', pred: r.value } } }
+  const resolved = resolvePredRefs(guard.pred.pred, names)
+  return resolved.ok ? { ok: true, value: { pred: { kind: 'inline', pred: resolved.value } } } : resolved
 }
 
 export function resolveNames(doc: Doc, names: ReadonlyMap<string, string>): Result<Doc> {

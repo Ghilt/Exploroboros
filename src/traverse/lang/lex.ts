@@ -54,13 +54,13 @@ export function lexProgram(src: string): Result<Tok[]> {
       toks.push({ kind: 'num', text: src.slice(start, i), start, end: i })
       continue
     }
-    // word: a letter, then letters/digits, with internal hyphens (only before an alphanumeric) so
-    // `max-split`, `r1`, `straight`, `isCrowded`, `P` are each one token.
+    // word: a letter, then letters/digits/underscores, with internal hyphens (only before an
+    // alphanumeric) so `max-split`, `r1`, `straight`, `isCrowded`, `Has_A`, `P` are each one token.
     if (isAlpha(c)) {
       i += 1
       while (i < n) {
         const ch = src[i]
-        if (isAlpha(ch) || isDigit(ch)) {
+        if (isAlpha(ch) || isDigit(ch) || ch === '_') {
           i += 1
         } else if (ch === '-' && (isAlpha(src[i + 1] ?? '') || isDigit(src[i + 1] ?? ''))) {
           i += 1

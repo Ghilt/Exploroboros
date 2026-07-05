@@ -197,6 +197,13 @@ export function PredicateVisualEditor({ text, onChange }: { text: string; onChan
 
   const renderPred = (p: Pred, path: Path): ReactNode => {
     switch (p.kind) {
+      case 'predref':
+        // A reference to another predicate by name — static; edit which name it points to in Text mode.
+        return (
+          <span className="pv-static pv-predref" title="referenced predicate — edit in Text mode">
+            {p.name}
+          </span>
+        )
       case 'compare':
         return (
           <span className="pv-frag">

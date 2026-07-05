@@ -20,6 +20,7 @@ const BUILTIN_WALKER_TEXT = 'move nearest-unvisited'
 export type Prepared = {
   defs: Map<string, Program>
   predicateText: Map<string, string>
+  predicateNames: Map<string, string>
   indexById: Map<string, number>
   seeds: Traverser[]
   baseOverlay: Map<string, TileState>
@@ -39,8 +40,9 @@ export function buildPredicateText(predicates: Recipe['predicates']): Map<string
   return map
 }
 
-// Predicate NAME -> DSL text — for a traverser guard that references a saved predicate by name.
-function buildPredicateNames(predicates: Recipe['predicates']): Map<string, string> {
+// Predicate NAME -> DSL text — for a traverser guard or a named-predicate reference (`isCrowded`,
+// `Has_A`) to resolve against.
+export function buildPredicateNames(predicates: Recipe['predicates']): Map<string, string> {
   const map = new Map<string, string>()
   for (const b of BUNDLED_PREDICATES) map.set(b.name, b.text)
   for (const p of predicates) if (p.name) map.set(p.name, p.text)
@@ -128,6 +130,7 @@ export function prepareFromRecipe(recipe: Recipe, tiling: Tiling): Prepared {
   return {
     defs,
     predicateText: buildPredicateText(recipe.predicates),
+    predicateNames: buildPredicateNames(recipe.predicates),
     indexById,
     seeds,
     baseOverlay,

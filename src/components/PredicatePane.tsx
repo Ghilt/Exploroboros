@@ -1,6 +1,6 @@
 import './PredicatePane.css'
 import { useMemo, useState } from 'react'
-import { parsePredicate, serialize, reservedNameError } from '../dsl'
+import { parsePredicate, resolvePredRefs, serialize, reservedNameError } from '../dsl'
 import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
 import type { PredicateStore, StoredPredicate } from '../state/predicateStore'
 import { HelpButton } from './HelpButton'
@@ -8,14 +8,21 @@ import { TrashButton } from './TrashButton'
 import { PredicateVisualEditor } from './PredicateVisualEditor'
 import { SegmentedControl } from './SegmentedControl'
 
+const EMPTY_NAMES: ReadonlyMap<string, string> = new Map()
+
 // The Predicate pane: a library of reusable tile predicates. Rows show just the name; click one to
 // expand it — a bundled predicate reveals its DSL (read-only), a custom one opens its editor. "+ New"
 // makes a custom predicate from scratch. Custom predicates persist in the browser.
 export function PredicatePane({
   store,
+  predicateNames,
   traverserNames = [],
 }: {
   store: PredicateStore
+  // Predicate NAME -> DSL text (bundled + every custom predicate, incl. this one's own live text) so a
+  // predicate's own text can reference another by name and the live preview can catch an unknown/cyclic
+  // reference, not just a syntax error. Optional so a bare PredicatePane (e.g. in tests) still works.
+  predicateNames?: ReadonlyMap<string, string>
   // Traverser names to keep predicate names distinct from (names are referenced across the DSLs). Optional
   // so a bare PredicatePane (e.g. in tests) still works.
   traverserNames?: ReadonlyArray<string>
@@ -28,11 +35,15 @@ export function PredicatePane({
     if (id === expandedId) setExpandedId(null)
   }
 
-  // A custom predicate name is invalid if it's a reserved DSL word / reference pattern, or already used
-  // by a preset, another custom predicate, or a traverser (names must be unique across the DSLs).
+  // A custom predicate name is invalid if it's malformed (space / illegal char), a reserved DSL word /
+  // reference pattern, or already used by a preset, another custom predicate, or a traverser (names must
+  // be unique across the DSLs). The identifier rules apply only to a USER-given name — an AUTO name
+  // mirrors the DSL text ("visited > 0"), which has spaces/operators by design and is display-only.
   const nameError = (p: StoredPredicate): string | null => {
-    const reserved = reservedNameError(p.name)
-    if (reserved) return reserved
+    if (!p.autoName) {
+      const reserved = reservedNameError(p.name)
+      if (reserved) return reserved
+    }
     const n = p.name.trim().toLowerCase()
     if (!n) return null
     if (BUNDLED_PREDICATES.some((b) => b.name.trim().toLowerCase() === n)) {
@@ -59,7 +70,10 @@ export function PredicatePane({
           </p>
           <p>
             Build a library here, then reuse them — a <strong>coloring rule</strong> is just a predicate plus a
-            colour. The same predicates will later drive traversers, so they feel the same everywhere.
+            colour, and a <strong>traverser</strong> guard can test one too. Reference a saved predicate by
+            name, and combine several with <code>and</code> / <code>or</code> / <code>not</code>:{' '}
+            <code>Has_A and Has_C</code>. Names have <strong>no spaces</strong> — use <code>_</code> to join
+            words.
           </p>
           <p>
             Test a tile's shape with <code>tile-type == triangle</code> (any shape name), or its orientation
@@ -96,6 +110,7 @@ export function PredicatePane({
                     key={p.id}
                     predicate={p}
                     nameError={nameError(p)}
+                    predicateNames={predicateNames ?? EMPTY_NAMES}
                     onSetText={store.setText}
                     onRename={store.rename}
                   />
@@ -138,16 +153,26 @@ export function PredicatePane({
 function PredicateEditor({
   predicate,
   nameError,
+  predicateNames,
   onSetText,
   onRename,
 }: {
   predicate: StoredPredicate
   nameError: string | null
+  predicateNames: ReadonlyMap<string, string>
   onSetText: (id: string, text: string) => void
   onRename: (id: string, name: string) => void
 }) {
   const [mode, setMode] = useState<'text' | 'visual'>('text')
   const result = useMemo(() => parsePredicate(predicate.text), [predicate.text])
+  // A predicate can reference another by name (`isCrowded and Has_A`) — resolve it too, so an
+  // unknown/cyclic reference shows up here rather than only later, in whatever coloring rule or
+  // traverser guard ends up using it.
+  const refError = useMemo(() => {
+    if (!result.ok) return null
+    const r = resolvePredRefs(result.value, predicateNames)
+    return r.ok ? null : r.error.message
+  }, [result, predicateNames])
 
   return (
     <div className="pred-editor">
@@ -194,12 +219,16 @@ function PredicateEditor({
         <PredicateVisualEditor text={predicate.text} onChange={(t) => onSetText(predicate.id, t)} />
       )}
 
-      {result.ok ? (
-        <p className="pred-status pred-status--ok">✓ {serialize(result.value)}</p>
-      ) : (
+      {!result.ok ? (
         <p className="pred-status pred-status--err" role="alert">
           {result.error.message}
         </p>
+      ) : refError ? (
+        <p className="pred-status pred-status--err" role="alert">
+          {refError}
+        </p>
+      ) : (
+        <p className="pred-status pred-status--ok">✓ {serialize(result.value)}</p>
       )}
     </div>
   )

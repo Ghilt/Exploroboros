@@ -76,6 +76,10 @@ function wrapExprRight(e: Expr, parentPrec: number): string {
 
 function predText(p: Pred): Texted {
   switch (p.kind) {
+    case 'predref':
+      // Names can't contain spaces or other non-identifier chars (enforced when authoring + sanitized
+      // on import), so a reference always re-lexes as one identifier — emit it bare.
+      return { s: p.name, prec: 4 }
     case 'pgroup':
       return predText(p.inner)
     case 'compare':

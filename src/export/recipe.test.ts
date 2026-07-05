@@ -135,4 +135,25 @@ describe('migrateRecipe (the upgrade chain that keeps old images readable)', () 
     expect(out).toMatchObject({ schemaVersion: 4, gridW: 80, gridH: 80 })
     expect(out).not.toHaveProperty('gridN')
   })
+
+  it('the real v4→v5 migration sanitizes names and renames a seed def in step', () => {
+    const out = migrateRecipe(
+      {
+        schemaVersion: 4,
+        predicates: [
+          { id: 'p1', name: 'Has A', text: '[A] > 0', autoName: false },
+          { id: 'p2', name: 'visited > 0', text: 'visited > 0', autoName: true }, // auto-name: left alone
+        ],
+        traversers: [{ id: 't1', name: 'My Walker', text: 'move straight' }],
+        seeds: [{ def: 'My Walker', offset: { x: 0, y: 0 } }],
+      },
+      5,
+    )
+    expect(out).toMatchObject({ schemaVersion: 5 })
+    const o = out as { predicates: { name: string }[]; traversers: { name: string }[]; seeds: { def: string }[] }
+    expect(o.predicates[0].name).toBe('Has_A')
+    expect(o.predicates[1].name).toBe('visited > 0') // auto-named: untouched
+    expect(o.traversers[0].name).toBe('My_Walker')
+    expect(o.seeds[0].def).toBe('My_Walker') // seed def renamed in step so the walker still resolves
+  })
 })

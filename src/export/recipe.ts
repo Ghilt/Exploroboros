@@ -12,6 +12,7 @@ import { nodeById, edgeNormalAngle } from '../tiling'
 import type { TileState } from '../canvas'
 import type { Movement, Traverser } from '../traverse'
 import type { ColoringRule } from '../colorizer'
+import { sanitizeName } from '../dsl/names' // zero-dep, so the Cloudflare Functions bundle stays lean
 import type { StoredPredicate } from '../state/predicateStore'
 import type { StoredTraverser } from '../state/traverserStore'
 import { boundsCenter, tileOffset } from './remap'
@@ -23,7 +24,7 @@ import { boundsCenter, tileOffset } from './remap'
 //     this version, and refuses one that's NEWER than this build (with reason 'too-new' → "update the app").
 //   APP_VERSION — a human-readable stamp of the build that made the image, for display + bug tracing
 //     only; never branched on. Bump freely.
-export const RECIPE_SCHEMA_VERSION = 4
+export const RECIPE_SCHEMA_VERSION = 5
 export const APP_VERSION = '0.1.0'
 export const RECIPE_KEYWORD = 'exploroboros:recipe'
 
@@ -181,7 +182,44 @@ const MIGRATIONS: ReadonlyArray<Migration> = [
       return { ...rest, gridW: n, gridH: n }
     },
   },
+  // v4 → v5: predicate / traverser names may no longer contain spaces (so they can be referenced by
+  // name in DSL text — `Has_A and Has_C`). Sanitize every stored name (spaces → `_`), and rename any
+  // seed's `def` in step so a placed walker still finds its (renamed) traverser. Old references in DSL
+  // TEXT (guards/initstate) with spaces never parsed anyway, so nothing referenceable breaks; a clean
+  // name is unchanged (sanitize is a no-op). Purely cosmetic for the rendered image — names map to ids.
+  {
+    from: 4,
+    migrate: migrateNamesV5,
+  },
 ]
+
+function migrateNamesV5(r: AnyRecipe): AnyRecipe {
+  const rename = new Map<string, string>() // old traverser name -> sanitized
+  const traversers = Array.isArray(r.traversers)
+    ? r.traversers.map((t) => {
+        const tr = t as { name?: unknown }
+        if (typeof tr.name !== 'string') return t
+        const clean = sanitizeName(tr.name)
+        if (clean !== tr.name) rename.set(tr.name, clean)
+        return { ...tr, name: clean }
+      })
+    : r.traversers
+  const predicates = Array.isArray(r.predicates)
+    ? r.predicates.map((p) => {
+        const pr = p as { name?: unknown; autoName?: unknown }
+        // AUTO names mirror the DSL text ("visited > 0") — display-only, never referenced, so leave them.
+        if (pr.autoName || typeof pr.name !== 'string') return p
+        return { ...pr, name: sanitizeName(pr.name) }
+      })
+    : r.predicates
+  const seeds = Array.isArray(r.seeds)
+    ? r.seeds.map((s) => {
+        const sd = s as { def?: unknown }
+        return typeof sd.def === 'string' && rename.has(sd.def) ? { ...sd, def: rename.get(sd.def) } : s
+      })
+    : r.seeds
+  return { ...r, traversers, predicates, seeds }
+}
 
 // Upgrade `obj` from its own schemaVersion up to `target` by running the migration chain in order.
 // Pure; returns the upgraded object, or null if a needed step is missing (a gap in the chain). The

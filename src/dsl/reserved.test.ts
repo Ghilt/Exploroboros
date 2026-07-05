@@ -30,10 +30,17 @@ describe('reservedNameError', () => {
     }
   })
 
-  it('allows ordinary names', () => {
-    for (const w of ['gasket', 'my walker', 'spiral2', 'wave', 'Fractal', 'north-star', 'sierpinski', 't', 'row']) {
+  it('allows ordinary identifier names', () => {
+    for (const w of ['gasket', 'Has_A', 'spiral2', 'wave', 'Fractal', 'north-star', 'sierpinski', 't', 'row']) {
       expect(reservedNameError(w), w).toBeNull()
     }
+  })
+
+  it('rejects names with spaces or illegal characters (must be a bare identifier)', () => {
+    expect(reservedNameError('my walker')).toMatch(/spaces/)
+    expect(reservedNameError('Has A')).toMatch(/spaces/)
+    expect(reservedNameError('a/b')).toMatch(/letters, digits/)
+    expect(reservedNameError('2cool')).toMatch(/letters, digits/)
   })
 
   it('trims and treats an empty name as ok (it auto-names from the DSL text)', () => {

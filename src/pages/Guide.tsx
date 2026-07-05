@@ -309,9 +309,19 @@ move straight                  # a bare action — always runs`}</pre>
           </li>
           <li>
             <strong>By name</strong>: write the name of a predicate you saved in the Predicates pane, e.g.{' '}
-            <code>if isCrowded then …</code>.
+            <code>if isCrowded then …</code>. Names have <strong>no spaces</strong> — use <code>_</code> to
+            join words (<code>Has_A</code>, <code>my_gate</code>), so a name is always a single word you can
+            drop straight into a rule.
           </li>
         </ul>
+        <p>
+          Named references <strong>combine with the rest of the language</strong> — mix them with{' '}
+          <code>and</code> / <code>or</code> / <code>not</code>, and with inline comparisons, just like any
+          other predicate: <code>if Has_A and Has_C then …</code>,{' '}
+          <code>if visited &gt; 0 and not isCrowded then …</code>. This works everywhere a predicate is
+          written — a coloring rule's inline field, a guard, a directive. Referencing an unknown name, or a
+          name that (directly or through another predicate) refers back to itself, is a compile error.
+        </p>
         <p>
           Each attribute reads the tile you're <strong>on</strong> by default. Add an <strong>@-path</strong>{' '}
           right after the attribute to read it on <em>another</em> tile — <code>visited@e1</code>,{' '}

@@ -8,7 +8,7 @@ import { colorize } from '../colorizer'
 import { GALLERY_RECIPES } from './galleryRecipes'
 
 const ENTRIES = Object.entries(GALLERY_RECIPES)
-const BUNDLED = new Set(['visited', 'unvisited', 'rule90', 'odd-visits', 'checker', 'has-a', 'has-b', 'has-c', 'triangles', 'squares'])
+const BUNDLED = new Set(['visited', 'visited-neighbor', 'unvisited', 'unvisited-neighbor', 'has-a', 'has-b', 'has-c'])
 // Cap the run grid: a recipe's export gridW/gridH can be huge (e.g. the full-plane XOR CA at 1067²),
 // which would make the grow-check crawl. The fractal's structure is the same at a modest size —
 // initialState seeding is grid-relative, and centre-seeded recipes still grow from the middle.
@@ -82,7 +82,7 @@ describe('GALLERY_RECIPES (real ported fractals)', () => {
       // sweeps every tile (100% visited) yet paints only a diamond. Measure the coloured tiles instead;
       // it must be non-empty. No upper bound: a CA sweep and shape-based rules both legitimately touch
       // every tile.
-      const colored = colorize(r.coloringRules, prep.predicateText, t, run.overlay, prep.indexById)
+      const colored = colorize(r.coloringRules, prep.predicateText, prep.predicateNames, t, run.overlay, prep.indexById)
       const pct = ((visited / t.nodes.length) * 100).toFixed(1)
       // eslint-disable-next-line no-console
       console.log(`${file.padEnd(16)} nodes=${t.nodes.length} ticks=${run.ticks} visited=${visited} (${pct}%) coloured=${colored.size} hitCap=${run.hitCap}`)

@@ -4,7 +4,7 @@
 // unit-tested without React; the hook wires them to persistence.
 
 import { useCallback, useEffect, useState } from 'react'
-import { parsePredicate, serialize } from '../dsl'
+import { parsePredicate, sanitizeName, serialize } from '../dsl'
 import { loadStored, newId, saveStored } from './persist'
 
 export type StoredPredicate = { id: string; name: string; text: string; autoName: boolean }
@@ -51,10 +51,15 @@ export function withRemoved(list: ReadonlyArray<StoredPredicate>, id: string): S
 function load(): StoredPredicate[] {
   const data = loadStored<FileShape | null>(KEY, null)
   if (!data || data.version !== VERSION || !Array.isArray(data.predicates)) return []
-  return data.predicates.filter(
-    (p): p is StoredPredicate =>
-      !!p && typeof p.id === 'string' && typeof p.text === 'string' && typeof p.name === 'string',
-  )
+  return data.predicates
+    .filter(
+      (p): p is StoredPredicate =>
+        !!p && typeof p.id === 'string' && typeof p.text === 'string' && typeof p.name === 'string',
+    )
+    // Clean up a USER-given name authored before the no-spaces rule (spaces → `_`) so it loads without
+    // a name error and stays referenceable. AUTO names mirror the DSL text ("visited > 0") and contain
+    // spaces/operators by design — they're display-only, never referenced as identifiers, so leave them.
+    .map((p) => (p.autoName ? p : { ...p, name: sanitizeName(p.name) }))
 }
 
 export type PredicateStore = {

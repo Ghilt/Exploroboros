@@ -55,6 +55,44 @@ describe('initstate parse', () => {
     expect(c.value[0].guard?.pred.kind).toBe('inline')
   })
 
+  it('composes named-predicate references inside a guard', () => {
+    const d = ok('auto-place blob {walker, 0, 0, 1, 0} if isOct and Has_A')
+    expect(d[0].guard?.pred).toEqual({
+      kind: 'inline',
+      pred: {
+        kind: 'bool',
+        op: 'and',
+        left: { kind: 'predref', name: 'isOct' },
+        right: { kind: 'predref', name: 'Has_A' },
+      },
+    })
+    const names = new Map([
+      ['isOct', 'tile-type == octagon'],
+      ['Has_A', '[A] > 0'],
+    ])
+    const c = compileDoc('auto-place blob {walker, 0, 0, 1, 0} if isOct and Has_A', names)
+    if (!c.ok) throw new Error(c.error.message)
+    expect(c.value[0].guard?.pred).toEqual({
+      kind: 'inline',
+      pred: {
+        kind: 'bool',
+        op: 'and',
+        left: { kind: 'shape', op: '==', shape: 'octagon' },
+        right: { kind: 'compare', op: '>', left: { kind: 'reg', regs: ['a'] }, right: { kind: 'number', value: 0 } },
+      },
+    })
+  })
+
+  it('fails to compile on an unknown or self-referencing predicate name', () => {
+    const ghost = compileDoc('auto-place blob {walker, 0, 0, 1, 0} if ghost', new Map())
+    expect(ghost.ok).toBe(false)
+    if (!ghost.ok) expect(ghost.error.message).toMatch(/unknown predicate "ghost"/)
+
+    const loop = compileDoc('auto-place blob {walker, 0, 0, 1, 0} if loop', new Map([['loop', 'loop']]))
+    expect(loop.ok).toBe(false)
+    if (!loop.ok) expect(loop.error.message).toMatch(/refers to itself/)
+  })
+
   it('round-trips through serialize (line + blob, with and without a guard)', () => {
     for (const src of [
       'auto-place line {t1, 0, 0, 0}',

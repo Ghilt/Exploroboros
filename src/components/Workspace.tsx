@@ -286,8 +286,8 @@ export function Workspace() {
   // The tiling's appearance: evaluate the coloring rules per tile, once per input change (not per
   // frame). Tiles with no matching rule are absent and keep the base fill.
   const colorFor = useMemo(
-    () => colorize(coloringStore.rules, predicateText, tiling, displayOverlay, indexById),
-    [coloringStore.rules, predicateText, tiling, displayOverlay, indexById],
+    () => colorize(coloringStore.rules, predicateText, predicateNames, tiling, displayOverlay, indexById),
+    [coloringStore.rules, predicateText, predicateNames, tiling, displayOverlay, indexById],
   )
 
   // Tile id -> heading for the canvas to draw each walker's arrow (stats mode only). Show the live
@@ -881,6 +881,7 @@ export function Workspace() {
         <ColoringPane
           store={coloringStore}
           customPredicates={predicateStore.predicates}
+          predicateNames={predicateNames}
           onOpenPredicates={() => setPredsOpen(true)}
         />
       </Panel>
@@ -1067,6 +1068,7 @@ export function Workspace() {
       {predsOpen && (
         <CustomPredicatesDialog
           store={predicateStore}
+          predicateNames={predicateNames}
           traverserNames={traverserOrder}
           onClose={() => setPredsOpen(false)}
         />

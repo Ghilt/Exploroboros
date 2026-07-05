@@ -5,7 +5,7 @@
 
 import type { Tiling } from '../tiling'
 import type { TileState } from '../canvas'
-import { attrSpec, evalPredicate, parsePredicate, type EvalContext, type Pred } from '../dsl'
+import { attrSpec, evalPredicate, parsePredicate, resolvePredRefs, type EvalContext, type Pred } from '../dsl'
 import { resolveAbsolutePath } from '../traverse'
 import type { ColoringRule, Ramp } from './types'
 
@@ -93,18 +93,23 @@ function ruleText(rule: ColoringRule, predicateText: ReadonlyMap<string, string>
 
 export type CompiledRule = { pred: Pred; rule: ColoringRule }
 
-// Parse each rule's predicate once. Rules whose predicate is missing or does not parse are dropped
-// (the editor surfaces the error elsewhere) so a broken rule can't throw mid-colorize.
+// Parse each rule's predicate once, then inline any named-predicate references it contains (`isCrowded
+// and Has_A`) against the predicate library, by NAME (not id — same convention as the traverser DSL's
+// guards). Rules whose predicate is missing, does not parse, or references an unknown/cyclic name are
+// dropped (the editor surfaces the error elsewhere) so a broken rule can't throw mid-colorize.
 export function compileRules(
   rules: ReadonlyArray<ColoringRule>,
   predicateText: ReadonlyMap<string, string>,
+  predicateNames: ReadonlyMap<string, string>,
 ): CompiledRule[] {
   const out: CompiledRule[] = []
   for (const rule of rules) {
     const text = ruleText(rule, predicateText)
     if (text == null) continue
     const r = parsePredicate(text)
-    if (r.ok) out.push({ pred: r.value, rule })
+    if (!r.ok) continue
+    const resolved = resolvePredRefs(r.value, predicateNames)
+    if (resolved.ok) out.push({ pred: resolved.value, rule })
   }
   return out
 }
@@ -114,11 +119,12 @@ export function compileRules(
 export function colorize(
   rules: ReadonlyArray<ColoringRule>,
   predicateText: ReadonlyMap<string, string>,
+  predicateNames: ReadonlyMap<string, string>,
   tiling: Tiling,
   overlay: ReadonlyMap<string, TileState>,
   indexById: ReadonlyMap<string, number>,
 ): Map<string, string> {
-  const compiled = compileRules(rules, predicateText)
+  const compiled = compileRules(rules, predicateText, predicateNames)
   const out = new Map<string, string>()
   if (compiled.length === 0) return out
 

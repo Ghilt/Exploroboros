@@ -179,7 +179,7 @@ describe('every preset colorizes a visited tile end-to-end', () => {
   it('produces a valid rgba() for a visited tile and skips unvisited tiles', () => {
     for (const preset of COLORING_PRESETS) {
       const rules = buildPresetRules(preset, makeId)
-      const out = colorize(rules, predicateText, sq, overlay, new Map())
+      const out = colorize(rules, predicateText, new Map(), sq, overlay, new Map())
       const painted = out.get('sq:1,2')
       expect(painted, preset.name).toMatch(/^rgba\(\d+, \d+, \d+, [\d.]+\)$/)
       expect(out.has('sq:3,3'), `${preset.name} unvisited`).toBe(false)

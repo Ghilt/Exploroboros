@@ -108,8 +108,9 @@ function parseWhat(line: Line): What {
   return { kind: 'traverser', ref: w.text }
 }
 
-// The guard after `if`: a single word is a named-predicate reference; anything else is an inline
-// predicate delegated whole to src/dsl (any `@`-paths inside are parsed there).
+// The guard after `if`: a single word is a named-predicate reference; anything else (incl. a compound
+// `isOct and hasA` that references saved predicates by name) is an inline predicate delegated whole to
+// src/dsl, whose bare names compile-time resolveNames then inlines.
 function parseGuard(line: Line): Guard {
   const from = line.pos
   const to = line.toks.length

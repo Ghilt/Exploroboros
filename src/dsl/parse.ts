@@ -75,6 +75,10 @@ class Parser {
       return { kind: 'pgroup', inner }
     }
     if (this.isKeyword('tile-type')) return this.parseShapeTest()
+    if (this.looksLikeBarePredicateRef()) {
+      const t = this.next()
+      return { kind: 'predref', name: t.text }
+    }
     const left = this.parseExpr()
     const t = this.peek()
     if (t.kind !== 'cmp') {
@@ -84,6 +88,18 @@ class Parser {
     const op: CompareOp = t.text === '=' ? '==' : (t.text as CompareOp)
     const right = this.parseExpr()
     return { kind: 'compare', op, left, right }
+  }
+
+  // A bare identifier that names neither a keyword nor a known attribute, with nothing after it that
+  // would extend it into a numeric expression or comparison (no @path, index, arithmetic, or `==`), is
+  // a reference to another predicate BY NAME (`isCrowded and hasC`) — resolved later against the
+  // caller's predicate library, since this parser has no registry to validate the name against. Names
+  // can't contain spaces (enforced when authoring), so `_` joins words: `Has_A and Has_C`.
+  private looksLikeBarePredicateRef(): boolean {
+    const t = this.peek()
+    if (t.kind !== 'ident' || KEYWORDS.has(t.text) || t.text === 'tile-type' || attrSpec(t.text)) return false
+    const nxt = this.toks[this.pos + 1]
+    return nxt.kind === 'eof' || nxt.kind === 'rparen' || (nxt.kind === 'ident' && (nxt.text === 'and' || nxt.text === 'or'))
   }
   // tile-type == <shape> / tile-type != <shape>. The shape name is any identifier (not validated —
   // shapes are tiling-specific and predicates persist across tilings).
@@ -128,6 +144,16 @@ class Parser {
         return true
       } else if (t.kind === 'ident' && (t.text === 'and' || t.text === 'or' || t.text === 'not')) {
         return true
+      } else if (
+        depth === 1 &&
+        t.kind === 'ident' &&
+        !KEYWORDS.has(t.text) &&
+        t.text !== 'tile-type' &&
+        !attrSpec(t.text)
+      ) {
+        // A lone predicate-name reference filling this whole paren, e.g. `(isCrowded)`
+        // (`(not isCrowded)` is already caught above, by the "not" keyword itself).
+        if (this.toks[k - 1]?.kind === 'lparen' && this.toks[k + 1]?.kind === 'rparen') return true
       }
     }
     return false
@@ -296,8 +322,10 @@ class Parser {
     return segs
   }
 
-  // One path segment (the token(s) after an `@`): straight/s, nearest-unvisited, target, tile N, or a
-  // letter e/r/l followed by a number (@e5, @r1, @l2). Bare numbers are rejected — edges are `@eN`.
+  // One path segment (the token(s) after an `@`): straight/s, nearest-unvisited, target, tile N, or an
+  // edge/turn `eN`/`rN`/`lN` (@e5, @r1, @l2). The lexer now yields `e5` as ONE identifier (digits
+  // continue an identifier), so we split it with a regex here — the same way the traverser DSL's
+  // parseEdgeRef reads a move. Bare numbers (`@1`) are rejected — edges are `@eN`.
   private parseSegment(): PathSeg {
     const t = this.peek()
     if (t.kind !== 'ident') {
@@ -325,16 +353,13 @@ class Parser {
       if (!Number.isInteger(idx) || idx < 0) throw new ParseFail('tile number must be a whole number ≥ 0', num.span)
       return { kind: 'tile', index: idx }
     }
-    if (word === 'e' || word === 'r' || word === 'l') {
+    const m = /^([erl])([0-9]+)$/.exec(word)
+    if (m) {
       this.next()
-      const num = this.peek()
-      if (num.kind !== 'number') throw new ParseFail(`expected a number after "${word}", e.g. @${word}1`, num.span)
-      this.next()
-      const n = Number(num.text)
-      if (!Number.isInteger(n) || n < 0) throw new ParseFail('an edge/turn number must be a whole number ≥ 0', num.span)
-      if (word === 'e') return { kind: 'edge', index: n }
-      if (n < 1) throw new ParseFail('a turn must be r1/l1 or higher', num.span)
-      return { kind: 'turn', dir: word, n }
+      const n = Number(m[2])
+      if (m[1] === 'e') return { kind: 'edge', index: n }
+      if (n < 1) throw new ParseFail('a turn must be r1/l1 or higher', t.span)
+      return { kind: 'turn', dir: m[1] as 'r' | 'l', n }
     }
     throw new ParseFail(`"${word}" is not an edge — use @e0, @r1/@l1…, @straight, @nearest-unvisited, or @target`, t.span)
   }

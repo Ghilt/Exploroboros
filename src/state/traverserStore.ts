@@ -5,6 +5,7 @@
 // persistence. Mirrors predicateStore.
 
 import { useCallback, useEffect, useState } from 'react'
+import { sanitizeName } from '../dsl'
 import { loadStored, newId, saveStored } from './persist'
 
 export type StoredTraverser = { id: string; name: string; text: string }
@@ -46,10 +47,15 @@ export function withRemoved(list: ReadonlyArray<StoredTraverser>, id: string): S
 function load(): StoredTraverser[] {
   const data = loadStored<FileShape | null>(KEY, null)
   if (!data || data.version !== VERSION || !Array.isArray(data.traversers)) return []
-  return data.traversers.filter(
-    (t): t is StoredTraverser =>
-      !!t && typeof t.id === 'string' && typeof t.text === 'string' && typeof t.name === 'string',
-  )
+  return data.traversers
+    .filter(
+      (t): t is StoredTraverser =>
+        !!t && typeof t.id === 'string' && typeof t.text === 'string' && typeof t.name === 'string',
+    )
+    // Names authored before the no-spaces rule are cleaned up on load (spaces → `_`), so an old library
+    // shows no name errors. A name that references this traverser lives elsewhere (Initial-state text),
+    // which used `t1`/positional or already-clean names, so renaming here doesn't strand a reference.
+    .map((t) => ({ ...t, name: sanitizeName(t.name) }))
 }
 
 export type TraverserStore = {

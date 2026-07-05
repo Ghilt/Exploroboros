@@ -28,6 +28,8 @@ export function exprReadsTarget(expr: Expr): boolean {
 
 export function predReadsTarget(pred: Pred): boolean {
   switch (pred.kind) {
+    case 'predref':
+      return false // resolved to a target-free tree by resolvePredRefs before this ever runs
     case 'compare':
       return exprReadsTarget(pred.left) || exprReadsTarget(pred.right)
     case 'shape':

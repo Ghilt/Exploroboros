@@ -18,8 +18,13 @@ const inline = (text: string, color: RuleColor, opacity = 1, id = text): Colorin
   opacity,
 })
 
-function run(rules: ColoringRule[], overlay: Overlay = new Map(), text = NO_TEXT): Map<string, string> {
-  return colorize(rules, text, sq, overlay, NO_INDEX)
+function run(
+  rules: ColoringRule[],
+  overlay: Overlay = new Map(),
+  text = NO_TEXT,
+  names = NO_TEXT,
+): Map<string, string> {
+  return colorize(rules, text, names, sq, overlay, NO_INDEX)
 }
 
 describe('colorize — rule stacking', () => {
@@ -119,14 +124,14 @@ describe('colorize — predicate resolution', () => {
   it('resolves a referenced predicate by id', () => {
     const overlay = addVisit(new Map(), 'sq:0,0')
     const rule: ColoringRule = { id: 'r', predicate: { kind: 'ref', id: 'p1' }, color: flat('#00ff00'), opacity: 1 }
-    const out = colorize([rule], new Map([['p1', 'visited > 0']]), sq, overlay, NO_INDEX)
+    const out = colorize([rule], new Map([['p1', 'visited > 0']]), NO_TEXT, sq, overlay, NO_INDEX)
     expect(out.get('sq:0,0')).toBe('rgba(0, 255, 0, 1)')
   })
 
   it('drops a rule whose referenced predicate is missing or unparseable', () => {
     const missing: ColoringRule = { id: 'r1', predicate: { kind: 'ref', id: 'gone' }, color: flat('#fff'), opacity: 1 }
     const broken = inline('visited >', flat('#fff'))
-    expect(compileRules([missing, broken], NO_TEXT)).toHaveLength(0)
+    expect(compileRules([missing, broken], NO_TEXT, NO_TEXT)).toHaveLength(0)
     expect(run([missing, broken], addVisit(new Map(), 'sq:0,0')).size).toBe(0)
   })
 })

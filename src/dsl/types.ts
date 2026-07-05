@@ -93,7 +93,12 @@ export type ShapeTest = { kind: 'shape'; op: '==' | '!='; shape: string; path?: 
 export type Not = { kind: 'not'; operand: Pred }
 export type BoolBin = { kind: 'bool'; op: BoolOp; left: Pred; right: Pred }
 export type PredGroup = { kind: 'pgroup'; inner: Pred } // ( predicate )
-export type Pred = Compare | ShapeTest | Not | BoolBin | PredGroup
+// A reference to another predicate BY NAME (`isCrowded`, `Has_A`), composable with and/or/not like any
+// other predicate (`isCrowded and Has_A`). Names can't contain spaces, so a bare identifier is always
+// enough — no quoting. The parser has no registry, so it can't validate the name eagerly;
+// resolvePredRefs inlines it (or errors on an unknown/cyclic name) before eval ever sees one.
+export type PredRef = { kind: 'predref'; name: string }
+export type Pred = Compare | ShapeTest | Not | BoolBin | PredGroup | PredRef
 
 // ---- parse results (errors never thrown across the module boundary) ----
 export type Span = { start: number; end: number }

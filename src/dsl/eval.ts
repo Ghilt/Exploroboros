@@ -63,6 +63,8 @@ export function evalNumber(expr: Expr, ctx: EvalContext): number {
 
 export function evalPredicate(pred: Pred, ctx: EvalContext): boolean {
   switch (pred.kind) {
+    case 'predref':
+      return false // resolvePredRefs inlines these before eval; defensive if one somehow slips through
     case 'pgroup':
       return evalPredicate(pred.inner, ctx)
     case 'shape': {

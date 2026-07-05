@@ -147,8 +147,10 @@ function parseEdgeTarget(line: Line): EdgeTarget {
 }
 
 // A guard over tokens [from, to): a single-word named reference, or an inline predicate delegated whole
-// to src/dsl. Any `@`-paths (`visited@e1`, `visited@target`) live INSIDE the predicate and are parsed by
-// src/dsl — this layer no longer splits on `@`.
+// to src/dsl. A COMPOUND guard that references saved predicates by name (`isCrowded and hasC`) is not a
+// single token, so it delegates to src/dsl, which parses the bare names as predrefs; compile-time
+// resolveNames then inlines both the single-word and the embedded references. Any `@`-paths
+// (`visited@e1`, `visited@target`) live INSIDE the predicate and are parsed by src/dsl.
 function parseGuardRange(line: Line, from: number, to: number): Guard {
   if (to - from === 1 && line.toks[from].kind === 'word') {
     return { pred: { kind: 'named', name: line.toks[from].text } }

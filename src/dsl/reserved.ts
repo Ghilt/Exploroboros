@@ -11,6 +11,7 @@
 //   initial state   src/initstate/parse.ts (auto-place, line, blob, visited, if)
 
 import { ATTRIBUTES } from './attributes'
+import { malformedNameError } from './names'
 
 const WORDS: ReadonlyArray<string> = [
   // predicate DSL keywords + the shape test
@@ -39,9 +40,12 @@ export const RESERVED_WORDS: ReadonlySet<string> = new Set(WORDS.map((w) => w.to
 // reference (`t1`) in the Initial-state DSL. A name of this shape would be swallowed as that reference.
 const REFERENCE_PATTERN = /^[terl][0-9]+$/i
 
-// Returns a human error if `name` clashes with the DSL grammar, else null. Duplicate-name checks (against
+// Returns a human error if `name` can't be used — malformed (space / illegal char / bad start), a
+// reserved grammar word, or a positional reference pattern — else null. Duplicate-name checks (against
 // OTHER predicates/traversers) are done by the caller, which knows the current set of names.
 export function reservedNameError(name: string): string | null {
+  const malformed = malformedNameError(name)
+  if (malformed) return malformed
   const n = name.trim()
   if (!n) return null // an empty name is handled elsewhere (it auto-names from the DSL text)
   if (RESERVED_WORDS.has(n.toLowerCase())) return `"${n}" is a reserved word in the rule language — choose another name`

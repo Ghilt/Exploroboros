@@ -1,11 +1,25 @@
+import { useEffect } from 'react'
 import { render, fireEvent, screen, cleanup } from '@testing-library/react'
 import { describe, it, expect, afterEach } from 'vitest'
 import { ColoringPane } from './ColoringPane'
 import { useColoringStore } from '../state/coloringStore'
+import type { ColoringRule } from '../colorizer'
 
-function Harness() {
+function Harness({
+  customPredicates = [{ id: 'p1', name: 'My predicate', text: 'visited > 0' }],
+  predicateNames,
+  initialRules,
+}: {
+  customPredicates?: { id: string; name: string; text: string }[]
+  predicateNames?: ReadonlyMap<string, string>
+  initialRules?: ColoringRule[]
+} = {}) {
   const store = useColoringStore()
-  return <ColoringPane store={store} customPredicates={[{ id: 'p1', name: 'My predicate' }]} />
+  useEffect(() => {
+    if (initialRules) store.setAll(initialRules)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  return <ColoringPane store={store} customPredicates={customPredicates} predicateNames={predicateNames} />
 }
 
 afterEach(() => {
@@ -57,6 +71,60 @@ describe('ColoringPane', () => {
     fireEvent.click(screen.getByRole('button', { name: '+ Add rule' }))
     fireEvent.click(screen.getByRole('button', { name: 'delete rule' }))
     expect(screen.getByText(/no rules yet/i)).toBeTruthy()
+  })
+
+  it('flags an inline predicate that fails to parse, with a badge and an error message', () => {
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: '+ Add rule' }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'rule predicate' }), { target: { value: '__inline__' } })
+    expect(screen.queryByRole('alert')).toBeNull() // no error yet — the default inline text is valid
+    fireEvent.change(screen.getByRole('textbox', { name: 'inline predicate' }), { target: { value: 'visited >' } })
+    expect(screen.getByRole('alert').textContent).toBeTruthy()
+    expect(screen.getByText('error')).toBeTruthy() // the badge
+  })
+
+  it('flags a rule whose referenced predicate no longer exists', () => {
+    const rule: ColoringRule = {
+      id: 'r1',
+      predicate: { kind: 'ref', id: 'ghost' },
+      color: { kind: 'flat', hex: '#ffffff' },
+      opacity: 1,
+    }
+    render(<Harness initialRules={[rule]} />)
+    expect(screen.getByTitle(/no longer exists/i)).toBeTruthy()
+    expect((screen.getByRole('combobox', { name: 'rule predicate' }) as HTMLSelectElement).value).toBe('ghost')
+  })
+
+  it('flags a rule whose referenced custom predicate does not compile', () => {
+    const rule: ColoringRule = {
+      id: 'r1',
+      predicate: { kind: 'ref', id: 'p1' },
+      color: { kind: 'flat', hex: '#ffffff' },
+      opacity: 1,
+    }
+    render(<Harness customPredicates={[{ id: 'p1', name: 'Broken', text: 'visited >' }]} initialRules={[rule]} />)
+    expect(screen.getByTitle(/doesn't compile/i)).toBeTruthy()
+  })
+
+  it('composes two named predicates with "and" in the inline field (underscore-joined names)', () => {
+    const names = new Map([
+      ['Has_A', '[A] > 0'],
+      ['Has_C', '[C] > 0'],
+    ])
+    render(<Harness predicateNames={names} />)
+    fireEvent.click(screen.getByRole('button', { name: '+ Add rule' }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'rule predicate' }), { target: { value: '__inline__' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'inline predicate' }), { target: { value: 'Has_A and Has_C' } })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByText('error')).toBeNull()
+  })
+
+  it('flags an inline predicate that references an unknown name', () => {
+    render(<Harness predicateNames={new Map()} />)
+    fireEvent.click(screen.getByRole('button', { name: '+ Add rule' }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'rule predicate' }), { target: { value: '__inline__' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'inline predicate' }), { target: { value: 'Has_A and Has_C' } })
+    expect(screen.getByRole('alert').textContent).toMatch(/unknown predicate "Has_A"/)
   })
 
   it('offers "Generate a random coloring" only while empty, and adds a rule on click', () => {

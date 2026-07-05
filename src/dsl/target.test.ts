@@ -21,4 +21,9 @@ describe('predReadsTarget', () => {
     expect(predReadsTarget(pred('visited@e1 == 0'))).toBe(false)
     expect(predReadsTarget(pred('visited@r1@e5 == 1 and tile-type@e0 == wedge'))).toBe(false)
   })
+
+  it('is false for a named-predicate reference (resolved before this ever sees it)', () => {
+    expect(predReadsTarget(pred('isCrowded'))).toBe(false)
+    expect(predReadsTarget(pred('isCrowded and visited@target == 0'))).toBe(true)
+  })
 })

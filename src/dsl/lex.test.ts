@@ -66,13 +66,35 @@ describe('lex', () => {
     expect(r.error.span).toEqual({ start: 8, end: 9 })
   })
 
-  it('lexes @ as an at token (starting an attribute path)', () => {
+  it('lexes @ as an at token; an edge like e1 is one identifier (parse.ts splits it)', () => {
     const r = lex('visited@e1')
     if (!r.ok) throw new Error('expected ok')
-    expect(r.value.map((t: Token) => t.kind)).toEqual(['ident', 'at', 'ident', 'number', 'eof'])
+    expect(r.value.map((t: Token) => t.kind)).toEqual(['ident', 'at', 'ident', 'eof'])
+    expect(texts('visited@e1')).toEqual(['visited', '@', 'e1'])
   })
 
   it('fails on a lone "!"', () => {
     expect(lex('a ! b').ok).toBe(false)
+  })
+
+  it('allows digits and underscores inside an identifier (for names like Has_A / Level_2 / rule3)', () => {
+    expect(kinds('Has_A')).toEqual(['ident', 'eof'])
+    expect(texts('Has_A')).toEqual(['Has_A'])
+    expect(texts('Level_2')).toEqual(['Level_2'])
+    expect(texts('rule3')).toEqual(['rule3'])
+    expect(texts('Has_A and Has_C')).toEqual(['Has_A', 'and', 'Has_C'])
+  })
+
+  it('keeps `visited - 1` three tokens (a hyphen continues an identifier only before a LETTER)', () => {
+    expect(texts('visited - 1')).toEqual(['visited', '-', '1'])
+    expect(kinds('visited - 1')).toEqual(['ident', 'op', 'number', 'eof'])
+    // digit-continuation must not swallow the minus:
+    expect(texts('visited-1')).toEqual(['visited', '-', '1'])
+    // …but a hyphen before a letter still joins (attribute names):
+    expect(texts('first-step')).toEqual(['first-step'])
+  })
+
+  it('an underscore cannot START an identifier', () => {
+    expect(lex('_foo').ok).toBe(false)
   })
 })

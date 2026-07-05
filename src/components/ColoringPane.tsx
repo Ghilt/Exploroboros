@@ -1,5 +1,6 @@
 import './ColoringPane.css'
-import { parsePredicate } from '../dsl'
+import '../components/PredicatePane.css'
+import { parsePredicate, resolvePredRefs } from '../dsl'
 import type { ColoringRule } from '../colorizer'
 import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
 import type { ColoringStore } from '../state/coloringStore'
@@ -9,8 +10,29 @@ import { TrashButton } from './TrashButton'
 import { HelpButton } from './HelpButton'
 
 const INLINE = '__inline__'
+const EMPTY_NAMES: ReadonlyMap<string, string> = new Map()
 
-type PredOption = { id: string; name: string }
+type PredOption = { id: string; name: string; text: string }
+
+// Parse then inline any named-predicate references (`isCrowded and Has_A`) — the one check that
+// covers every way a predicate's text can fail: a syntax error, or a reference to an unknown/cyclic name.
+function checkPredicateText(text: string, predicateNames: ReadonlyMap<string, string>): string | null {
+  const r = parsePredicate(text)
+  if (!r.ok) return r.error.message
+  const resolved = resolvePredRefs(r.value, predicateNames)
+  return resolved.ok ? null : resolved.error.message
+}
+
+// Why a rule's chosen predicate currently matches nothing (so the row can flag it instead of just
+// silently colouring nothing): the referenced predicate was deleted, or it (or something it references)
+// doesn't compile.
+function refProblem(id: string, customPredicates: ReadonlyArray<PredOption>, predicateNames: ReadonlyMap<string, string>): string | null {
+  if (BUNDLED_PREDICATES.some((b) => b.id === id)) return null
+  const custom = customPredicates.find((p) => p.id === id)
+  if (!custom) return 'this predicate no longer exists — pick another'
+  const problem = checkPredicateText(custom.text, predicateNames)
+  return problem ? `"${custom.name || '(unnamed)'}" doesn't compile: ${problem}` : null
+}
 
 // The Coloring pane: an ordered, drag-reorderable list of rules. Each rule paints the tiles its
 // predicate matches with a colour (flat, or a ramp over an attribute). Rules read top→bottom; the
@@ -18,13 +40,18 @@ type PredOption = { id: string; name: string }
 export function ColoringPane({
   store,
   customPredicates,
+  predicateNames,
   onOpenPredicates,
 }: {
   store: ColoringStore
   customPredicates: ReadonlyArray<PredOption>
+  // Predicate NAME -> DSL text, so an inline predicate can reference another by name (`isCrowded and
+  // Has_A`) — same map the traverser guards resolve against. Defaults to empty so tests can omit it.
+  predicateNames?: ReadonlyMap<string, string>
   // Opens the shared Custom-predicates dialog (the badge at the pane foot). Optional so tests can omit it.
   onOpenPredicates?: () => void
 }) {
+  const names = predicateNames ?? EMPTY_NAMES
   return (
     <div className="coloring-pane">
       <span className="pane-help">
@@ -32,6 +59,13 @@ export function ColoringPane({
           <p>
             A coloring rule is a <strong>predicate</strong> (which tiles) plus a <strong>colour</strong>. Drag
             to reorder; rules apply top→bottom and the last matching rule sets a tile's colour.
+          </p>
+          <p>
+            Pick a saved predicate from the dropdown, or choose <strong>Inline…</strong> to type your own —
+            inline text can also reference a saved predicate <strong>by name</strong>, combined with{' '}
+            <code>and</code> / <code>or</code> / <code>not</code>: <code>Has_A and Has_C</code>. Names have no
+            spaces (use <code>_</code>). A red <strong>error</strong> badge appears next to a rule whose
+            predicate doesn't compile — hover it for why.
           </p>
           <p>
             Give a rule a <strong>see-through colour</strong> (lower its opacity) to blend it over the rules
@@ -65,6 +99,7 @@ export function ColoringPane({
             <ColoringRuleRow
               rule={rule}
               customPredicates={customPredicates}
+              predicateNames={names}
               handle={handle}
               onChange={(next) => store.replace(rule.id, next)}
               onRemove={() => store.remove(rule.id)}
@@ -91,19 +126,27 @@ export function ColoringPane({
 function ColoringRuleRow({
   rule,
   customPredicates,
+  predicateNames,
   handle,
   onChange,
   onRemove,
 }: {
   rule: ColoringRule
   customPredicates: ReadonlyArray<PredOption>
+  predicateNames: ReadonlyMap<string, string>
   handle: DragHandleProps
   onChange: (next: ColoringRule) => void
   onRemove: () => void
 }) {
   const predValue = rule.predicate.kind === 'ref' ? rule.predicate.id : INLINE
   const inlineText = rule.predicate.kind === 'inline' ? rule.predicate.text : ''
-  const inlineError = rule.predicate.kind === 'inline' && !parsePredicate(inlineText).ok
+  const inlineError = rule.predicate.kind === 'inline' ? checkPredicateText(inlineText, predicateNames) : null
+  const problem = inlineError ?? (rule.predicate.kind === 'ref' ? refProblem(rule.predicate.id, customPredicates, predicateNames) : null)
+  // A ref to a predicate that's since been deleted has no matching <option> — without one the <select>
+  // silently shows the first option instead, masking exactly the broken state `problem` just flagged.
+  const refId = rule.predicate.kind === 'ref' ? rule.predicate.id : null
+  const isDangling =
+    refId !== null && !BUNDLED_PREDICATES.some((b) => b.id === refId) && !customPredicates.some((p) => p.id === refId)
 
   const selectPredicate = (v: string) => {
     if (v === INLINE) {
@@ -126,6 +169,11 @@ function ColoringRuleRow({
         >
           ⋯
         </button>
+        {problem && (
+          <span className="pred-badge-err" title={problem}>
+            error
+          </span>
+        )}
         <TrashButton label="delete rule" onClick={onRemove} />
       </div>
 
@@ -154,18 +202,26 @@ function ColoringRuleRow({
                 ))}
               </optgroup>
             )}
+            {isDangling && <option value={refId ?? ''}>(deleted predicate)</option>}
             <option value={INLINE}>Inline…</option>
           </select>
         </div>
 
         {rule.predicate.kind === 'inline' && (
-          <input
-            className={`rule-inline${inlineError ? ' is-error' : ''}`}
-            value={inlineText}
-            spellCheck={false}
-            aria-label="inline predicate"
-            onChange={(e) => onChange({ ...rule, predicate: { kind: 'inline', text: e.target.value } })}
-          />
+          <>
+            <input
+              className={`rule-inline${inlineError ? ' is-error' : ''}`}
+              value={inlineText}
+              spellCheck={false}
+              aria-label="inline predicate"
+              onChange={(e) => onChange({ ...rule, predicate: { kind: 'inline', text: e.target.value } })}
+            />
+            {inlineError && (
+              <p className="pred-status pred-status--err" role="alert">
+                {inlineError}
+              </p>
+            )}
+          </>
         )}
 
         <ColorField

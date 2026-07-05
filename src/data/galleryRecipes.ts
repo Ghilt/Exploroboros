@@ -243,7 +243,7 @@ const SIERPINSKI = def('sierpinski', [
 // ~54% fill on a 220² grid, natural stop). Not built by the kalleboda `recipe()` helper — it's a square
 // tiling with its own two traversers + a step ramp, so it's a plain literal.
 const XOR_DIAMOND: Recipe = {
-  schemaVersion: 3,
+  schemaVersion: RECIPE_SCHEMA_VERSION,
   appVersion: '0.1.0',
   app: 'exploroboros',
   tilingId: 'square',
@@ -256,7 +256,7 @@ const XOR_DIAMOND: Recipe = {
   traversers: [
     {
       id: '278cca65-8a1e-4f69-b8c0-493634458085',
-      name: 'walker matt',
+      name: 'walker_matt',
       text: '\nif ([A@e2] + [A@e2@e3] + [A@e2@e1] + [A@e2@e2]) % 2 == 1 then put [A] = 1\nmove straight\n\n',
     },
     {

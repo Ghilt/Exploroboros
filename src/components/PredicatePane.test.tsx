@@ -4,9 +4,9 @@ import { PredicatePane } from './PredicatePane'
 import { usePredicateStore } from '../state/predicateStore'
 
 // PredicatePane takes a store; wrap the hook so each render gets a fresh one backed by localStorage.
-function Harness() {
+function Harness({ predicateNames }: { predicateNames?: ReadonlyMap<string, string> } = {}) {
   const store = usePredicateStore()
-  return <PredicatePane store={store} />
+  return <PredicatePane store={store} predicateNames={predicateNames} />
 }
 
 afterEach(() => {
@@ -53,6 +53,20 @@ describe('PredicatePane', () => {
     expect((screen.getByRole('textbox', { name: 'predicate name' }) as HTMLInputElement).value).toBe('visited > 0')
     fireEvent.change(screen.getByRole('textbox', { name: 'predicate DSL' }), { target: { value: 'edge-count==4' } })
     expect((screen.getByRole('textbox', { name: 'predicate name' }) as HTMLInputElement).value).toBe('edge-count == 4')
+  })
+
+  it('composes a named-predicate reference and resolves it against predicateNames', () => {
+    render(<Harness predicateNames={new Map([['hasA', '[A] > 0']])} />)
+    fireEvent.click(screen.getByRole('button', { name: '+ New' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'predicate DSL' }), { target: { value: 'hasA and visited > 0' } })
+    expect(screen.getByText(/✓/)).toBeTruthy()
+  })
+
+  it('flags a reference to an unknown predicate name (not just a syntax error)', () => {
+    render(<Harness predicateNames={new Map()} />)
+    fireEvent.click(screen.getByRole('button', { name: '+ New' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'predicate DSL' }), { target: { value: 'hasA and visited > 0' } })
+    expect(screen.getByRole('alert').textContent).toMatch(/unknown predicate "hasA"/)
   })
 
   it('deletes a custom predicate via the trash button', () => {
