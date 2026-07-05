@@ -20,7 +20,7 @@ import {
   MANUAL_STEP,
 } from '../canvas'
 import type { TileClip, TileState, Registry, PaintTarget } from '../canvas'
-import { stepTraversers, stepTraversersTraced, rotateHeading, compileProgram, DEFAULT_SETTINGS, type Traverser, type Program, type TickTrace } from '../traverse'
+import { stepTraversers, stepTraversersTraced, rotateHeading, renameSeedDefs, compileProgram, DEFAULT_SETTINGS, type Traverser, type Program, type TickTrace } from '../traverse'
 import { compileDoc, resolveInitialState, mergeByTile, applyInitWrites, type InitResolved } from '../initstate'
 import { TilingCanvas, type DisplayMode, type DragMode, type HighlightGroups } from './TilingCanvas'
 import { TilingPicker } from './TilingPicker'
@@ -241,6 +241,29 @@ export function Workspace() {
     }
     return map
   }, [traverserStore.traversers, predicateNames])
+
+  // Renaming a traverser definition must carry through to any walker already PLACED with it —
+  // `seed.def`/`runLive[].def` store the definition NAME (the engine's lookup key into `defs` above), so
+  // without this a rename silently orphans every placed walker (`defs.get(tr.def)` stops matching and the
+  // walker quietly drops next tick — no error). `defOptions`/`effectiveDef` below already handle a rename
+  // for the NEXT placement's picker; this is the missing counterpart for ones already on the grid. Diff
+  // each render's `id -> name` map against the last one to catch a rename specifically (an add/remove/
+  // setAll just has an id absent from one side, not a changed name for the same id), then patch it into
+  // both the authored seeds and a live run's copy.
+  const traverserNamesRef = useRef<Map<string, string>>(new Map())
+  useEffect(() => {
+    const prev = traverserNamesRef.current
+    const renamed = new Map<string, string>()
+    for (const t of traverserStore.traversers) {
+      const oldName = prev.get(t.id)
+      if (oldName !== undefined && oldName !== t.name) renamed.set(oldName, t.name)
+    }
+    if (renamed.size > 0) {
+      setSeeds((list) => renameSeedDefs(list, renamed))
+      setRunLive((list) => (list ? renameSeedDefs(list, renamed) : list))
+    }
+    traverserNamesRef.current = new Map(traverserStore.traversers.map((t) => [t.id, t.name]))
+  }, [traverserStore.traversers])
 
   const defOptions = useMemo(() => [...defs.keys()], [defs])
   // Fall back to the first available definition if the chosen one was deleted/renamed.

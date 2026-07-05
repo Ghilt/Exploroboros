@@ -2,7 +2,7 @@
 // engine stays pure (no React/DOM/Konva) so it's unit-testable and SSR-safe.
 
 export type { Traverser, TraverseState, TickResult } from './types'
-export { stepTraversers, stepTraversersTraced, stepTraversersInto, rotateHeading } from './step'
+export { stepTraversers, stepTraversersTraced, stepTraversersInto, rotateHeading, renameSeedDefs } from './step'
 
 // The per-tick decision trace (the debug log's data).
 export type { TickTrace, TraverserTrace, StmtTrace, CandidateTrace, GuardEval, ReadTile, RejectReason, CoalesceTrace, DropTrace } from './trace'

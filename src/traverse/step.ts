@@ -21,6 +21,18 @@ export function rotateHeading(tiling: Tiling, tile: string, heading: number, dir
   return (((heading + dir) % n) + n) % n
 }
 
+// After a traverser DEFINITION is renamed, any walker already placed with the old name would silently
+// stop resolving (`defs.get(tr.def)` in computeTick misses -> dropped next tick, per below). Rewrite
+// `def` on every walker that used an old name to its new one; walkers using other names pass through
+// unchanged. Mirrors the seed-def rewrite the v4->v5 recipe migration does for the load-from-PNG path.
+export function renameSeedDefs(list: ReadonlyArray<Traverser>, renamed: ReadonlyMap<string, string>): Traverser[] {
+  if (renamed.size === 0) return [...list]
+  return list.map((t) => {
+    const next = renamed.get(t.def)
+    return next === undefined ? t : { ...t, def: next }
+  })
+}
+
 // The decisions of one tick, WITHOUT touching the overlay: each walker runs its program off the
 // frozen overlay; a walker that produces no move/morph is dropped (it only persists by moving).
 // Branches inherit the parent's registers/steps (branch 0 keeps the id, extras get fresh ids; splits++

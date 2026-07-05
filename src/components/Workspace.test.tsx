@@ -352,4 +352,39 @@ describe('Workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
     expect(screen.getByText('Tile #0')).toBeTruthy()
   })
+
+  // Last in the file: it adds a custom traverser definition, which persists via localStorage for the
+  // rest of this file's tests (jsdom shares one `window` per test file) — later tests assume a clean
+  // library (just the built-in "Walker"), so nothing else may run after this one.
+  it('carries an already-placed walker over when its traverser definition is renamed', () => {
+    const { container } = render(<Workspace />)
+    // A custom definition (the built-in "Walker" can't be renamed) — place it, but don't rename yet.
+    fireEvent.click(screen.getByRole('button', { name: /expand traversers/i }))
+    fireEvent.click(screen.getByRole('button', { name: '+ New' })) // opens the editor, default name "walker"
+    fireEvent.click(screen.getByRole('button', { name: /done/i })) // back to the list, unedited
+
+    fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
+    fireEvent.click(screen.getByRole('button', { name: '1:walker' })) // place the CUSTOM def, not the built-in
+    expect(container.querySelector('.trav-name')?.textContent).toBe('1:walker')
+
+    // Rename the definition — the already-placed walker must follow, not go stale (the reported bug).
+    fireEvent.click(screen.getByRole('button', { name: /^1:\s*walker$/ }))
+    fireEvent.change(screen.getByLabelText('traverser name'), { target: { value: 'renamed' } })
+    fireEvent.click(screen.getByRole('button', { name: /done/i }))
+
+    // Inspect reflects the new name against the SAME placed walker — no re-placement needed.
+    expect(container.querySelector('.trav-name')?.textContent).toBe('1:renamed')
+
+    // The engine can still resolve + run it: Step seeds (tick 1), then a real tick (tick 2) moves the
+    // walker onto an unvisited neighbour. Before the fix the stale `def` makes `defs.get()` miss and the
+    // walker is silently dropped, so neither neighbour would ever pick up a visit.
+    const stepBtn = () => screen.getByRole('button', { name: /^step/i })
+    fireEvent.click(stepBtn())
+    fireEvent.click(stepBtn())
+    fireEvent.click(screen.getByRole('button', { name: 'sq:1,0' }))
+    const a = container.querySelector('.visited-value')?.textContent
+    fireEvent.click(screen.getByRole('button', { name: 'sq:0,1' }))
+    const b = container.querySelector('.visited-value')?.textContent
+    expect([a, b]).toContain('1')
+  })
 })

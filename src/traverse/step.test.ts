@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildTiling, addVisit, tileState, visitCount, type TileState } from '../canvas'
 import { across, nodeById, localSideToEdge, type Tiling } from '../tiling'
-import { parseProgram, rotateHeading, stepTraversers, type Program, type Traverser } from './index'
+import { parseProgram, rotateHeading, renameSeedDefs, stepTraversers, type Program, type Traverser } from './index'
 
 // The built-in "Walker" behaviour expressed in the DSL: step to the least-turn unvisited neighbour.
 const WALKER: Program = (() => {
@@ -127,5 +127,27 @@ describe('stepTraversers (DSL-driven, default "Walker" = move unvisited)', () =>
     const r2 = stepTraversers(s)
     expect(r1.traversers).toEqual(r2.traversers)
     expect([...r1.overlay]).toEqual([...r2.overlay])
+  })
+})
+
+describe('renameSeedDefs', () => {
+  it('rewrites a walker whose def matches an old name to the new one', () => {
+    const walkers = [mk('a', center(), 0), mk('b', at(0, 0), 0)]
+    const out = renameSeedDefs(walkers, new Map([['walker', 'renamed']]))
+    expect(out.map((t) => t.def)).toEqual(['renamed', 'renamed'])
+  })
+
+  it('leaves a walker whose def is not in the rename map untouched', () => {
+    const walkers = [{ ...mk('a', center(), 0), def: 'other' }]
+    const out = renameSeedDefs(walkers, new Map([['walker', 'renamed']]))
+    expect(out[0].def).toBe('other')
+    expect(out[0]).toBe(walkers[0]) // untouched entries pass through by reference
+  })
+
+  it('an empty rename map is a no-op that still returns a fresh array', () => {
+    const walkers = [mk('a', center(), 0)]
+    const out = renameSeedDefs(walkers, new Map())
+    expect(out).toEqual(walkers)
+    expect(out).not.toBe(walkers)
   })
 })
