@@ -159,6 +159,16 @@
   row-gap: 0.4rem;
 }
 
+/* A thin vertical rule splitting the run/speed controls from the tiling + display tools, so the
+   toolbar reads as two groups rather than one long run. */
+.canvas-divider {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: var(--bw-1);
+  margin: 0.15rem 0;
+  background: var(--line);
+}
+
 /* Dropdown / menu triggers in the canvas bar — tiling picker, drag, export — share ONE look. They
    open popups, so they're dropdown buttons (rounded-rect), NOT status-chip pills (see
    docs/VISUAL-LANGUAGE.md §5/§6). Matches .tiling-picker-trigger so all three are identical. */
@@ -607,6 +617,10 @@
   .canvas-more-wrap,
   .canvas-drag {
     position: static;
+  }
+  /* A vertical rule reads oddly once the toolbar wraps into several rows. */
+  .canvas-divider {
+    display: none;
   }
   .canvas-extra.is-open {
     left: 0.6rem;

@@ -1,4 +1,5 @@
 import './Nav.css'
+import { BrandMark } from './BrandMark'
 import { hrefFor, type Route } from '../router/useHashRoute'
 
 const LINKS: ReadonlyArray<{ route: Route; label: string }> = [
@@ -12,7 +13,7 @@ export function Nav({ route }: { route: Route }) {
     <header className="nav-bar">
       <div className="nav container">
         <a className="nav-brand" href={hrefFor('landing')} aria-label="Exploroboros — home">
-          <span className="nav-brand-mark" aria-hidden="true" />
+          <BrandMark className="nav-brand-mark" />
           <span className="nav-brand-text">Exploroboros</span>
         </a>
         <nav className="nav-links" aria-label="Primary">

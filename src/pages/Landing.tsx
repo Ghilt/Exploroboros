@@ -8,12 +8,12 @@ const FEATURES: ReadonlyArray<{ icon: string; title: string; body: string }> = [
   {
     icon: '✦',
     title: 'Playful exploration',
-    body: 'Wander across any tiled plane, poke at tiles, and watch what unfolds — guided by nothing but curiosity.',
+    body: 'Wander across any tiled plane, poke at tiles, and watch what unfolds, guided by nothing but curiosity.',
   },
   {
     icon: '✎',
     title: 'A powerful, intuitive editor',
-    body: 'Author coloring and traversal rules by hand. Click or tap tiles — expressive, and no code required.',
+    body: 'Author coloring and traversal rules by hand, with an expressive visual editor backed by a dedicated language.',
   },
   {
     icon: '♡',

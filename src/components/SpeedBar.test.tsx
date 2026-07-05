@@ -22,7 +22,7 @@ describe('SpeedBar', () => {
     expect(onChange).toHaveBeenLastCalledWith('fast')
     fireEvent.keyDown(slider(), { key: 'ArrowLeft' }) // still controlled at "slow" -> down one
     expect(onChange).toHaveBeenLastCalledWith('vslow')
-    // At the turtle end, ArrowLeft is a no-op.
+    // At the slowest end, ArrowLeft is a no-op.
     rerender(<SpeedBar value="vslow" onChange={onChange} />)
     onChange.mockClear()
     fireEvent.keyDown(slider(), { key: 'ArrowLeft' })
@@ -36,13 +36,13 @@ describe('SpeedBar', () => {
     const { container } = render(<SpeedBar value="slow" onChange={onChange} />)
     const notches = container.querySelectorAll('.speedbar-notch')
     expect(notches.length).toBe(4)
-    fireEvent.click(notches[3]) // rabbit end
+    fireEvent.click(notches[3]) // fastest end
     expect(onChange).toHaveBeenLastCalledWith('max')
-    fireEvent.click(notches[0]) // turtle end
+    fireEvent.click(notches[0]) // slowest end
     expect(onChange).toHaveBeenLastCalledWith('vslow')
   })
 
-  it('renders the turtle and rabbit icons', () => {
+  it('renders the slow and fast chevron icons', () => {
     const { container } = render(<SpeedBar value="slow" onChange={() => {}} />)
     expect(container.querySelectorAll('svg.speedbar-icon').length).toBe(2)
   })

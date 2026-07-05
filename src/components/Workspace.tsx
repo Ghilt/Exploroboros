@@ -793,6 +793,7 @@ export function Workspace() {
         <button type="button" className="seg-item seg-item--btn transport-btn" onClick={stopRun} disabled={!running && runLive === null && !hasTraverserVisits(overlay)} aria-label="Stop — end the run and clear its trail (keeps the walkers and your painting)" title="Stop — end the run and clear its trail (keeps the walkers and your painting)">■</button>
       </div>
       <SpeedBar value={speed} onChange={setSpeed} ariaLabel="traverser speed" />
+      <span className="canvas-divider" aria-hidden="true" />
       <div className="canvas-tools">
         <TilingPicker value={tilingId} onChange={selectTiling} />
         <div className="canvas-drag" ref={dragMenuRef}>
