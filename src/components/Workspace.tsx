@@ -47,6 +47,7 @@ import { useInitialStateStore, makeInitialState } from '../state/initialStateSto
 import { colorize } from '../colorizer'
 import { downloadBlob, exportFilename } from '../export/download'
 import { generateExport, isAbortError, type ExportParams } from '../export/exportImage'
+import { downloadExportDebugLog } from '../export/debugLog'
 import { remapSeeds, remapPaint, parseRecipe, decodeRecipeFromPng, type Recipe } from '../export'
 import { takePendingRecipe } from '../state/pendingRecipe'
 import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
@@ -363,7 +364,17 @@ export function Workspace() {
       return next
     })
 
-    generateExport(params, controller.signal)
+    // Track the last progress the run reported, so a failure debug log can say how far it got.
+    let lastProgress: { ticks: number; live: number } | null = null
+    const jobParams: ExportParams = {
+      ...params,
+      onProgress: (ticks, live) => {
+        lastProgress = { ticks, live }
+        params.onProgress?.(ticks, live)
+      },
+    }
+
+    generateExport(jobParams, controller.signal)
       .then((outcome) => {
         jobControllers.current.delete(id)
         const fullUrl = URL.createObjectURL(outcome.full)
@@ -380,10 +391,22 @@ export function Workspace() {
       .catch((e) => {
         jobControllers.current.delete(id)
         setExports((list) => list.filter((x) => x.id !== id)) // a cancelled or failed job drops out
-        if (!isAbortError(e)) {
-          setDropNote(`Export failed: ${e instanceof Error ? e.message : String(e)}`)
-          window.setTimeout(() => setDropNote(null), 4000)
+        if (isAbortError(e)) return // a user cancel is not a failure — no log, no toast
+        const msg = e instanceof Error ? e.message : String(e)
+        // Hand the user a downloadable, self-contained debug log (recipe + error + stage + environment
+        // + diagnostics) they can pass to a developer. Guarded so the failure handler can't itself throw.
+        let logFile: string | null = null
+        try {
+          logFile = downloadExportDebugLog({ error: e, recipe: params.recipe, caps: params.caps, progress: lastProgress })
+        } catch {
+          /* if even the log can't be produced, still show the toast below */
         }
+        setDropNote(
+          logFile
+            ? `Export failed: ${msg}. Saved a debug log (“${logFile}”) to your downloads — send it to a developer.`
+            : `Export failed: ${msg}`,
+        )
+        window.setTimeout(() => setDropNote(null), 9000)
       })
   }
 

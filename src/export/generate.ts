@@ -7,6 +7,7 @@ import type { Tiling } from '../tiling'
 import { buildTiling } from '../canvas'
 import { colorize } from '../colorizer'
 import type { Recipe } from './recipe'
+import type { ExportStage } from './exportTypes'
 import { prepareFromRecipe } from './prepare'
 import { runToCompletion } from './runToCompletion'
 import { pickCanvasSize, type SizeCaps, type CanvasSize } from './sizing'
@@ -21,13 +22,19 @@ export type ComputeResult = {
 
 // Build the export tiling, run the traverse to completion, colour it, and size the output canvas.
 // `onProgress(ticks, liveCount)` is called periodically during the (potentially long) run.
+// `onStage(stage)` is called as each step begins, so a caller (the worker / main-thread driver) can
+// attribute a thrown error to the exact stage it failed in — see the export debug log.
 export function computeExport(
   recipe: Recipe,
   caps: SizeCaps,
   onProgress?: (ticks: number, liveCount: number) => void,
+  onStage?: (stage: ExportStage) => void,
 ): ComputeResult {
+  onStage?.('build-tiling')
   const tiling = buildTiling(recipe.tilingId, recipe.gridW, recipe.gridH)
+  onStage?.('prepare')
   const prep = prepareFromRecipe(recipe, tiling)
+  onStage?.('run')
   const run = runToCompletion(
     tiling,
     prep.seeds,
@@ -37,7 +44,9 @@ export function computeExport(
     undefined,
     onProgress,
   )
+  onStage?.('colorize')
   const colorFor = colorize(recipe.coloringRules, prep.predicateText, prep.predicateNames, tiling, run.overlay, prep.indexById)
+  onStage?.('size')
   const size = pickCanvasSize(tiling.bounds, recipe.output.width, recipe.output.height, caps)
   return { tiling, colorFor, size, ticks: run.ticks, hitCap: run.hitCap }
 }

@@ -14,6 +14,21 @@ export type ExportRequest = {
   thumbLongEdge: number
 }
 
+// The stages of an export, in order. Tracked so a failure can be attributed to a specific step (build
+// the tiling → prepare defs/seeds → run the traverse → colour → size → rasterise → encode), which is
+// the single most useful thing in a crash debug log. computeExport reports the first five; the
+// worker/driver add the render/encode ones; generateExport adds embed-metadata.
+export type ExportStage =
+  | 'build-tiling'
+  | 'prepare'
+  | 'run'
+  | 'colorize'
+  | 'size'
+  | 'render'
+  | 'thumbnail'
+  | 'encode-blob'
+  | 'embed-metadata'
+
 export type ExportProgress = { type: 'progress'; ticks: number; live: number }
 export type ExportDone = {
   type: 'done'
@@ -25,5 +40,7 @@ export type ExportDone = {
   hitCap: boolean
   clamped: boolean
 }
-export type ExportError = { type: 'error'; message: string }
+// A structured worker error: the message plus the underlying error's name/stack and the stage it failed
+// in, so the main thread can build a rich debug log even though the error crossed a worker boundary.
+export type ExportError = { type: 'error'; message: string; name?: string; stack?: string; stage?: ExportStage }
 export type ExportMessage = ExportProgress | ExportDone | ExportError

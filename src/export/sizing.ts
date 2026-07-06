@@ -23,6 +23,23 @@ export type CanvasSize = {
   clamped: boolean
 }
 
+// The pixel size the caps allow for a requested width × height — the part of pickCanvasSize that does
+// NOT need the tiling's bounds. Shrinks uniformly (keeping the requested aspect) until both the
+// per-edge and area caps are met. Exposed on its own so a debug log can report the real output size a
+// failed export would have used without having to (re)build the tiling.
+export function clampResolution(
+  reqWidth: number,
+  reqHeight: number,
+  caps: SizeCaps,
+): { width: number; height: number; clamped: boolean } {
+  const w0 = Math.max(1, Math.floor(reqWidth))
+  const h0 = Math.max(1, Math.floor(reqHeight))
+  const edgeScale = Math.min(1, caps.maxEdge / Math.max(w0, h0))
+  const areaScale = Math.min(1, Math.sqrt(caps.maxArea / (w0 * h0)))
+  const scale = Math.min(edgeScale, areaScale)
+  return { width: Math.max(1, Math.floor(w0 * scale)), height: Math.max(1, Math.floor(h0 * scale)), clamped: scale < 1 }
+}
+
 export function pickCanvasSize(
   bounds: Bounds,
   reqWidth: number,
@@ -30,15 +47,8 @@ export function pickCanvasSize(
   caps: SizeCaps,
   padFrac = 0.01,
 ): CanvasSize {
-  const w0 = Math.max(1, Math.floor(reqWidth))
-  const h0 = Math.max(1, Math.floor(reqHeight))
-  // Shrink uniformly (keeping the requested aspect) until both the per-edge and area caps are met.
-  const edgeScale = Math.min(1, caps.maxEdge / Math.max(w0, h0))
-  const areaScale = Math.min(1, Math.sqrt(caps.maxArea / (w0 * h0)))
-  const scale = Math.min(edgeScale, areaScale)
-  const width = Math.max(1, Math.floor(w0 * scale))
-  const height = Math.max(1, Math.floor(h0 * scale))
+  const { width, height, clamped } = clampResolution(reqWidth, reqHeight, caps)
   // Fit/centre the tiling into the canvas (contain); a mismatched aspect letterboxes onto the background.
   const view = fitToView(bounds, { width, height }, padFrac)
-  return { width, height, view, clamped: scale < 1 }
+  return { width, height, view, clamped }
 }

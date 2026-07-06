@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Bounds } from '../tiling'
-import { pickCanvasSize, DESKTOP_CAPS } from './sizing'
+import { pickCanvasSize, clampResolution, DESKTOP_CAPS } from './sizing'
 
 const SQUARE: Bounds = { minX: 0, minY: 0, maxX: 10, maxY: 10 }
 const WIDE: Bounds = { minX: 0, minY: 0, maxX: 20, maxY: 10 }
@@ -32,5 +32,25 @@ describe('pickCanvasSize', () => {
     const s = pickCanvasSize(SQUARE, 5000, 5000, { maxEdge: 100000, maxArea: 1_000_000 })
     expect(s.width * s.height).toBeLessThanOrEqual(1_000_000)
     expect(s.clamped).toBe(true)
+  })
+})
+
+describe('clampResolution', () => {
+  it('returns the request unchanged when within the caps', () => {
+    expect(clampResolution(1000, 800, DESKTOP_CAPS)).toEqual({ width: 1000, height: 800, clamped: false })
+  })
+
+  it('shrinks to the per-edge cap, preserving aspect (no bounds needed)', () => {
+    const r = clampResolution(20000, 10000, { maxEdge: 4096, maxArea: 1e12 })
+    expect(Math.max(r.width, r.height)).toBeLessThanOrEqual(4096)
+    expect(r.width / r.height).toBeCloseTo(2, 1)
+    expect(r.clamped).toBe(true)
+  })
+
+  it('agrees with pickCanvasSize on the pixel dimensions', () => {
+    const bounds: Bounds = { minX: 0, minY: 0, maxX: 10, maxY: 10 }
+    const s = pickCanvasSize(bounds, 5000, 5000, { maxEdge: 100000, maxArea: 1_000_000 })
+    const r = clampResolution(5000, 5000, { maxEdge: 100000, maxArea: 1_000_000 })
+    expect({ width: r.width, height: r.height, clamped: r.clamped }).toEqual({ width: s.width, height: s.height, clamped: s.clamped })
   })
 })

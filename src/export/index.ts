@@ -32,3 +32,18 @@ export {
 } from './prepare'
 export { computeExport, type ComputeResult } from './generate'
 export { embedText, readText, encodeRecipeToPng, decodeRecipeFromPng } from './pngText'
+export { clampResolution } from './sizing'
+export type { ExportStage } from './exportTypes'
+export {
+  buildExportDebugReport,
+  serializeDebugReport,
+  debugLogFilename,
+  toErrorInfo,
+  DEBUG_REPORT_VERSION,
+  type ExportDebugReport,
+  type ExportErrorInfo,
+  type ExportEnvironment,
+  type ExportDiagnostics,
+  type TraverserDiag,
+  type DebugReportInput,
+} from './debugReport'
