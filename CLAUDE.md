@@ -341,6 +341,14 @@ still needed into this doc **before** then; do not rely on the path persisting.
   boundary (with `worker.onerror` capturing the `ErrorEvent` for a bare crash). **The intermittent real
   failure could not be reproduced on demand**, so the log-generation is verified (build / lint / 836 tests
   + a live-runtime exercise) but the on-device failure→download awaits the next occurrence. See §7/§9.
+- **Downloadable traverse log (committed 2026-07-06, `8eebf56`):** a "⤓ Download full log" button (bottom
+  of Inspect) runs the current setup to completion **traced** and downloads a self-contained JSON — every
+  tick's per-walker decisions, a tile-geometry dictionary (id → shape + x,y), a per-tick summary, and the
+  final state — for offline analysis / handing to a developer. Pure `src/traverse/traceLog.ts`. Built while
+  diagnosing an owner "asymmetric fractal" report on Kagome & Squares, which turned out to be **not an engine
+  bug**: absolute edge numbers are clockwise-**handed**, so a triangle's selective `eK@eK` routing is chiral
+  (only a full fan preserves the tiling's mirror symmetry) — see §9. A permanent `symmetry.test.ts` now guards
+  that the engine keeps full-fan patterns symmetric.
 - **Next up:** **`exploroboros.io` custom domain** (register + attach — §8) → **DSL-driven traversers** (custom
   rules in the Traversers pane — paint/move/visit/split/guards/state, §5; reuses the predicate DSL) → **persist
   user exports across reloads** (IndexedDB).
@@ -430,6 +438,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-07-06 | **Fix — selecting a tile didn't move the camera, so a pane reopening could hide it.** Tapping a tile only ever opened Inspect; the canvas view itself never reacted, so a tile near where a side pane resizes the canvas back open (Inspect wasn't already the open right pane) could end up rendered behind it — reproduced live by tapping a tile in the region a reopening Inspect pane would cover and confirming it landed off-screen. `TilingCanvas` now eases the view (a quick ~240ms pan) to centre a freshly single-selected tile, and keeps it centred through whatever resize follows (the pane opening) until a manual pan/zoom, a new/cleared selection, or **Fit** (which always wins — "show me everything"). The fit-vs-follow-vs-clamp decision moved into a pure, unit-tested `reframeView` (`src/canvas/view.ts`) so the exact "container narrows right after selecting" regression is covered without a live Konva canvas. Also checked the exported-image viewer's fit-to-window (already correct on open + resize) and gave its initial fit a `useLayoutEffect` so there's never a frame at the wrong size on mount. | ✅ yes | owner reported the bug + root cause (opening Inspect shrinks the canvas out from under the click); I reproduced it live (tile rendered outside the reopened pane's canvas area), fixed it, then hit a headless-preview quirk — the tab was `document.hidden` from a fresh start, throttling `requestAnimationFrame` so the Konva canvas never painted (documented in §9) — so verification leaned on a new `reframeView` regression test that reproduces the exact scenario in pure code instead. Owner reviewed on this worktree's preview (5340, footer-labelled) and said "looks good please commit". Backed by build / lint / **809 tests** (6 new: `reframeView`'s fit/follow/clamp branches incl. the pane-narrowing regression and its no-stale-recentre counterpart) | `3771ccd` |
 | 2026-07-06 | **`if/else(-if)` blocks + a `max-split` for `find-tile` (default 1).** The `if { … }` block gained an optional `else { … }` and `else if` chaining (an `else` may sit on the `}` line or its own line — K&R + Allman both parse); `find-tile` gained a `max-split = N` line (default 1, like a walker's), so a search now follows a single path by default and you raise max-split to fan wider (replacing the old "fans out fully" behaviour). | ✅ yes | owner asked for both ("complete the if {} block with an if else construction" + "in the find-tile block we need to support max-split, default 1"); confirmed live on this worktree's preview (5618) via an in-browser `runProgram` — an `if / else if / else` chain routed to the correct arm for A==1/2/other, and a `find-tile` with the default max-split 1 failed to reach a tile two hops EAST (single-path north walk → no move) while `max-split = 4` reached it — then owner said "good commit". Backed by build / lint / **811 tests** (else / else-if / Allman-brace + find-tile max-split cap: parse + exec + round-trip; existing find-tile exec tests updated to set `max-split = 4` where they relied on fan-out) | `a2dac29` |
 | 2026-07-06 | **Export-failure debug log — a failed export downloads a rich, self-contained JSON report.** A non-abort export failure now auto-downloads `exploroboros-export-error-<tiling>-<stamp>.json` (the toast names it) instead of only flashing "Export failed". It carries the full recipe (traverser DSL + coloring + initial-state + predicates + seeds + paint + tiling + grid + output), the pipeline **stage** that died, worker-vs-main path, the underlying error name/stack, environment, caps, progress reached, and guarded diagnostics (real tile count, caps-clamped target canvas size → reveals OOM, per-traverser compile check, unresolved seed defs, initial-state compile). New `ExportFailure` (path/stage/cause) + worker error name/stack/stage across the boundary + `worker.onerror` capture; pure `src/export/debugReport.ts` + DOM `src/export/debugLog.ts`; `clampResolution` split out of `sizing.ts`. | ⚠️ partial — see note | owner hit "Export failed: export worker failed" earlier but **could not reproduce it on demand** ("cant reproduce, i guess we will know when it happens next time, please commit"), so the actual failure→download round-trip wasn't device-exercised; the log builder itself IS verified — build / lint / **836 tests** (18 new: `debugReport` happy/broken-traverser/unresolved-seed/robustness + `toErrorInfo` unwrap + `clampResolution`) **and a live-runtime exercise** on this worktree's preview (5342) that dynamically imported the app's own `buildExportDebugReport` and, against a simulated worker `ExportFailure`, unwrapped the cause (`RangeError`, path `worker`, stage `run`), built the real kalleboda tiling (14 489 tiles), flagged the broken traverser + its orphaned seed, and clamped a 20000² request to 8192² | `89929a7` |
+| 2026-07-06 | **Downloadable traverse log — whole-run trace for debugging a pattern.** A "⤓ Download full log" button (bottom of Inspect, by the traverser log) runs the current setup to completion **traced** and downloads a self-contained JSON: every tick's per-walker decisions (statements + each candidate move and why chosen/rejected), a **geometry dictionary** (every tile id → shape + x,y, so positions can be checked for symmetry), a per-tick summary for the whole run, and the final visited/registry state. Pure `buildTraverseLog` (`src/traverse/traceLog.ts`, mirrors `initRun`, full traces capped but summary/final cover the whole run). Built while diagnosing an owner-reported "asymmetric fractal" on Kagome & Squares — see the §9 note: it is **NOT an engine bug**, it's that absolute edge numbers are clockwise-**handed**, so a triangle's selective `eK@eK` routing is chiral (a full fan `[e0..e2]` stays symmetric). New permanent `symmetry.test.ts` guards that the engine keeps full-fan patterns symmetric. | ✅ yes | owner asked me to find the asymmetry ("no guessing") + wanted a downloadable traverse log; I root-caused it with a headless real-engine probe + a control experiment (full-fan stays symmetric 14 ticks → engine exonerated; `e1@e1`→(+2,0), `e2@e2`→(0,−1.15) while the true mirror of `e1@e1` is (−2,0)=`e2@e5`), reported it, then owner said "good commit the debug log downloader". Build / lint / **842 tests** (6 new: traceLog + the symmetry regression); branch served on this worktree's preview (5342, footer-labelled) — the download button click itself wasn't device-exercised (headless tab hidden) | `8eebf56` |
 
 ## 8. Todo list (working backlog)
 
@@ -638,8 +647,13 @@ in-session task tracker.
   rejected, a "no move" banner; **hovering a row highlights the tiles it concerns on the grid** (current
   / the tile a guard reads / chosen / rejected), click to pin; a bounded tick-history scrubber; driven by
   an **opt-in pure `TickTrace`** (zero cost when off). Surfaced + fixed a real edge-numbering bug on first
-  use *(owner, 2026-06-29; done & verified 2026-06-30, `58fd0b6`)*. A console / log-to-file aid stays a
-  possible follow-up.
+  use *(owner, 2026-06-29; done & verified 2026-06-30, `58fd0b6`)*.
+  - [x] **Downloadable traverse log** — the log-to-file aid: a "⤓ Download full log" button (bottom of
+    Inspect) runs the current setup to completion **traced** and downloads a self-contained JSON (per-tick
+    per-walker decisions + a tile-geometry dictionary + a per-tick summary + the final visited/registry
+    state) for offline analysis. Pure `src/traverse/traceLog.ts` + `symmetry.test.ts`. Built while
+    root-causing an "asymmetric fractal" that proved to be chiral absolute-edge routing, not an engine bug
+    (§9) *(committed 2026-07-06, `8eebf56`)*
 - [x] **Deploy to Cloudflare Pages** *(done 2026-07-04, `605d35a`)* — SPA + gallery Functions live at
   **https://exploroboros.pages.dev** (D1 `exploroboros` + R2 `exploroboros-images`; schema applied
   `--remote`; `npm run deploy`). Backend verified live (API + an R2 image round-trip); gallery launched
@@ -776,6 +790,8 @@ Hard-won; read before fighting the tooling again.
   long run on a big grid is O(work), not O(ticks × visited). May import `src/tiling` + the overlay helpers; the
   basic behaviour is hardcoded, with the **DSL-driven** traversers (§5) to slot in behind the same
   `stepTraversers` shape — so keep it pure. (Auto-place is no longer here — it moved to `src/initstate/`.)
+  `traceLog.ts` (`buildTraverseLog`) runs a setup to completion **traced** (loops `stepTraversersTraced`,
+  mirrors `initRun`) into a downloadable JSON — the "⤓ Download full log" button at the foot of Inspect.
 - **Directive precedence — `forbid` > `allow` > the move's own guard** (`src/traverse/lang/exec.ts`
   `moveAllowed`, reworked 2026-07-05, `4a140c4`). Per candidate destination: a matching `forbid` blocks it;
   else a matching `allow` permits it — **overriding** even the move's own `if`-guard; else the own guard
@@ -936,6 +952,18 @@ Hard-won; read before fighting the tooling again.
   (rotate didn't cycle 0..7 in order); the fix was to replace the sort with a perimeter **walk**. The test
   file asserts both invariants: edge 0 = the most-north edge, AND consecutive edge numbers are
   perimeter-adjacent (`order[i] - order[i+1] ≡ 1 mod n`) — don't regress either.
+- **Absolute edge numbers are clockwise-HANDED, so selective absolute routing is chiral** (the "asymmetric
+  fractal" finding, 2026-07-06). `eN` is heading-independent, but the numbering is *clockwise from north*, so
+  a mirror reflection maps **edge `k` → edge `(n−k)`**, NOT edge `k`→`k` (hexagon: e1↔e5, e2↔e4; triangle:
+  e1↔e2). Consequences: a **full fan** (`move [e0..e5]`) is mirror-symmetric because the whole SET maps to
+  itself; but a **selective** route is chiral — the mirror of a triangle's `move e1@e1` is `e2@e5`, not
+  `e2@e2`, so `{e1@e1, e2@e2}` breaks the tiling's mirror symmetry (first triangle touched → asymmetry, even
+  from a hexagon start). This is **not a bug** — it's inherent to a handed numbering. To keep a pattern
+  symmetric, route by a mirror-invariant criterion (a full fan; the self-mirror north edge `e0`; neighbour
+  shape), not by a raw clockwise index. `src/traverse/symmetry.test.ts` guards that the engine keeps full-fan
+  patterns symmetric (so a real edge-numbering regression still fails); it deliberately does NOT test
+  selective routing. The `⤓ Download full log` button (`traceLog.ts`) is how this was diagnosed — capture the
+  run, check the visited set's geometry.
 - **A traverser's `heading` is an edge NUMBER, not an angle** (`src/traverse/types.ts`; refactored
   2026-07-02, `96ede11`). It is the user-facing edge its `straight` move exits (0 = north, clockwise —
   the `clockwiseEdgeOrder` layer above). So `r1` = `(heading+1) mod sides`, `l1` = `heading-1`, the
