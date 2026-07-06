@@ -307,10 +307,15 @@ still needed into this doc **before** then; do not rely on the path persisting.
   attribute `@`-paths already read neighbours — one separator, not two (`->` is gone; no recipe used it).
   Tile registries A/B/C no longer require brackets (`put A = 1`, `A == 5`) now that `[…]` unambiguously means
   a list — `[A]` still works as a one-element list. `if <predicate> { … }` groups any statements (nesting OK)
-  to run only when the guard holds. `find-tile <predicate> { <moves> }` runs a breadth-first **ghost-search**
-  — its `move` lines fan the search out without moving the real walker — and returns the nearest matching
-  tile (always ≥1 hop away); usable inline as a move target or as its own statement, referenced afterward as
-  `f0`/`f1`/… (numbered by **source position**; a dangling `fN` is a compile error). An `fN` is a valid path
+  to run only when the guard holds; an optional **`else { … }`** (and **`else if`**, a nested if-block in the
+  else) covers the other case — the `else` may sit on the `}` line or its own line (both K&R and Allman brace
+  styles parse) *(else added 2026-07-06, `a2dac29`)*. `find-tile <predicate> { <moves> }` runs a
+  breadth-first **ghost-search** — its `move` lines spread the search tile to tile without moving the real
+  walker, capped by the block's own **`max-split` (a `max-split = N` line inside it, DEFAULT 1** — like a
+  walker's, so the search follows a single path by default; raise it to fan wider) *(max-split added
+  2026-07-06, `a2dac29`)* — and returns the nearest matching tile (always ≥1 hop away); usable inline as a
+  move target or as its own statement, referenced afterward as `f0`/`f1`/… (numbered by **source position**;
+  a dangling `fN` is a compile error). An `fN` is a valid path
   **base** (`f0`, `f1@e0`, `tile-type@f1`) but never a later hop (`move e0@f1` is rejected). **`exists@path`**
   (added mid-session — the owner asked how to tell "find-tile found nothing" apart from "found a tile whose
   value happens to be 0/false", which nothing could answer: every off-grid fallback reads identically to a
@@ -407,6 +412,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-07-06 | **Fix — mobile nav bar caused horizontal scroll.** The logo + "Exploroboros" wordmark + Home/Canvas/Gallery links needed ~440px, overflowing a 375px-wide phone viewport by ~65px. Below 480px width: Home is hidden (tapping the logo already routes there — new `.nav-link--home` class), the brand mark shrinks 20%, and link padding/gaps/wordmark size tighten a bit further so it also holds on 320px-wide phones (measured ~21px still over with just the first two changes). Desktop/tablet nav (≥480px) is pixel-identical to before. | ✅ yes | owner reported the bug + asked for the Home-hide and a 20%-smaller logo specifically, then "is that enough to make stuff fit?"; verified headlessly on this worktree's preview (5429) via exact `scrollWidth`/`innerWidth` measurements at 320/360/375/430/480px (all zero overflow) and 481px (full nav reappears, unaffected) plus a desktop screenshot; owner then checked it and said "looks good commit"; build / lint / **760 tests** | `380a7a5` |
 | 2026-07-06 | **Traverser DSL — `@`-chained moves, bare A/B/C registries, `if {}` blocks, `find-tile` search + `exists@path`.** Move chains join with `@` (`move e0@e4`) instead of `->` (gone — no recipe used it); tile registries no longer need brackets (`put A = 1`, `A == 5`, `[A]` still a one-element list); `if <predicate> { … }` groups statements (nests) to run only when the guard holds; `find-tile <predicate> { <moves> }` is a breadth-first ghost-search (its `move` lines fan the search out without moving the real walker) returning the nearest matching tile (≥1 hop away), usable inline or referenced afterward as `f0`/`f1`/… (numbered by source position; `fN` is a valid path base but never a later hop). **`exists@path`** — added mid-review after the owner asked how to tell a failed search from a found-but-falsy tile, which nothing could answer — tests whether any `@`-path resolved to a real tile. Recipe **schema v6 → v7** (additive; old images still open). Full design + files in §6. | ✅ yes | owner asked "how would I check for if f0 actually found a tile?", exposing the `exists@path` gap; I added it and confirmed live (an in-browser `runProgram` call on this worktree's preview showed `exists@f0` true only after a successful search, false after a failed one, while a plain `visited@f0` read `0` identically in both cases) — then owner said "good commit". Backed by build / lint / **802 tests** (44 new: `find.ts` BFS unit tests, parser/serializer/exec coverage for every new construct incl. `exists`, reserved-word + out-of-range-`fN` rejections, a v6→v7 migration test) + in-browser checks on this worktree's own preview (5618, footer-labelled) of every new form parsing/executing correctly and the old `->` / bad `fN` references being rejected; the owner's own device interaction with the running canvas was not separately narrated back in this session | `726b28f` |
 | 2026-07-06 | **Fix — selecting a tile didn't move the camera, so a pane reopening could hide it.** Tapping a tile only ever opened Inspect; the canvas view itself never reacted, so a tile near where a side pane resizes the canvas back open (Inspect wasn't already the open right pane) could end up rendered behind it — reproduced live by tapping a tile in the region a reopening Inspect pane would cover and confirming it landed off-screen. `TilingCanvas` now eases the view (a quick ~240ms pan) to centre a freshly single-selected tile, and keeps it centred through whatever resize follows (the pane opening) until a manual pan/zoom, a new/cleared selection, or **Fit** (which always wins — "show me everything"). The fit-vs-follow-vs-clamp decision moved into a pure, unit-tested `reframeView` (`src/canvas/view.ts`) so the exact "container narrows right after selecting" regression is covered without a live Konva canvas. Also checked the exported-image viewer's fit-to-window (already correct on open + resize) and gave its initial fit a `useLayoutEffect` so there's never a frame at the wrong size on mount. | ✅ yes | owner reported the bug + root cause (opening Inspect shrinks the canvas out from under the click); I reproduced it live (tile rendered outside the reopened pane's canvas area), fixed it, then hit a headless-preview quirk — the tab was `document.hidden` from a fresh start, throttling `requestAnimationFrame` so the Konva canvas never painted (documented in §9) — so verification leaned on a new `reframeView` regression test that reproduces the exact scenario in pure code instead. Owner reviewed on this worktree's preview (5340, footer-labelled) and said "looks good please commit". Backed by build / lint / **809 tests** (6 new: `reframeView`'s fit/follow/clamp branches incl. the pane-narrowing regression and its no-stale-recentre counterpart) | `3771ccd` |
+| 2026-07-06 | **`if/else(-if)` blocks + a `max-split` for `find-tile` (default 1).** The `if { … }` block gained an optional `else { … }` and `else if` chaining (an `else` may sit on the `}` line or its own line — K&R + Allman both parse); `find-tile` gained a `max-split = N` line (default 1, like a walker's), so a search now follows a single path by default and you raise max-split to fan wider (replacing the old "fans out fully" behaviour). | ✅ yes | owner asked for both ("complete the if {} block with an if else construction" + "in the find-tile block we need to support max-split, default 1"); confirmed live on this worktree's preview (5618) via an in-browser `runProgram` — an `if / else if / else` chain routed to the correct arm for A==1/2/other, and a `find-tile` with the default max-split 1 failed to reach a tile two hops EAST (single-path north walk → no move) while `max-split = 4` reached it — then owner said "good commit". Backed by build / lint / **811 tests** (else / else-if / Allman-brace + find-tile max-split cap: parse + exec + round-trip; existing find-tile exec tests updated to set `max-split = 4` where they relied on fan-out) | `a2dac29` |
 
 ## 8. Todo list (working backlog)
 
@@ -762,18 +768,23 @@ Hard-won; read before fighting the tooling again.
   `@`-path (`tile-type@f1`, `[A@f1]`); the parser rejects it as a later hop (`e0@f1`) since it names a tile
   directly, same rule as `@target`/`@tile N`. **`find-tile <pred> { <moves> }`** is a pure BFS
   (`src/traverse/lang/find.ts` `bfsFind` — visited-set, excludes the start tile, capped at the tiling's tile
-  count) seeded by expanding the walker's tile through the body's `move` lines (ghost moves — `max-split`
-  does NOT apply to them, and they may carry no base of their own); the first tile matching `find-tile`'s own
-  predicate is stored as that occurrence's `fN`, **numbered by SOURCE POSITION** (not runtime order) —
-  `compile.ts`/`parse.ts` collect every `fN` reference via `src/dsl/target.ts`'s `predFoundIndices`/
-  `exprFoundIndices` and reject one with no matching block. **Bare tile registries** — `parseAtom`
-  (`src/dsl/parse.ts`) now accepts a lone `A`/`B`/`C` as a `RegTerm` outside a list (`A == 5`, `put A = 1`);
-  `[A]` still parses as a one-element list, so both forms coexist and serialize distinctly. **`if <pred> {
-  … }`** is a new `IfBlock` `Stmt` — the traverser parser became BRACE-AWARE (`splitUnits` in `parse.ts`
-  splits on `nl` only at brace-depth 0, so a block's body can span several lines as one parse unit);
-  `exec.ts`'s statement loop was refactored into a recursive `runStatements` so a block runs its body inline,
-  sharing the tick's directives/self-state/found-list. Header settings are rejected inside a block (parsed
-  with a `null` settings sink). **`exists@path`** (a new `Pred` leaf, added mid-review after the owner asked
+  count) seeded by expanding the walker's tile through the body's `move` lines (ghost moves — they carry no
+  base of their own, and `find.maxSplit` caps how many children each frontier tile spawns, **default 1** so
+  it's a single-path search unless a `max-split = N` line inside the block widens it; the cap is applied in
+  `runFind`'s `expand`, and `parseFindTile` reads the `max-split` line — added 2026-07-06, `a2dac29`); the
+  first tile matching `find-tile`'s own predicate is stored as that occurrence's `fN`, **numbered by SOURCE
+  POSITION** (not runtime order) — `compile.ts`/`parse.ts` collect every `fN` reference via
+  `src/dsl/target.ts`'s `predFoundIndices`/`exprFoundIndices` and reject one with no matching block. **Bare
+  tile registries** — `parseAtom` (`src/dsl/parse.ts`) now accepts a lone `A`/`B`/`C` as a `RegTerm` outside
+  a list (`A == 5`, `put A = 1`); `[A]` still parses as a one-element list, so both forms coexist and
+  serialize distinctly. **`if <pred> { … } [else { … } | else if …]`** is an `IfBlock` `Stmt` (with an
+  optional `elseBody`; `else if` is an `elseBody` of one nested if-block — parsed by the recursive `parseIf`
+  in `parse.ts`, added 2026-07-06 `a2dac29`) — the traverser parser is BRACE-AWARE (`splitUnits` in
+  `parse.ts` splits on `nl` only at brace-depth 0, so a block's body spans several lines as one parse unit,
+  and a depth-0 `nl` whose next token is `else` does NOT split, so an Allman-style `}`/`else` stays one
+  unit); `exec.ts`'s statement loop was refactored into a recursive `runStatements` so a block runs its
+  `body` (or `elseBody`) inline, sharing the tick's directives/self-state/found-list. Header settings are
+  rejected inside a block (parsed with a `null` settings sink). **`exists@path`** (a new `Pred` leaf, added mid-review after the owner asked
   how to distinguish a failed `find-tile` from one that found a tile with a falsy value — every existing
   off-grid fallback reads identically to a legitimate 0/false) is `ctxForLeaf(ctx, path) !== null`; works on
   any path (`exists@e0` tests a tiling boundary), requires a path (bare `exists` errors — the current tile
