@@ -11,6 +11,7 @@ import {
   zoomAt,
   panBy,
   clampView,
+  reframeView,
   pickTile,
   tilesInRect,
   tilesAlongSegment,
@@ -162,6 +163,12 @@ export function TilingCanvas({
   const sizeRef = useRef(size)
   sizeRef.current = size
   const userMovedRef = useRef(false)
+  // Keeps a freshly single-selected tile centred as the canvas resizes around it (e.g. the Inspect
+  // pane opening narrows the canvas right under the tile you just tapped) — see the re-frame effect
+  // below. Cleared by a manual pan/zoom/pinch (apply()) so it never fights deliberate navigation.
+  const lastFocusIdRef = useRef<string | null>(null)
+  const suppressFollowRef = useRef(false)
+  const focusAnimRef = useRef(0)
   const marqueeRef = useRef<HTMLDivElement>(null)
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
@@ -194,6 +201,29 @@ export function TilingCanvas({
   const redraw = () => {
     tilesLayerRef.current?.batchDraw()
     uiLayerRef.current?.batchDraw()
+  }
+
+  // Ease the view to `target` (same scale, new tx/ty) instead of a jump-cut — so bringing a selected
+  // tile to the middle reads as "the camera moved to it", not a disorienting snap. Cancels any
+  // in-flight tween first; a near-zero move (already centred) just snaps.
+  const animateViewTo = (target: View) => {
+    cancelAnimationFrame(focusAnimRef.current)
+    const from = viewRef.current
+    if (Math.abs(from.tx - target.tx) < 0.5 && Math.abs(from.ty - target.ty) < 0.5) {
+      viewRef.current = target
+      redraw()
+      return
+    }
+    const DURATION = 240
+    const start = performance.now()
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / DURATION)
+      const k = 1 - (1 - t) ** 3 // ease-out
+      viewRef.current = { scale: target.scale, tx: from.tx + (target.tx - from.tx) * k, ty: from.ty + (target.ty - from.ty) * k }
+      redraw()
+      if (t < 1) focusAnimRef.current = requestAnimationFrame(step)
+    }
+    focusAnimRef.current = requestAnimationFrame(step)
   }
 
   // Measure the host — Konva needs explicit pixel dimensions. Coalesce via rAF to avoid the
@@ -249,21 +279,35 @@ export function TilingCanvas({
     userMovedRef.current = false
   }, [tiling])
 
-  // Re-frame on size / tiling / explicit-Fit changes. A new tiling or a Fit press (the signal
-  // changed) re-fits from scratch; a plain resize after the user has panned/zoomed only re-clamps
-  // so it can't strand the tiling off-screen while preserving their zoom.
+  // Re-frame on size / tiling / explicit-Fit / selection changes. A new tiling or a Fit press (the
+  // signal changed) re-fits from scratch. Otherwise, a freshly single-selected tile is brought to the
+  // centre (and kept there through any resize that follows — e.g. the Inspect pane opening — until the
+  // user pans/zooms manually or the selection changes); with no such tile to follow, a plain resize
+  // after the user has panned/zoomed only re-clamps so it can't strand the tiling off-screen.
   const lastFitRef = useRef(fitSignal)
   useEffect(() => {
     if (size.width <= 0 || size.height <= 0) return
-    if (fitSignal !== lastFitRef.current) {
+    const isNewFit = fitSignal !== lastFitRef.current
+    if (isNewFit) {
       lastFitRef.current = fitSignal
-      userMovedRef.current = false
+      suppressFollowRef.current = true // Fit means "show me everything" — stop following the selection
     }
-    viewRef.current = userMovedRef.current
-      ? clampView(viewRef.current, tiling.bounds, size)
-      : fitToView(tiling.bounds, size)
-    redraw()
-  }, [size, tiling, fitSignal])
+    const focusId = selectedIds.length === 1 ? selectedIds[0] : null
+    if (focusId !== lastFocusIdRef.current) {
+      lastFocusIdRef.current = focusId
+      suppressFollowRef.current = false // a fresh (or cleared) selection re-arms following
+    }
+    const focusPoint = focusId && !suppressFollowRef.current ? nodeById(tiling, focusId)?.centroid ?? null : null
+    const result = reframeView(viewRef.current, tiling.bounds, size, { isNewFit, focusPoint, userMoved: userMovedRef.current })
+    userMovedRef.current = result.userMoved
+    if (result.animate) {
+      animateViewTo(result.view)
+    } else {
+      cancelAnimationFrame(focusAnimRef.current)
+      viewRef.current = result.view
+      redraw()
+    }
+  }, [size, tiling, fitSignal, selectedIds])
 
   // Lightweight FPS meter for the grid-size lag probe — frame cadence dips when redraws get heavy.
   useEffect(() => {
@@ -307,8 +351,10 @@ export function TilingCanvas({
       return { x: e.clientX - r.left, y: e.clientY - r.top }
     }
     const apply = (next: View) => {
+      cancelAnimationFrame(focusAnimRef.current) // deliberate navigation wins over any in-flight focus pan
       viewRef.current = clampView(next, tilingRef.current.bounds, sizeRef.current)
       userMovedRef.current = true
+      suppressFollowRef.current = true // ...and stops a later resize from snapping back to the selection
       redraw()
     }
     // The box-select marquee (a plain DOM rectangle over the canvas), in screen px.
@@ -550,6 +596,7 @@ export function TilingCanvas({
       host.removeEventListener('pointerup', onUp)
       host.removeEventListener('pointercancel', onUp)
       cancelAnimationFrame(fadeRafRef.current)
+      cancelAnimationFrame(focusAnimRef.current)
     }
   }, [])
 

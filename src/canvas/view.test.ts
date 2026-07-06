@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { worldToScreen, screenToWorld, clampScale, zoomAt, panBy, fitToView, clampView } from './view'
+import { worldToScreen, screenToWorld, clampScale, zoomAt, panBy, fitToView, clampView, centerOn, reframeView } from './view'
 import type { View } from './view'
 
 const close = (a: { x: number; y: number }, b: { x: number; y: number }) => {
@@ -92,6 +92,16 @@ describe('fitToView', () => {
   })
 })
 
+describe('centerOn', () => {
+  it('maps the given point to the container centre, keeping scale fixed', () => {
+    const view: View = { scale: 3, tx: 40, ty: -12 }
+    const container = { width: 300, height: 200 }
+    const out = centerOn(view, { x: 7, y: -2 }, container)
+    expect(out.scale).toBe(view.scale)
+    close(worldToScreen({ x: 7, y: -2 }, out), { x: 150, y: 100 })
+  })
+})
+
 describe('clampView', () => {
   const bounds = { minX: 0, minY: 0, maxX: 10, maxY: 10 }
   const container = { width: 100, height: 100 }
@@ -110,5 +120,75 @@ describe('clampView', () => {
     expect(tl.y).toBeLessThanOrEqual(0)
     expect(br.x).toBeGreaterThanOrEqual(container.width)
     expect(br.y).toBeGreaterThanOrEqual(container.height)
+  })
+})
+
+describe('reframeView', () => {
+  const bounds = { minX: 0, minY: 0, maxX: 20, maxY: 20 }
+
+  it('a new Fit wins over any focus point or userMoved state', () => {
+    const container = { width: 300, height: 200 }
+    const current: View = { scale: 50, tx: 999, ty: -999 }
+    const out = reframeView(current, bounds, container, { isNewFit: true, focusPoint: { x: 5, y: 5 }, userMoved: true })
+    expect(out.animate).toBe(false)
+    expect(out.userMoved).toBe(false)
+    expect(out.view).toEqual(fitToView(bounds, container))
+  })
+
+  it('centres and animates toward a focus point, clamped to bounds', () => {
+    const container = { width: 300, height: 200 }
+    const current: View = { scale: 10, tx: 0, ty: 0 }
+    const focus = { x: 10, y: 10 }
+    const out = reframeView(current, bounds, container, { isNewFit: false, focusPoint: focus, userMoved: false })
+    expect(out.animate).toBe(true)
+    expect(out.userMoved).toBe(true)
+    expect(out.view).toEqual(clampView(centerOn(current, focus, container), bounds, container))
+  })
+
+  it('falls back to a plain clamp with no focus once the user has navigated', () => {
+    const container = { width: 300, height: 200 }
+    const current: View = { scale: 10, tx: 5, ty: 5 }
+    const out = reframeView(current, bounds, container, { isNewFit: false, focusPoint: null, userMoved: true })
+    expect(out.animate).toBe(false)
+    expect(out.userMoved).toBe(true)
+    expect(out.view).toEqual(clampView(current, bounds, container))
+  })
+
+  it('falls back to a fresh fit with no focus and no prior manual navigation', () => {
+    const container = { width: 300, height: 200 }
+    const current: View = { scale: 10, tx: 5, ty: 5 }
+    const out = reframeView(current, bounds, container, { isNewFit: false, focusPoint: null, userMoved: false })
+    expect(out.animate).toBe(false)
+    expect(out.userMoved).toBe(false)
+    expect(out.view).toEqual(fitToView(bounds, container))
+  })
+
+  it('keeps a followed tile centred across a resize that narrows the container (the pane-opening regression)', () => {
+    // Reproduces the reported bug: selecting a tile opens a side pane that narrows the canvas out
+    // from under it. Zoom into a wide container, "select" a tile comfortably off-centre, then
+    // reframe again for a narrower container (same focus point, no Fit, no manual pan in between —
+    // exactly what happens when the Inspect pane opens right after the tap) and check it's still
+    // centred rather than stranded behind where the pane now sits.
+    const wide = { width: 1000, height: 800 }
+    const narrow = { width: 500, height: 800 } // as if a ~500px pane just opened on the right
+    const fitted = fitToView(bounds, wide)
+    const zoomed: View = { scale: fitted.scale * 3, tx: 0, ty: 0 } // some zoomed-in starting view
+    const focus = { x: 12, y: 10 } // off-centre, but with enough margin not to hit the clamp
+
+    const afterSelect = reframeView(zoomed, bounds, wide, { isNewFit: false, focusPoint: focus, userMoved: true })
+    close(worldToScreen(focus, afterSelect.view), { x: wide.width / 2, y: wide.height / 2 })
+
+    const afterResize = reframeView(afterSelect.view, bounds, narrow, { isNewFit: false, focusPoint: focus, userMoved: true })
+    close(worldToScreen(focus, afterResize.view), { x: narrow.width / 2, y: narrow.height / 2 })
+  })
+
+  it('a plain resize with no focus point does NOT recentre — it only prevents blank margin', () => {
+    // The counterpart to the regression test above: once there's no tile to follow (deselected, or
+    // the user has since panned away), a resize must not silently re-centre on stale state.
+    const wide = { width: 1000, height: 800 }
+    const narrow = { width: 500, height: 800 }
+    const zoomed: View = { scale: fitToView(bounds, wide).scale * 3, tx: -400, ty: -100 }
+    const out = reframeView(zoomed, bounds, narrow, { isNewFit: false, focusPoint: null, userMoved: true })
+    expect(out.view).toEqual(clampView(zoomed, bounds, narrow))
   })
 })

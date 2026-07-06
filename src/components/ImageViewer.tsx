@@ -1,5 +1,5 @@
 import './ImageViewer.css'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 // A zoom/pan viewer for an exported PNG — replaces the live canvas when a thumbnail is opened. Plain
 // CSS transform on an <img> (no Konva): wheel zooms toward the cursor, drag pans, double-click refits.
@@ -26,8 +26,10 @@ export function ImageViewer({ src }: { src: string }) {
     setT({ scale, x: (r.width - img.naturalWidth * scale) / 2, y: (r.height - img.naturalHeight * scale) / 2 })
   }, [])
 
-  // Refit when the source changes (a different export opened).
-  useEffect(() => {
+  // Refit when the source changes (a different export opened, or this viewer just mounted into
+  // whatever size the canvas pane is right now — e.g. narrower because a side pane is open). Layout
+  // effect so it's sized before the browser paints — no frame at the wrong scale.
+  useLayoutEffect(() => {
     fit()
   }, [src, fit])
 

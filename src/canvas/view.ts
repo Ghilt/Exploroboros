@@ -42,6 +42,16 @@ export function panBy(view: View, dx: number, dy: number): View {
   return { scale: view.scale, tx: view.tx + dx, ty: view.ty + dy }
 }
 
+// Pan (scale unchanged) so `point` lands at the centre of `container` — used to keep a selected
+// tile in view, e.g. when a side pane opens and narrows the canvas out from under it.
+export function centerOn(view: View, point: Vec2, container: Size): View {
+  return {
+    scale: view.scale,
+    tx: container.width / 2 - point.x * view.scale,
+    ty: container.height / 2 + point.y * view.scale,
+  }
+}
+
 // Frame the whole tiling in `container`, centered, with a fractional padding (mirrors the SVG
 // debug view's 4% margin and its preserveAspectRatio="xMidYMid meet").
 export function fitToView(bounds: Bounds, container: Size, padFrac = 0.04): View {
@@ -87,4 +97,34 @@ export function clampView(view: View, bounds: Bounds, container: Size): View {
   }
 
   return { scale: view.scale, tx, ty }
+}
+
+// The re-frame decision for TilingCanvas's size/tiling/fit/selection effect, extracted so the
+// fit-vs-follow-vs-clamp branching is unit-testable without a live Konva canvas (which jsdom can't
+// back). `focusPoint` is the world point to keep centred (a freshly selected tile's centroid), or
+// null when there's nothing to follow.
+export type ReframeInput = {
+  isNewFit: boolean
+  focusPoint: Vec2 | null
+  userMoved: boolean
+}
+export type ReframeResult = {
+  view: View
+  // true = ease from the current view to `view` (a focus pan); false = jump straight to it.
+  animate: boolean
+  userMoved: boolean
+}
+
+export function reframeView(current: View, bounds: Bounds, container: Size, input: ReframeInput): ReframeResult {
+  if (input.isNewFit) {
+    return { view: fitToView(bounds, container), animate: false, userMoved: false }
+  }
+  if (input.focusPoint) {
+    return { view: clampView(centerOn(current, input.focusPoint, container), bounds, container), animate: true, userMoved: true }
+  }
+  return {
+    view: input.userMoved ? clampView(current, bounds, container) : fitToView(bounds, container),
+    animate: false,
+    userMoved: input.userMoved,
+  }
 }
