@@ -302,6 +302,24 @@ still needed into this doc **before** then; do not rely on the path persisting.
   `[e1..3]` and multi-target `put [A, B]`. And a **directive semantics fix**: a move is decided forbid > allow
   > own-guard, so `always allow` overrides (never gates) — gallery recipes migrated to the `forbid` gate idiom.
   Groundwork toward the DSL-driven traversers below.
+- **Traverser DSL — `@`-chained moves, bare registries, `if {}` blocks, `find-tile` search, `exists@path`
+  (done 2026-07-06, `726b28f`):** move chains now join with `@` (`move e0@e4`) instead of `->`, matching how
+  attribute `@`-paths already read neighbours — one separator, not two (`->` is gone; no recipe used it).
+  Tile registries A/B/C no longer require brackets (`put A = 1`, `A == 5`) now that `[…]` unambiguously means
+  a list — `[A]` still works as a one-element list. `if <predicate> { … }` groups any statements (nesting OK)
+  to run only when the guard holds. `find-tile <predicate> { <moves> }` runs a breadth-first **ghost-search**
+  — its `move` lines fan the search out without moving the real walker — and returns the nearest matching
+  tile (always ≥1 hop away); usable inline as a move target or as its own statement, referenced afterward as
+  `f0`/`f1`/… (numbered by **source position**; a dangling `fN` is a compile error). An `fN` is a valid path
+  **base** (`f0`, `f1@e0`, `tile-type@f1`) but never a later hop (`move e0@f1` is rejected). **`exists@path`**
+  (added mid-session — the owner asked how to tell "find-tile found nothing" apart from "found a tile whose
+  value happens to be 0/false", which nothing could answer: every off-grid fallback reads identically to a
+  legitimate zero/false) tests whether an `@`-path resolved to a real tile at all; works on any path, not just
+  `fN` (`exists@e0` tests a tiling boundary). New pure `src/traverse/lang/find.ts` (`bfsFind`); recipe
+  **schema v6 → v7** (additive — old images still open; the bump exists only so a new-syntax image is stamped
+  and an older build refuses it cleanly rather than failing to compile the traverser). Guide gained a "Blocks
+  & search" chapter; autocomplete / in-pane syntax / the visual chip editor (a static read-only chip for
+  `exists`, like the existing list-comparison forms) updated to match.
 - **Next up:** **`exploroboros.io` custom domain** (register + attach — §8) → **DSL-driven traversers** (custom
   rules in the Traversers pane — paint/move/visit/split/guards/state, §5; reuses the predicate DSL) → **persist
   user exports across reloads** (IndexedDB).
@@ -387,6 +405,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-07-05 | **Kalleboda brand mark + favicon, chevron speed icons, toolbar divider.** The nav mark (and the browser-tab favicon) is now a real 2-tile Kalleboda patch — an octagon with a wedge nuzzled into each of its two genuine gaps — with coordinates lifted from the actual generator (`src/tiling/generators/kalleboda.ts`) rather than hand-drawn; a first attempt hand-attached two wedges to one octagon with no real adjacency between them, and a second attempt added a second octagon per the owner's sketch, both superseded by this simpler owner-requested cut. New `BrandMark.tsx`; the favicon hardcodes the same accent colours (+ a `prefers-color-scheme` media query — favicons can't read the app's CSS). `SpeedBar`'s turtle/rabbit icons became a single chevron (slow) and triple chevron (fast) in the same line-icon idiom, pulled closer to the notched slider (`gap: var(--space-1)`). The canvas toolbar gained a `.canvas-divider` between the run/speed controls and the tiling/display tools (hidden once the bar wraps on mobile). Also: footer version bumped to `v0.1.0` (phase label dropped), and the landing page's editor blurb reworded to "…with an expressive visual editor backed by a dedicated language" with em dashes removed from the blurbs. | ✅ yes | owner iterated across several rounds on this worktree's preview (5408) — corrected the first hand-composed mark to a real tiling patch, then to match a hand-drawn sketch, then asked to drop the second octagon, then for the chevron icons and toolbar divider — and said "good commit this"; backed by build / lint / **756 tests** + in-browser checks (real-geometry extraction scripted against the actual generator, zoomed screenshots of the mark/favicon at several sizes, light + dark mode, mobile toolbar wrap) | `370fb0e` |
 | 2026-07-05 | **Fix — renaming a traverser orphaned any walker already placed with it.** A placed walker stores its definition's NAME (`seed.def`), the engine's lookup key into `defs`; renaming only updated the definition's own name, so `defs.get(tr.def)` missed on the old name and the walker silently dropped next tick — "the traverser on the grid just leads to nothing," with no visible error. New pure `renameSeedDefs` (`src/traverse/step.ts`) plus a `Workspace.tsx` effect that diffs the traverser library's `id -> name` map each render and patches any matching `def` on both the authored `seeds` and a live run's `runLive` copy — mirrors the seed-def rewrite the v4→v5 recipe migration already does for the load-from-PNG path, just applied live instead of only on load. | ✅ yes | owner reported the bug ("place a traverser, rename it, it leads to nothing"); verified live on this worktree's preview (5468) — placed a custom "walker" definition, renamed it to "renamed" mid-session, watched Inspect's `.trav-name` update from "1:walker" to "1:renamed" with no re-placement, then Stepped twice and read the traverser log: `tr1 #210 → moved to #230 — move nearest-unvisited fired`, proving the engine resolved the renamed definition and kept walking — then said "looks good please commit"; backed by build / lint / **760 tests** (3 new `renameSeedDefs` unit tests + a Workspace regression test reproducing the exact place-then-rename sequence) | `00d6c76` |
 | 2026-07-06 | **Fix — mobile nav bar caused horizontal scroll.** The logo + "Exploroboros" wordmark + Home/Canvas/Gallery links needed ~440px, overflowing a 375px-wide phone viewport by ~65px. Below 480px width: Home is hidden (tapping the logo already routes there — new `.nav-link--home` class), the brand mark shrinks 20%, and link padding/gaps/wordmark size tighten a bit further so it also holds on 320px-wide phones (measured ~21px still over with just the first two changes). Desktop/tablet nav (≥480px) is pixel-identical to before. | ✅ yes | owner reported the bug + asked for the Home-hide and a 20%-smaller logo specifically, then "is that enough to make stuff fit?"; verified headlessly on this worktree's preview (5429) via exact `scrollWidth`/`innerWidth` measurements at 320/360/375/430/480px (all zero overflow) and 481px (full nav reappears, unaffected) plus a desktop screenshot; owner then checked it and said "looks good commit"; build / lint / **760 tests** | `380a7a5` |
+| 2026-07-06 | **Traverser DSL — `@`-chained moves, bare A/B/C registries, `if {}` blocks, `find-tile` search + `exists@path`.** Move chains join with `@` (`move e0@e4`) instead of `->` (gone — no recipe used it); tile registries no longer need brackets (`put A = 1`, `A == 5`, `[A]` still a one-element list); `if <predicate> { … }` groups statements (nests) to run only when the guard holds; `find-tile <predicate> { <moves> }` is a breadth-first ghost-search (its `move` lines fan the search out without moving the real walker) returning the nearest matching tile (≥1 hop away), usable inline or referenced afterward as `f0`/`f1`/… (numbered by source position; `fN` is a valid path base but never a later hop). **`exists@path`** — added mid-review after the owner asked how to tell a failed search from a found-but-falsy tile, which nothing could answer — tests whether any `@`-path resolved to a real tile. Recipe **schema v6 → v7** (additive; old images still open). Full design + files in §6. | ✅ yes | owner asked "how would I check for if f0 actually found a tile?", exposing the `exists@path` gap; I added it and confirmed live (an in-browser `runProgram` call on this worktree's preview showed `exists@f0` true only after a successful search, false after a failed one, while a plain `visited@f0` read `0` identically in both cases) — then owner said "good commit". Backed by build / lint / **802 tests** (44 new: `find.ts` BFS unit tests, parser/serializer/exec coverage for every new construct incl. `exists`, reserved-word + out-of-range-`fN` rejections, a v6→v7 migration test) + in-browser checks on this worktree's own preview (5618, footer-labelled) of every new form parsing/executing correctly and the old `->` / bad `fN` references being rejected; the owner's own device interaction with the running canvas was not separately narrated back in this session | `726b28f` |
 
 ## 8. Todo list (working backlog)
 
@@ -733,6 +752,34 @@ Hard-won; read before fighting the tooling again.
   allow-as-gate idiom (see the `src/data/galleryRecipes.ts` header). A move rule's own non-`@target` guard
   is still gate-skipped up front ONLY when no `allow` directive is active (else it's evaluated per candidate,
   so an `allow` can resurrect it). Trace reject `by:'per-target'` was renamed `by:'own-guard'`.
+- **Move chains join with `@`, registries can be bare, `if {}` blocks, `find-tile` search, `exists@path`**
+  (2026-07-06, `726b28f`). `Chain` (`src/traverse/lang/types.ts`) is now `{base?: ChainBase; refs:
+  EdgeRef[]}` — `base` is absent (the walker's current tile), `{kind:'found', index}` (a prior `find-tile`'s
+  result, `fN`), or `{kind:'find', find: FindTile}` (an INLINE `find-tile … {…}` run right there, which also
+  stores its result under its own index). `refs` join with `@` (the old `->` chain separator is gone — no
+  recipe used it). A **`found` `PathSeg`** (`src/dsl/types.ts`) lets `fN` appear as the FIRST hop of any
+  `@`-path (`tile-type@f1`, `[A@f1]`); the parser rejects it as a later hop (`e0@f1`) since it names a tile
+  directly, same rule as `@target`/`@tile N`. **`find-tile <pred> { <moves> }`** is a pure BFS
+  (`src/traverse/lang/find.ts` `bfsFind` — visited-set, excludes the start tile, capped at the tiling's tile
+  count) seeded by expanding the walker's tile through the body's `move` lines (ghost moves — `max-split`
+  does NOT apply to them, and they may carry no base of their own); the first tile matching `find-tile`'s own
+  predicate is stored as that occurrence's `fN`, **numbered by SOURCE POSITION** (not runtime order) —
+  `compile.ts`/`parse.ts` collect every `fN` reference via `src/dsl/target.ts`'s `predFoundIndices`/
+  `exprFoundIndices` and reject one with no matching block. **Bare tile registries** — `parseAtom`
+  (`src/dsl/parse.ts`) now accepts a lone `A`/`B`/`C` as a `RegTerm` outside a list (`A == 5`, `put A = 1`);
+  `[A]` still parses as a one-element list, so both forms coexist and serialize distinctly. **`if <pred> {
+  … }`** is a new `IfBlock` `Stmt` — the traverser parser became BRACE-AWARE (`splitUnits` in `parse.ts`
+  splits on `nl` only at brace-depth 0, so a block's body can span several lines as one parse unit);
+  `exec.ts`'s statement loop was refactored into a recursive `runStatements` so a block runs its body inline,
+  sharing the tick's directives/self-state/found-list. Header settings are rejected inside a block (parsed
+  with a `null` settings sink). **`exists@path`** (a new `Pred` leaf, added mid-review after the owner asked
+  how to distinguish a failed `find-tile` from one that found a tile with a falsy value — every existing
+  off-grid fallback reads identically to a legitimate 0/false) is `ctxForLeaf(ctx, path) !== null`; works on
+  any path (`exists@e0` tests a tiling boundary), requires a path (bare `exists` errors — the current tile
+  always exists). All four Pred-exhaustive switches (`eval.ts`, `serialize.ts`, `target.ts`,
+  `resolveRefs.ts`) plus the visual chip editor (`PredicateVisualEditor.tsx` — `exists` renders as a static
+  read-only chip, same as `listcmp`/`shapecmp`) needed a case; the compiler's exhaustiveness checking is what
+  caught every site.
 - `src/initstate/` — the **pure Initial-state DSL + resolver** (no React/DOM/Konva), public API via
   `src/initstate/index.ts`. `types.ts` (`InitStmt {shape: line|blob, what, param, guard?}`; `what` = a
   traverser / an `[A]`–`[C]` reg / `visited`), `parse.ts` (reuses the traverser `lexProgram`; `auto-place
@@ -767,14 +814,19 @@ Hard-won; read before fighting the tooling again.
     a `MIGRATIONS` entry** (`{from, migrate}`) in `recipe.ts`. `parseRecipe` returns a `ParseResult`:
     it migrates an OLDER recipe up to the current shape (chain in `migrateRecipe`), and REFUSES a NEWER one
     with `reason: 'too-new'` (the reopen UI should say "update the app") — never strict-equality-reject an old
-    image. Current exports are `schemaVersion: 6` (`MIGRATIONS` holds v1→v2 output-size + v2→v3 the empty
+    image. Current exports are `schemaVersion: 7` (`MIGRATIONS` holds v1→v2 output-size + v2→v3 the empty
     `initialState` doc + v3→v4 which splits the single `gridN` into independent `gridW`/`gridH`, so the square
     tiling can export a genuinely rectangular grid + v4→v5 which sanitizes predicate/traverser NAMES —
     spaces → `_`, since names must now be single identifiers to be referenceable — and renames any placed
     walker's `seed.def` in step so it still resolves; auto-named predicates are left alone, and the rendered
     image is unchanged since names map to ids; **+ v5→v6 which is purely ADDITIVE** — coloring rules gained an
     optional `enabled` flag for the Coloring pane's eye toggle; absent = enabled so old recipes reproduce
-    unchanged, and the migrate step just advances the version). **The live gallery's stored `recipe_json` was ALSO rewritten
+    unchanged, and the migrate step just advances the version; **+ v6→v7, ALSO purely ADDITIVE** (2026-07-06)
+    — the traverser DSL grew `@`-chained moves / bare registries / `if {}` blocks / `find-tile` search /
+    `exists@path`, none of which change how an existing v6 PROGRAM reproduces (they're new syntax, not a
+    reinterpretation of old syntax), so the step just advances the version; it exists only so a recipe that
+    USES the new syntax is stamped v7 and an older build refuses it cleanly ("update the app") instead of
+    trying and failing to compile the traverser). **The live gallery's stored `recipe_json` was ALSO rewritten
     once via `tools/migrate-names.mjs --apply`** (idempotent; a name-only transform, leaving each row's schema
     version for on-read migration) — do the same if names ever need another sweep. **Pre-release exception (2026-06-29, again 2026-07-03):**
     the breaking DSL changes (directives → predicate-first + `@ target`, then decoration → per-attribute
