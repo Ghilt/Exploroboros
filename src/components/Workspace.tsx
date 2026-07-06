@@ -20,7 +20,7 @@ import {
   MANUAL_STEP,
 } from '../canvas'
 import type { TileClip, TileState, Registry, PaintTarget } from '../canvas'
-import { stepTraversers, stepTraversersTraced, rotateHeading, renameSeedDefs, compileProgram, DEFAULT_SETTINGS, type Traverser, type Program, type TickTrace } from '../traverse'
+import { stepTraversers, stepTraversersTraced, rotateHeading, renameSeedDefs, compileProgram, DEFAULT_SETTINGS, buildTraverseLog, serializeTraverseLog, traverseLogFilename, type Traverser, type Program, type TickTrace } from '../traverse'
 import { compileDoc, resolveInitialState, mergeByTile, applyInitWrites, type InitResolved } from '../initstate'
 import { TilingCanvas, type DisplayMode, type DragMode, type HighlightGroups } from './TilingCanvas'
 import { TilingPicker } from './TilingPicker'
@@ -48,7 +48,7 @@ import { colorize } from '../colorizer'
 import { downloadBlob, exportFilename } from '../export/download'
 import { generateExport, isAbortError, type ExportParams } from '../export/exportImage'
 import { downloadExportDebugLog } from '../export/debugLog'
-import { remapSeeds, remapPaint, parseRecipe, decodeRecipeFromPng, type Recipe } from '../export'
+import { remapSeeds, remapPaint, parseRecipe, decodeRecipeFromPng, APP_VERSION, type Recipe } from '../export'
 import { takePendingRecipe } from '../state/pendingRecipe'
 import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
 
@@ -691,6 +691,42 @@ export function Workspace() {
     advanceOneTick()
   }
 
+  // Build + download a full traverse LOG: run the current authored setup to completion with tracing on
+  // (mirrors initRun's assembly), capturing every tick's decisions + a per-tile geometry dictionary +
+  // the final state — a self-contained JSON artifact for debugging why a pattern grows the way it does
+  // (e.g. where symmetry breaks). Uses the LIVE grid (what you see) from the AUTHORED board, so it's a
+  // fresh reproducible run, not a snapshot of a run already in progress.
+  const downloadTraverseLog = () => {
+    const startSeeds = mergeByTile(seeds, initSeeds)
+    if (startSeeds.length === 0) {
+      setDropNote('Place a walker (or add an Initial-state rule) first — nothing to log.')
+      window.setTimeout(() => setDropNote(null), 4000)
+      return
+    }
+    const programs: Record<string, string> = { [BUILTIN_WALKER]: BUILTIN_WALKER_TEXT }
+    for (const t of traverserStore.traversers) programs[t.name] = t.text
+    const log = buildTraverseLog({
+      tiling,
+      defs,
+      indexById,
+      startSeeds,
+      baseOverlay: applyInitWrites(exportBase, initWrites),
+      meta: {
+        tilingId,
+        gridW: gridN,
+        gridH: gridN,
+        programs,
+        initialStateText: initialStateStore.text,
+        createdAt: new Date().toISOString(),
+        appVersion: APP_VERSION,
+      },
+    })
+    const filename = traverseLogFilename(tilingId, log.createdAt)
+    downloadBlob(new Blob([serializeTraverseLog(log)], { type: 'application/json' }), filename)
+    setDropNote(`Traverse log downloaded (“${filename}”, ${log.summary.length} ticks).`)
+    window.setTimeout(() => setDropNote(null), 5000)
+  }
+
   // Authoring the initial state (only while stopped): place / remove / aim walkers. These edit
   // `seeds`, the savable starting position — never the live run. Placement records no visit; the
   // walk records visits once it runs.
@@ -1084,7 +1120,18 @@ export function Workspace() {
         )}
 
         <section className="inspect-log">
-          <h3 className="inspect-log-head">Traverser log</h3>
+          <div className="inspect-log-head-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+            <h3 className="inspect-log-head">Traverser log</h3>
+            <button
+              type="button"
+              className="canvas-btn"
+              onClick={downloadTraverseLog}
+              disabled={!hasWalkers}
+              title="Run the current setup to completion (traced) and download every tick's decisions + the final state as JSON — for offline analysis / handing to a developer"
+            >
+              ⤓ Download full log
+            </button>
+          </div>
           <DebugPane
             history={traceHistory}
             viewedStep={viewedStep}

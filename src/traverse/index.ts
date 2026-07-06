@@ -14,3 +14,6 @@ export { parseProgram, serializeProgram, compileProgram, DEFAULT_SETTINGS } from
 // Walker-free `@`-path resolver (absolute edge chains + `tile N`) — the colorizer uses this so
 // predicates like `[A@e0] > 0` can read a neighbouring tile without a walker.
 export { resolveAbsolutePath } from './lang'
+
+// Downloadable whole-run trace log (the analysis artifact): runs the setup to completion traced.
+export { buildTraverseLog, serializeTraverseLog, traverseLogFilename, TRAVERSE_LOG_VERSION, type TraverseLog, type TraverseLogMeta } from './traceLog'
