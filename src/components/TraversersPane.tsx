@@ -289,7 +289,7 @@ function TraverserEditor({
         {showSyntax && (
           <div className="trav-syntax-body">
             <pre className="trav-syntax-code">{`if <predicate> then <action>     run top-to-bottom each tick
-if <predicate> { … }             a block: the lines run only if true
+if <predicate> { … } else { … }  a block (else optional; else if chains)
 <action>                         a bare action always fires
 
 move straight | r1 | l2 | e3 | nearest-unvisited
@@ -300,7 +300,8 @@ increase P                       bump a walker register (P/Q/R)
 directive if <predicate> always forbid move
 
 find-tile <predicate> {          search outward for a tile → f0
-  move nearest-unvisited         (these ghost moves fan the search)
+  max-split = 4                  fan width (default 1 = single path)
+  move [e0, e1, e2, e3]          ghost moves spread the search
 }
 move f0                          then step to the tile it found`}</pre>
             <ul className="trav-syntax-legend">
@@ -320,11 +321,12 @@ move f0                          then step to the tile it found`}</pre>
                 with the walker.
               </li>
               <li>
-                <strong>find-tile</strong> — a breadth-first search; its <code>move</code> lines fan the
-                search out, and the first tile matching the predicate becomes <code>f0</code> (then{' '}
-                <code>f1</code>…). Use it as a move target or read it: <code>tile-type@f0</code>. Test
-                whether it found anything with <code>exists@f0</code> — a plain read (e.g.{' '}
-                <code>visited@f0</code>) can't tell "not found" from "found, value 0".
+                <strong>find-tile</strong> — a breadth-first search; its <code>move</code> lines spread it
+                tile to tile (capped by <code>max-split</code>, default 1 = a single path — raise it to fan
+                out), and the first tile matching the predicate becomes <code>f0</code> (then <code>f1</code>
+                …). Use it as a move target or read it: <code>tile-type@f0</code>. Test whether it found
+                anything with <code>exists@f0</code> — a plain read (e.g. <code>visited@f0</code>) can't tell
+                "not found" from "found, value 0".
               </li>
               <li>
                 <strong>header</strong> (top, any order) — <code>max-split</code>, <code>heading</code>{' '}

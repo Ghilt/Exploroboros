@@ -42,13 +42,15 @@ export type GuardPred = { kind: 'inline'; pred: Pred } | { kind: 'named'; name: 
 export type Guard = { pred: GuardPred }
 
 // A `find-tile <pred> { <moves> }` search: a breadth-first "ghost walk" from the walker's tile. The body
-// moves say how the frontier EXPANDS — they never move the real walker, and max-split does NOT cap them
-// (the search fans out fully). The first tile AT LEAST ONE hop away whose `pred` holds is returned
-// (nearest-first, BFS order) — exactly one tile, or none if the search exhausts. Every find-tile in a
-// program gets a source-position `index`, exposed as `fN` (`move f0`, `tile-type@f1`, …). Body moves may
-// be guarded but carry no base (each hops from the frontier tile it's expanding).
+// moves say how the frontier EXPANDS — they never move the real walker. `maxSplit` caps how many children
+// each frontier tile spawns (exactly like a walker's own `max-split`, and likewise DEFAULT 1 — so by
+// default the search follows a single path; raise it, e.g. with a `max-split = 4` line in the block, to
+// fan out). The first tile AT LEAST ONE hop away whose `pred` holds is returned (nearest-first, BFS
+// order) — exactly one tile, or none if the search exhausts. Every find-tile in a program gets a
+// source-position `index`, exposed as `fN` (`move f0`, `tile-type@f1`, …). Body moves may be guarded but
+// carry no base (each hops from the frontier tile it's expanding).
 export type FindMove = { guard?: Guard; target: EdgeTarget }
-export type FindTile = { index: number; pred: Guard; body: ReadonlyArray<FindMove> }
+export type FindTile = { index: number; pred: Guard; maxSplit: number; body: ReadonlyArray<FindMove> }
 
 // A numeric value in a put/increase. Attributes inside carry their own `@`-path if they read another tile.
 export type DExpr = { expr: Expr }
@@ -81,9 +83,10 @@ export type Rule = { kind: 'rule'; guard?: Guard; action: Action }
 // directives. Grammar: `directive if <guard> always forbid|allow move`.
 export type Directive = { kind: 'directive'; allow: boolean; guard: Guard }
 export type Reset = { kind: 'reset' }
-// A grouped conditional: run `body` top-to-bottom only when `guard` holds. Any statement except header
-// settings may live inside, and blocks nest. (The single-line `if <guard> then <action>` stays a Rule.)
-export type IfBlock = { kind: 'if-block'; guard: Guard; body: ReadonlyArray<Stmt> }
+// A grouped conditional: run `body` when `guard` holds, else `elseBody` (if present). Any statement
+// except header settings may live inside, and blocks nest. `else if` is just an `elseBody` holding a
+// single nested if-block. (The single-line `if <guard> then <action>` stays a Rule.)
+export type IfBlock = { kind: 'if-block'; guard: Guard; body: ReadonlyArray<Stmt>; elseBody?: ReadonlyArray<Stmt> }
 // A standalone find-tile search that only records its result as `fN`; a later statement uses it (`move f0`).
 export type FindStmt = { kind: 'find-tile'; find: FindTile }
 export type Stmt = Rule | Directive | Reset | IfBlock | FindStmt

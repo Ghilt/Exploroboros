@@ -391,14 +391,21 @@ function matchBrace(toks: ReadonlyArray<Tok>, openIdx: number): number {
 // Split a token slice into statement UNITS: a newline at brace-depth 0 ends a unit, but newlines inside a
 // `{ … }` body stay in the unit (the body is re-split when it's parsed). Drops the trailing `eof`. This
 // is what lets `if <pred> { … }` / `find-tile <pred> { … }` span several physical lines yet parse as one.
+// A depth-0 newline whose next token is `else` does NOT split, so `}` and a following-line `else { … }`
+// stay one unit (both K&R `} else {` and Allman `}`/`else {` brace styles parse).
 function splitUnits(toks: ReadonlyArray<Tok>): Tok[][] {
   const units: Tok[][] = []
   let cur: Tok[] = []
   let depth = 0
-  for (const t of toks) {
+  for (let i = 0; i < toks.length; i += 1) {
+    const t = toks[i]
     if (t.kind === 'eof') break
     if (t.kind === 'nl') {
       if (depth === 0) {
+        let j = i + 1
+        while (j < toks.length && toks[j].kind === 'nl') j += 1
+        const next = toks[j]
+        if (next && next.kind === 'word' && next.text === 'else') continue // keep `else` with its `if`
         if (cur.length) units.push(cur)
         cur = []
       } else cur.push(t)
@@ -437,10 +444,22 @@ function parseFindTile(line: Line, ctx: ParseCtx): FindTile {
   const close = matchBrace(line.toks, braceIdx)
   if (close === -1) throw new ParseFail('expected "}" to close the find-tile block', line.endSpan())
   const body: FindMove[] = []
-  for (const unit of splitUnits(line.toks.slice(braceIdx + 1, close))) body.push(parseFindMove(new Line(unit, line.src), ctx))
+  let maxSplit = 1 // like a walker's max-split: 1 = single-path search; raise it to fan out
+  for (const unit of splitUnits(line.toks.slice(braceIdx + 1, close))) {
+    const u = new Line(unit, line.src)
+    const head = u.peek()
+    const second = u.toks[1]
+    if (head && head.kind === 'word' && head.text === 'max-split' && second && second.kind === 'sym' && second.text === '=') {
+      u.pos += 2 // 'max-split' '='
+      maxSplit = Math.max(0, Math.round(parseNumberToken(u)))
+      u.expectEnd()
+      continue
+    }
+    body.push(parseFindMove(u, ctx))
+  }
   if (body.length === 0) throw new ParseFail('a find-tile block needs at least one move to search with, e.g. { move nearest-unvisited }', line.spanHere())
   line.pos = close + 1
-  return { index, pred, body }
+  return { index, pred, maxSplit, body }
 }
 
 // One move inside a find-tile body: `move <target>` or `if <guard> then move <target>`. These are the
@@ -481,6 +500,51 @@ function parseBlockBody(bodyToks: ReadonlyArray<Tok>, src: string, ctx: ParseCtx
   const stmts: Stmt[] = []
   for (const unit of splitUnits(bodyToks)) parseLine(new Line(unit, src), null, stmts, ctx)
   return stmts
+}
+
+// Parse the `{ … }` body of a block that opens at `braceIdx` on `line`. Returns the parsed statements and
+// the index just past the closing `}`.
+function parseBracedBody(line: Line, braceIdx: number, ctx: ParseCtx, what: string): { body: Stmt[]; after: number } {
+  const close = matchBrace(line.toks, braceIdx)
+  if (close === -1) throw new ParseFail(`expected "}" to close the ${what}`, line.endSpan())
+  return { body: parseBlockBody(line.toks.slice(braceIdx + 1, close), line.src, ctx), after: close + 1 }
+}
+
+// `if <guard> then <action>` (a single-line Rule) OR `if <guard> { … } [else { … } | else if …]` (a
+// block). The cursor is on `if`; consumes through the whole chain. Recursive for `else if`.
+function parseIf(line: Line, ctx: ParseCtx): Stmt {
+  line.expectWord('if')
+  // The first top-level `then` or `{` decides single-line rule vs block.
+  let thenIdx = -1
+  let braceIdx = -1
+  for (let k = line.pos; k < line.toks.length; k += 1) {
+    const t = line.toks[k]
+    if (t.kind === 'sym' && t.text === '{') {
+      braceIdx = k
+      break
+    }
+    if (t.kind === 'word' && t.text === 'then') {
+      thenIdx = k
+      break
+    }
+  }
+  if (braceIdx === -1) {
+    if (thenIdx === -1) throw new ParseFail('expected "then <action>" or "{ … }" after the condition', line.endSpan())
+    const guard = parseGuardRange(line, line.pos, thenIdx)
+    line.pos = thenIdx + 1
+    const action = parseAction(line, ctx)
+    return { kind: 'rule', guard, action }
+  }
+  const guard = parseGuardRange(line, line.pos, braceIdx)
+  const { body, after } = parseBracedBody(line, braceIdx, ctx, 'if-block')
+  line.pos = after
+  if (!line.isWord('else')) return { kind: 'if-block', guard, body }
+  line.pos += 1 // consume `else`
+  if (line.isWord('if')) return { kind: 'if-block', guard, body, elseBody: [parseIf(line, ctx)] } // else if …
+  if (!line.isSym('{')) throw new ParseFail('expected "{ … }" or "if" after "else"', line.spanHere())
+  const els = parseBracedBody(line, line.pos, ctx, 'else-block')
+  line.pos = els.after
+  return { kind: 'if-block', guard, body, elseBody: els.body }
 }
 
 function parseLine(line: Line, settings: Settings | null, statements: Stmt[], ctx: ParseCtx): void {
@@ -536,37 +600,8 @@ function parseLine(line: Line, settings: Settings | null, statements: Stmt[], ct
     return
   }
   if (w === 'if') {
-    line.pos += 1
-    // The first top-level `then` or `{` decides single-line rule (`if X then …`) vs block (`if X { … }`).
-    let thenIdx = -1
-    let braceIdx = -1
-    for (let k = line.pos; k < line.toks.length; k += 1) {
-      const t = line.toks[k]
-      if (t.kind === 'sym' && t.text === '{') {
-        braceIdx = k
-        break
-      }
-      if (t.kind === 'word' && t.text === 'then') {
-        thenIdx = k
-        break
-      }
-    }
-    if (braceIdx !== -1) {
-      const guard = parseGuardRange(line, line.pos, braceIdx)
-      const close = matchBrace(line.toks, braceIdx)
-      if (close === -1) throw new ParseFail('expected "}" to close the if-block', line.endSpan())
-      const body = parseBlockBody(line.toks.slice(braceIdx + 1, close), line.src, ctx)
-      line.pos = close + 1
-      line.expectEnd()
-      statements.push({ kind: 'if-block', guard, body })
-      return
-    }
-    if (thenIdx === -1) throw new ParseFail('expected "then <action>" or "{ … }" after the condition', line.endSpan())
-    const guard = parseGuardRange(line, line.pos, thenIdx)
-    line.pos = thenIdx + 1
-    const action = parseAction(line, ctx)
+    statements.push(parseIf(line, ctx))
     line.expectEnd()
-    statements.push({ kind: 'rule', guard, action })
     return
   }
   const action = parseAction(line, ctx)

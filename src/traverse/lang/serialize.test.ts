@@ -38,6 +38,10 @@ describe('traverser program serialization', () => {
       'find-tile A == 5 { move straight }\nmove [f0@e0, f0@straight]',
       'find-tile A == 5 { move straight }\nif exists@f0 then move f0',
       'if exists@e0 then move e0',
+      // else / else-if, and a find-tile with a non-default max-split
+      'if visited > 0 {\n  move straight\n} else {\n  move r1\n}',
+      'if A == 1 {\n  move e0\n} else if A == 2 {\n  move e1\n} else {\n  move e2\n}',
+      'find-tile A == 5 {\n  max-split = 4\n  move [e0, e1, e2, e3]\n}\nmove f0',
     ]
     for (const s of samples) {
       const once = roundTrip(s)
@@ -47,6 +51,18 @@ describe('traverser program serialization', () => {
 
   it('serializes an if-block across indented lines', () => {
     expect(roundTrip('if visited > 0 { put A = 1\nmove straight }')).toBe('if visited > 0 {\n  put A = 1\n  move straight\n}')
+  })
+
+  it('serializes an if/else, normalising an Allman else onto the } line', () => {
+    expect(roundTrip('if visited > 0 {\n  move straight\n}\nelse {\n  move r1\n}')).toBe(
+      'if visited > 0 {\n  move straight\n} else {\n  move r1\n}',
+    )
+  })
+
+  it('serializes else-if inline (not as a nested else { if … })', () => {
+    expect(roundTrip('if A == 1 { move e0 } else if A == 2 { move e1 }')).toBe(
+      'if A == 1 {\n  move e0\n} else if A == 2 {\n  move e1\n}',
+    )
   })
 
   it('serializes bare registry writes and @-chains canonically', () => {

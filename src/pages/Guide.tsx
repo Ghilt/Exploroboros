@@ -511,6 +511,20 @@ move straight`}</pre>
           writes, directives, even nested blocks or a <code>find-tile</code>) — everything <em>except</em> the
           header <a href="#settings">settings</a> (<code>max-split</code> and friends), which stay at the top.
         </p>
+        <p>
+          Add an <code>else</code> for the other case, and chain with <code>else if</code>:
+        </p>
+        <pre className="guide-code">{`if visited-neighbors == 1 {
+  move nearest-unvisited
+} else if visited-neighbors == 0 {
+  put A = 1
+} else {
+  move r1
+}`}</pre>
+        <p>
+          The <code>else</code> (or <code>else&nbsp;if</code>) can sit on the <code>{'}'}</code> line or the
+          next line — both read fine.
+        </p>
 
         <p className="guide-subhead"><strong>Searching for a tile — <code>find-tile</code></strong></p>
         <p>
@@ -518,9 +532,19 @@ move straight`}</pre>
           the predicate and hands it back. The <code>move</code> lines inside are <strong>ghost moves</strong>:
           they don't move the walker — they say how the search <em>spreads</em>, tile to tile, in a
           breadth-first sweep. The <strong>first</strong> tile it reaches (always at least one hop away) whose
-          predicate holds is the result — exactly one tile, or none if the search runs dry. (The sweep fans out
-          fully; <code>max-split</code> doesn't limit it.)
+          predicate holds is the result — exactly one tile, or none if the search runs dry.
         </p>
+        <p>
+          Like a walker, the search has a <strong><code>max-split</code></strong> that caps how many tiles it
+          fans to at each step — and it <strong>defaults to 1</strong>, so by default the search follows a
+          single path (the first viable ghost move at each tile, e.g. a <code>nearest-unvisited</code> trail).
+          Add a <code>max-split</code> line inside the block to fan wider — e.g. <code>max-split = 4</code> with
+          a four-way split explores all four directions outward:
+        </p>
+        <pre className="guide-code">{`find-tile A == 5 {
+  max-split = 4
+  move [e0, e1, e2, e3]
+}`}</pre>
         <p>Use it two ways. <strong>Inline</strong>, straight as a move's destination:</p>
         <pre className="guide-code">{`if visited == 2 then move find-tile A == 5 {
   move straight

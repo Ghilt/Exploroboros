@@ -56,9 +56,9 @@ export type StmtTrace =
   | { kind: 'move'; source: string; morphDef?: string; candidates: CandidateTrace[] }
   | { kind: 'write'; source: string }
   | { kind: 'update'; source: string }
-  // A grouped `if <pred> { … }`: its guard verdict, whether it ran, and the nested statements' traces
-  // (present only when it ran).
-  | { kind: 'if-block'; source: string; guard: GuardEval; result: boolean; body: StmtTrace[] }
+  // A grouped `if <pred> { … } [else { … }]`: its guard verdict, whether the `if` ran, the nested `body`
+  // traces (present only when it ran), and `elseBody` traces (present only when there's an else and it ran).
+  | { kind: 'if-block'; source: string; guard: GuardEval; result: boolean; body: StmtTrace[]; elseBody?: StmtTrace[] }
   // A `find-tile` search: the tile it located this tick (null = nothing found).
   | { kind: 'find-tile'; source: string; foundTile: string | null }
 

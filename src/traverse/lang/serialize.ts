@@ -39,10 +39,12 @@ function findMoveText(m: FindMove, indent: string): string {
 }
 
 // `find-tile <pred> { … }` with its search moves one per indented line (round-trips through splitUnits).
+// A non-default `max-split` leads the body as its own line.
 function findTileText(find: FindTile, indent: string): string {
   const inner = `${indent}  `
-  const body = find.body.map((m) => `${inner}${findMoveText(m, inner)}`).join('\n')
-  return `find-tile ${serializeGuard(find.pred)} {\n${body}\n${indent}}`
+  const lines = find.body.map((m) => `${inner}${findMoveText(m, inner)}`)
+  if (find.maxSplit !== 1) lines.unshift(`${inner}max-split = ${find.maxSplit}`)
+  return `find-tile ${serializeGuard(find.pred)} {\n${lines.join('\n')}\n${indent}}`
 }
 
 export function serializeGuard(g: Guard): string {
@@ -92,7 +94,17 @@ export function serializeStmt(s: Stmt, indent = ''): string {
     case 'if-block': {
       const inner = `${indent}  `
       const body = s.body.map((b) => `${inner}${serializeStmt(b, inner)}`).join('\n')
-      return `if ${serializeGuard(s.guard)} {\n${body}\n${indent}}`
+      let out = `if ${serializeGuard(s.guard)} {\n${body}\n${indent}}`
+      if (s.elseBody) {
+        // `else if` renders inline when the else is exactly one nested if-block; otherwise a plain block.
+        if (s.elseBody.length === 1 && s.elseBody[0].kind === 'if-block') {
+          out += ` else ${serializeStmt(s.elseBody[0], indent)}`
+        } else {
+          const elseBody = s.elseBody.map((b) => `${inner}${serializeStmt(b, inner)}`).join('\n')
+          out += ` else {\n${elseBody}\n${indent}}`
+        }
+      }
+      return out
     }
     case 'find-tile':
       return findTileText(s.find, indent)

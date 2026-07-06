@@ -303,4 +303,40 @@ describe('traverser DSL parser', () => {
     const r = parseProgram('find-tile A == 5 {\n  move f0\n}')
     expect(r.ok).toBe(false)
   })
+
+  it('parses an if/else block', () => {
+    const p = ok('if visited > 0 {\n  move straight\n} else {\n  move r1\n}')
+    const b = p.statements[0]
+    if (b.kind !== 'if-block') throw new Error('expected an if-block')
+    expect(b.body.map((s) => s.kind)).toEqual(['rule'])
+    expect(b.elseBody?.map((s) => s.kind)).toEqual(['rule'])
+  })
+
+  it('parses else on its own line (Allman braces)', () => {
+    const p = ok('if visited > 0 {\n  move straight\n}\nelse {\n  move r1\n}')
+    expect(p.statements).toHaveLength(1)
+    const b = p.statements[0]
+    if (b.kind !== 'if-block') throw new Error('expected an if-block')
+    expect(b.elseBody).toHaveLength(1)
+  })
+
+  it('parses else-if as a nested if-block in the else branch', () => {
+    const p = ok('if A == 1 {\n  move straight\n} else if A == 2 {\n  move r1\n} else {\n  move l1\n}')
+    const outer = p.statements[0]
+    if (outer.kind !== 'if-block' || !outer.elseBody) throw new Error('expected an if-block with an else')
+    expect(outer.elseBody).toHaveLength(1)
+    const mid = outer.elseBody[0]
+    if (mid.kind !== 'if-block') throw new Error('expected a nested else-if block')
+    expect(mid.elseBody?.map((s) => s.kind)).toEqual(['rule']) // the final plain else
+  })
+
+  it('parses max-split inside a find-tile block (default 1)', () => {
+    const withCap = ok('find-tile A == 5 {\n  max-split = 3\n  move [e0, e1, e2]\n}\nmove f0')
+    const f = withCap.statements[0]
+    if (f.kind !== 'find-tile') throw new Error('expected a find-tile')
+    expect(f.find.maxSplit).toBe(3)
+    expect(f.find.body).toHaveLength(1) // the max-split line is a setting, not a move
+    const dflt = ok('find-tile A == 5 { move straight }\nmove f0')
+    expect((dflt.statements[0] as { kind: 'find-tile'; find: { maxSplit: number } }).find.maxSplit).toBe(1)
+  })
 })

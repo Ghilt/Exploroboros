@@ -42,7 +42,7 @@ function resolveFind(find: FindTile, names: ReadonlyMap<string, string>): Result
       body.push({ guard: r.value, target: m.target })
     } else body.push(m)
   }
-  return { ok: true, value: { index: find.index, pred: pred.value, body } }
+  return { ok: true, value: { index: find.index, pred: pred.value, maxSplit: find.maxSplit, body } }
 }
 
 // A move/morph target may hold an INLINE find-tile as a chain base — resolve its guards in place.

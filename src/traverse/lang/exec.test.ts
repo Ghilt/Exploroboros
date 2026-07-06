@@ -224,32 +224,58 @@ describe('traverser program execution', () => {
     expect(run(src, 'sq:2,2', noA).branches).toHaveLength(0) // inner guard false
   })
 
-  // A tile two east has A=5; the ghost search fans over all four edges to reach it.
+  it('runs the else branch when the guard is false', () => {
+    const src = 'if visited > 0 {\n  put A = 1\n} else {\n  put B = 1\n}'
+    const visited = addVisits(new Map(), ['sq:2,2'], 0)
+    expect(run(src, 'sq:2,2', visited).tileWrites).toEqual([{ tile: 'sq:2,2', reg: 'a', op: 'set', value: 1 }])
+    expect(run(src).tileWrites).toEqual([{ tile: 'sq:2,2', reg: 'b', op: 'set', value: 1 }]) // unvisited -> else
+  })
+
+  it('picks the right arm of an if / else-if / else chain', () => {
+    const src = 'if A == 1 {\n  move e0\n} else if A == 2 {\n  move e1\n} else {\n  move e2\n}'
+    const a = (n: number): ReadonlyMap<string, TileState> => new Map([['sq:2,2', { visits: [], a: n, b: 0, c: 0 }]])
+    expect(run(src, 'sq:2,2', a(1)).branches[0]?.tile).toBe('sq:3,2') // e0 = north
+    expect(run(src, 'sq:2,2', a(2)).branches[0]?.tile).toBe('sq:2,3') // e1 = east
+    expect(run(src, 'sq:2,2', a(9)).branches[0]?.tile).toBe('sq:1,2') // e2 = south (the final else)
+  })
+
+  // A tile two east has A=5; the ghost search needs max-split = 4 to fan over all four edges to reach it
+  // (default max-split 1 would only follow e0 / north).
   const withA5at = (id: string): ReadonlyMap<string, TileState> => new Map([[id, { visits: [], a: 5, b: 0, c: 0 }]])
 
   it('find-tile (inline) moves the walker to the located tile', () => {
-    const res = run('move find-tile A == 5 {\n  move [e0, e1, e2, e3]\n}', 'sq:2,2', withA5at('sq:2,4'))
+    const res = run('move find-tile A == 5 {\n  max-split = 4\n  move [e0, e1, e2, e3]\n}', 'sq:2,2', withA5at('sq:2,4'))
     expect(res.branches[0]?.tile).toBe('sq:2,4')
   })
 
   it('a standalone find-tile stores its result as f0 for a later move', () => {
-    const res = run('find-tile A == 5 {\n  move [e0, e1, e2, e3]\n}\nmove f0', 'sq:2,2', withA5at('sq:2,4'))
+    const res = run('find-tile A == 5 {\n  max-split = 4\n  move [e0, e1, e2, e3]\n}\nmove f0', 'sq:2,2', withA5at('sq:2,4'))
     expect(res.branches[0]?.tile).toBe('sq:2,4')
   })
 
   it('a found tile can start a chain (move f0@e0)', () => {
     // f0 = sq:2,4; then e0 (north) -> sq:3,4.
-    const res = run('find-tile A == 5 {\n  move [e0, e1, e2, e3]\n}\nmove f0@e0', 'sq:2,2', withA5at('sq:2,4'))
+    const res = run('find-tile A == 5 {\n  max-split = 4\n  move [e0, e1, e2, e3]\n}\nmove f0@e0', 'sq:2,2', withA5at('sq:2,4'))
     expect(res.branches[0]?.tile).toBe('sq:3,4')
   })
 
   it('find-tile that matches nothing makes move fN a no-op', () => {
-    const res = run('find-tile A == 5 {\n  move [e0, e1, e2, e3]\n}\nmove f0', 'sq:2,2', new Map())
+    const res = run('find-tile A == 5 {\n  max-split = 4\n  move [e0, e1, e2, e3]\n}\nmove f0', 'sq:2,2', new Map())
     expect(res.branches).toHaveLength(0)
   })
 
+  it('find-tile max-split caps the fan-out (default 1 = single path)', () => {
+    // A=5 is two EAST of the walker. Default max-split 1 only follows the first edge (e0 = north), so the
+    // search walks north and never reaches it -> no move.
+    const dflt = run('find-tile A == 5 {\n  move [e0, e1, e2, e3]\n}\nmove f0', 'sq:2,2', withA5at('sq:2,4'))
+    expect(dflt.branches).toHaveLength(0)
+    // max-split 4 fans over all four edges and reaches it (covered above, asserted here for contrast).
+    const wide = run('find-tile A == 5 {\n  max-split = 4\n  move [e0, e1, e2, e3]\n}\nmove f0', 'sq:2,2', withA5at('sq:2,4'))
+    expect(wide.branches[0]?.tile).toBe('sq:2,4')
+  })
+
   it('exists@f0 distinguishes "not found" from "found but zero" — a plain read cannot', () => {
-    const searchSrc = 'find-tile A == 5 {\n  move [e0, e1, e2, e3]\n}\n'
+    const searchSrc = 'find-tile A == 5 {\n  max-split = 4\n  move [e0, e1, e2, e3]\n}\n'
     // Found (sq:2,4 has A=5, and its `visited` is legitimately 0) — exists is true.
     const found = run(`${searchSrc}if exists@f0 then increase P`, 'sq:2,2', withA5at('sq:2,4'))
     expect(found.next.p).toBe(1)

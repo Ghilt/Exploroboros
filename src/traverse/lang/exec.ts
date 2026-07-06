@@ -237,8 +237,10 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
     const expand = (node: { tile: string; heading: number }): Array<{ tile: string; heading: number }> => {
       const out: Array<{ tile: string; heading: number }> = []
       for (const m of find.body) {
+        if (out.length >= find.maxSplit) break // cap children per frontier tile (like a walker's max-split)
         if (m.guard && !evalGuardAt(node.tile, node.heading, m.guard)) continue
         for (const c of m.target) {
+          if (out.length >= find.maxSplit) break
           const hop = resolveChain(tiling, overlay, node.tile, node.heading, self.movement, c.refs) // body chains carry no base
           if (hop) out.push(hop)
         }
@@ -379,10 +381,14 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
         const ok = ev ? ev.result : evalGuard(stmt.guard, null)
         if (into && ev) {
           const body: StmtTrace[] = []
-          into.push({ kind: 'if-block', source: `if ${serializeGuard(stmt.guard)}`, guard: guardEval(stmt.guard, ev), result: ok, body })
+          const elseBody: StmtTrace[] | undefined = stmt.elseBody ? [] : undefined
+          into.push({ kind: 'if-block', source: `if ${serializeGuard(stmt.guard)}`, guard: guardEval(stmt.guard, ev), result: ok, body, elseBody })
           if (ok) runStatements(stmt.body, body)
+          else if (elseBody) runStatements(stmt.elseBody!, elseBody)
         } else if (ok) {
           runStatements(stmt.body)
+        } else if (stmt.elseBody) {
+          runStatements(stmt.elseBody)
         }
         continue
       }
