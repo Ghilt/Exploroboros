@@ -55,3 +55,24 @@
 .nav-link[aria-current="page"] {
   color: var(--accent);
 }
+
+/* Phone widths: the logo + all three links don't fit — Home is redundant
+   with tapping the logo, so drop it and shrink the mark to buy more room. */
+@media (max-width: 30rem) {
+  .nav {
+    gap: 0.6rem;
+  }
+  .nav-brand {
+    gap: 0.4rem;
+    font-size: 0.92rem;
+  }
+  .nav-brand-mark {
+    width: 2.32rem;
+  }
+  .nav-link--home {
+    display: none;
+  }
+  .nav-link {
+    padding: 0.45rem 0.5rem;
+  }
+}

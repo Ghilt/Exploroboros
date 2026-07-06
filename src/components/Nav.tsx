@@ -20,7 +20,7 @@ export function Nav({ route }: { route: Route }) {
           {LINKS.map((link) => (
             <a
               key={link.route}
-              className="nav-link"
+              className={link.route === 'landing' ? 'nav-link nav-link--home' : 'nav-link'}
               href={hrefFor(link.route)}
               aria-current={route === link.route ? 'page' : undefined}
             >
