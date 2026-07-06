@@ -325,6 +325,22 @@ still needed into this doc **before** then; do not rely on the path persisting.
   and an older build refuses it cleanly rather than failing to compile the traverser). Guide gained a "Blocks
   & search" chapter; autocomplete / in-pane syntax / the visual chip editor (a static read-only chip for
   `exists`, like the existing list-comparison forms) updated to match.
+- **Export-failure debug log (committed 2026-07-06, `89929a7`):** a failed export (non-abort) now
+  auto-downloads a **self-contained JSON debug log** to the user's downloads (the toast names the file)
+  instead of only flashing "Export failed". The owner asked for something they can hand to a developer to
+  understand a failure without the session — so it embeds the full **recipe** (traverser DSL, coloring,
+  initial-state, predicates, seeds, paint, tiling, grid, output) plus which pipeline **stage** died
+  (build-tiling / prepare / run / colorize / size / render / thumbnail / encode-blob / embed-metadata),
+  the worker-vs-main path, the underlying error name/stack, the environment, the caps, how far the run
+  got, and **guarded diagnostics** re-derived from the recipe: the real tile count, the caps-clamped
+  target canvas size (reveals an OOM-sized request — the likely "export worker failed" cause), a
+  per-traverser **compile check** (a broken definition is flagged by name), seed defs that resolve to
+  nothing, and the initial-state compile. Pure `src/export/debugReport.ts` (never re-runs the traverse;
+  every diagnostic guarded so the log always builds) + DOM-side `src/export/debugLog.ts`; a new
+  `ExportFailure` error carries path/stage/cause, and the worker now sends name/stack/stage across the
+  boundary (with `worker.onerror` capturing the `ErrorEvent` for a bare crash). **The intermittent real
+  failure could not be reproduced on demand**, so the log-generation is verified (build / lint / 836 tests
+  + a live-runtime exercise) but the on-device failure→download awaits the next occurrence. See §7/§9.
 - **Next up:** **`exploroboros.io` custom domain** (register + attach — §8) → **DSL-driven traversers** (custom
   rules in the Traversers pane — paint/move/visit/split/guards/state, §5; reuses the predicate DSL) → **persist
   user exports across reloads** (IndexedDB).
@@ -413,6 +429,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-07-06 | **Traverser DSL — `@`-chained moves, bare A/B/C registries, `if {}` blocks, `find-tile` search + `exists@path`.** Move chains join with `@` (`move e0@e4`) instead of `->` (gone — no recipe used it); tile registries no longer need brackets (`put A = 1`, `A == 5`, `[A]` still a one-element list); `if <predicate> { … }` groups statements (nests) to run only when the guard holds; `find-tile <predicate> { <moves> }` is a breadth-first ghost-search (its `move` lines fan the search out without moving the real walker) returning the nearest matching tile (≥1 hop away), usable inline or referenced afterward as `f0`/`f1`/… (numbered by source position; `fN` is a valid path base but never a later hop). **`exists@path`** — added mid-review after the owner asked how to tell a failed search from a found-but-falsy tile, which nothing could answer — tests whether any `@`-path resolved to a real tile. Recipe **schema v6 → v7** (additive; old images still open). Full design + files in §6. | ✅ yes | owner asked "how would I check for if f0 actually found a tile?", exposing the `exists@path` gap; I added it and confirmed live (an in-browser `runProgram` call on this worktree's preview showed `exists@f0` true only after a successful search, false after a failed one, while a plain `visited@f0` read `0` identically in both cases) — then owner said "good commit". Backed by build / lint / **802 tests** (44 new: `find.ts` BFS unit tests, parser/serializer/exec coverage for every new construct incl. `exists`, reserved-word + out-of-range-`fN` rejections, a v6→v7 migration test) + in-browser checks on this worktree's own preview (5618, footer-labelled) of every new form parsing/executing correctly and the old `->` / bad `fN` references being rejected; the owner's own device interaction with the running canvas was not separately narrated back in this session | `726b28f` |
 | 2026-07-06 | **Fix — selecting a tile didn't move the camera, so a pane reopening could hide it.** Tapping a tile only ever opened Inspect; the canvas view itself never reacted, so a tile near where a side pane resizes the canvas back open (Inspect wasn't already the open right pane) could end up rendered behind it — reproduced live by tapping a tile in the region a reopening Inspect pane would cover and confirming it landed off-screen. `TilingCanvas` now eases the view (a quick ~240ms pan) to centre a freshly single-selected tile, and keeps it centred through whatever resize follows (the pane opening) until a manual pan/zoom, a new/cleared selection, or **Fit** (which always wins — "show me everything"). The fit-vs-follow-vs-clamp decision moved into a pure, unit-tested `reframeView` (`src/canvas/view.ts`) so the exact "container narrows right after selecting" regression is covered without a live Konva canvas. Also checked the exported-image viewer's fit-to-window (already correct on open + resize) and gave its initial fit a `useLayoutEffect` so there's never a frame at the wrong size on mount. | ✅ yes | owner reported the bug + root cause (opening Inspect shrinks the canvas out from under the click); I reproduced it live (tile rendered outside the reopened pane's canvas area), fixed it, then hit a headless-preview quirk — the tab was `document.hidden` from a fresh start, throttling `requestAnimationFrame` so the Konva canvas never painted (documented in §9) — so verification leaned on a new `reframeView` regression test that reproduces the exact scenario in pure code instead. Owner reviewed on this worktree's preview (5340, footer-labelled) and said "looks good please commit". Backed by build / lint / **809 tests** (6 new: `reframeView`'s fit/follow/clamp branches incl. the pane-narrowing regression and its no-stale-recentre counterpart) | `3771ccd` |
 | 2026-07-06 | **`if/else(-if)` blocks + a `max-split` for `find-tile` (default 1).** The `if { … }` block gained an optional `else { … }` and `else if` chaining (an `else` may sit on the `}` line or its own line — K&R + Allman both parse); `find-tile` gained a `max-split = N` line (default 1, like a walker's), so a search now follows a single path by default and you raise max-split to fan wider (replacing the old "fans out fully" behaviour). | ✅ yes | owner asked for both ("complete the if {} block with an if else construction" + "in the find-tile block we need to support max-split, default 1"); confirmed live on this worktree's preview (5618) via an in-browser `runProgram` — an `if / else if / else` chain routed to the correct arm for A==1/2/other, and a `find-tile` with the default max-split 1 failed to reach a tile two hops EAST (single-path north walk → no move) while `max-split = 4` reached it — then owner said "good commit". Backed by build / lint / **811 tests** (else / else-if / Allman-brace + find-tile max-split cap: parse + exec + round-trip; existing find-tile exec tests updated to set `max-split = 4` where they relied on fan-out) | `a2dac29` |
+| 2026-07-06 | **Export-failure debug log — a failed export downloads a rich, self-contained JSON report.** A non-abort export failure now auto-downloads `exploroboros-export-error-<tiling>-<stamp>.json` (the toast names it) instead of only flashing "Export failed". It carries the full recipe (traverser DSL + coloring + initial-state + predicates + seeds + paint + tiling + grid + output), the pipeline **stage** that died, worker-vs-main path, the underlying error name/stack, environment, caps, progress reached, and guarded diagnostics (real tile count, caps-clamped target canvas size → reveals OOM, per-traverser compile check, unresolved seed defs, initial-state compile). New `ExportFailure` (path/stage/cause) + worker error name/stack/stage across the boundary + `worker.onerror` capture; pure `src/export/debugReport.ts` + DOM `src/export/debugLog.ts`; `clampResolution` split out of `sizing.ts`. | ⚠️ partial — see note | owner hit "Export failed: export worker failed" earlier but **could not reproduce it on demand** ("cant reproduce, i guess we will know when it happens next time, please commit"), so the actual failure→download round-trip wasn't device-exercised; the log builder itself IS verified — build / lint / **836 tests** (18 new: `debugReport` happy/broken-traverser/unresolved-seed/robustness + `toErrorInfo` unwrap + `clampResolution`) **and a live-runtime exercise** on this worktree's preview (5342) that dynamically imported the app's own `buildExportDebugReport` and, against a simulated worker `ExportFailure`, unwrapped the cause (`RangeError`, path `worker`, stage `run`), built the real kalleboda tiling (14 489 tiles), flagged the broken traverser + its orphaned seed, and clamped a 20000² request to 8192² | `89929a7` |
 
 ## 8. Todo list (working backlog)
 
@@ -573,6 +590,16 @@ in-session task tracker.
     natural moment to export). New `authoredBoard` (`src/canvas/overlay.ts`) reverts a live run's
     registries to their pre-run snapshot before `buildRecipe`, same as Stop — both now share one helper
     *(verified 2026-07-04, `66d9a1d`)*
+  - [x] **Export-failure debug log** — a failed export (non-abort) auto-downloads a self-contained JSON
+    debug log (and the toast names the file) instead of only flashing "Export failed". It holds the full
+    recipe (traverser DSL, coloring, initial-state, predicates, seeds, paint, tiling, grid, output) +
+    which pipeline **stage** died + worker-vs-main path + the underlying error name/stack + environment +
+    caps + progress reached + guarded diagnostics (real tile count, the caps-clamped target canvas size
+    which reveals an OOM-sized request, a per-traverser compile check, unresolved seed defs, initial-state
+    compile). Pure `src/export/debugReport.ts` (never re-runs the traverse; every diag guarded) +
+    DOM-side `src/export/debugLog.ts`; new `ExportFailure` error + stage tracking in the export pipeline
+    *(committed 2026-07-06, `89929a7`; the intermittent real failure couldn't be reproduced on demand —
+    the log itself is verified, it lands next time an export fails)*
 - [x] **Reopen from PNG** *(verified 2026-06-28, `a1e6d0b`)* — `Workspace.loadRecipe(recipe)`
   REPLACES the canvas setup from a recipe: tiling, grid (export grid clamped to ≤ `GRID_MAX` for editing),
   walkers + hand-paint (via `remapSeeds`/`remapPaint` centre-offsets), and the three stores (new `setAll`).
@@ -810,16 +837,38 @@ Hard-won; read before fighting the tooling again.
   `remap.ts` (seed/paint placement by bounds-centre offset, grid-size-independent), `renderTiling.ts`
   (`renderToCanvas` — a Canvas2D subset of `drawTiles`; **flush** no-edge rendering via `src/canvas/flush.ts`;
   takes a structural `RenderCtx`, so `OffscreenCanvas`/`<canvas>`/a fake all work), `sizing.ts`
-  (`pickCanvasSize` → aspect-matched WxH + device caps), `recipe.ts` (the serialisable `Recipe` +
-  `buildRecipe`/`parseRecipe`; **versioned** — see below),
+  (`pickCanvasSize` → aspect-matched WxH + device caps; `clampResolution` = just the caps-shrink math with
+  no bounds, so the debug log can compute the target size without a tiling), `recipe.ts` (the serialisable
+  `Recipe` + `buildRecipe`/`parseRecipe`; **versioned** — see below),
   `prepare.ts` (rebuilds
   defs/predicateText/index + remaps a recipe — **mirrors the Workspace assembly**, keep in sync), `generate.ts`
-  (`computeExport` — the pure build→run→colorize→size). **Impure (DOM, main-thread only, NOT in the pure
-  graph):** `pngText.ts` is pure but `exportWorker.ts` (the Web Worker — imports only pure modules + uses
-  OffscreenCanvas; Vite bundles it to its own chunk), `exportImage.ts` (worker driver + main-thread fallback +
+  (`computeExport` — the pure build→run→colorize→size; takes an `onStage` hook so a failure is attributable
+  to a stage), `debugReport.ts` (the pure export-failure debug log — see below). **Impure (DOM, main-thread
+  only, NOT in the pure graph):** `pngText.ts` is pure but `exportWorker.ts` (the Web Worker — imports only pure modules + uses
+  OffscreenCanvas; Vite bundles it to its own chunk ~97 KB — it pulls the whole tiling/DSL engine via
+  `computeExport`, so that size is expected; the guard is that it stays its OWN chunk with no React/Konva),
+  `exportImage.ts` (worker driver + main-thread fallback +
   metadata splice + auto-download; takes an `AbortSignal` — abort `terminate()`s the worker mid-run and rejects
-  with an `AbortError` the UI swallows as a cancel), `download.ts`. **Keep Konva out** and keep the pure files DOM-free so the
+  with an `AbortError` the UI swallows as a cancel; also home to the `ExportFailure` error), `debugLog.ts`
+  (gathers the environment + downloads the debug log), `download.ts`. **Keep Konva out** and keep the pure files DOM-free so the
   worker + Vitest stay happy.
+  - **Export-failure debug log (`89929a7`).** A non-abort export failure downloads a rich JSON report so a
+    developer can diagnose (and reproduce) it without the session — wired in `Workspace.startExport`'s
+    `.catch` (`downloadExportDebugLog`; a user cancel / `AbortError` is skipped). **How failures carry
+    context:** each candidate step is tagged with an `ExportStage` — `computeExport(recipe, caps,
+    onProgress, onStage)` reports build-tiling/prepare/run/colorize/size; the worker + `viaMainThread` add
+    render/thumbnail/encode-blob and `generateExport` adds embed-metadata. A failure is thrown as an
+    **`ExportFailure`** (`exportImage.ts`) carrying `{path: 'worker'|'main-thread', stage, causeName,
+    causeStack, workerEvent}`; the worker posts `{message, name, stack, stage}` across the boundary, and
+    `worker.onerror` (the bare-crash / empty-message "export worker failed" case) captures the `ErrorEvent`
+    fields. **The report** (`debugReport.ts`, PURE): `buildExportDebugReport` embeds the whole `Recipe`
+    verbatim + environment (passed in by `debugLog.ts`) + caps + progress + a `summary` + **guarded**
+    diagnostics — it re-runs only the CHEAP pure pieces (buildTiling, `compileProgram` per traverser,
+    `compileDoc`, `clampResolution`/`pickCanvasSize`) and **never re-runs the traverse**; every diagnostic
+    is individually try/caught into `diagnosticErrors`, so the log ALWAYS builds. `toErrorInfo` duck-types
+    the `ExportFailure` (prefers `causeName`/`causeStack` over the wrapper's) so the pure module needs no
+    DOM import. The single most useful fields when triaging: `summary.stage`, `diagnostics.targetCanvas`
+    (a clamp reveals an OOM-sized request), and `diagnostics.traversers[].compiles`.
   - **Recipe versioning (so images survive app updates).** The recipe carries `schemaVersion` (the
     compatibility key) + `appVersion` (a human stamp, never branched on). **When you change the recipe shape
     OR an engine/DSL behaviour that affects how an old recipe reproduces, bump `RECIPE_SCHEMA_VERSION` and add
