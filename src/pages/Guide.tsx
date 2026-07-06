@@ -48,6 +48,7 @@ export function Guide() {
         <a href="#registries">Registries</a>
         <a href="#directives">Directives</a>
         <a href="#morph">Morph &amp; update</a>
+        <a href="#blocks-search">Blocks &amp; search</a>
         <a href="#initial-state">Initial state</a>
         <a href="#examples">Examples</a>
       </nav>
@@ -265,8 +266,10 @@ move straight                  # a bare action — always runs`}</pre>
             by <code>max-split</code>).
           </li>
           <li>
-            <strong>Chain</strong> — <code>a -&gt; b -&gt; …</code> hops several edges in a single tick; only
-            the <em>final</em> tile is visited (the ones passed through are not).
+            <strong>Chain</strong> — <code>a@b@…</code> hops several edges in a single tick; only the{' '}
+            <em>final</em> tile is visited (the ones passed through are not). It's the same <code>@</code>{' '}
+            that reads a neighbour in a predicate, so <code>move e0@e4</code> reads "cross edge 0, then
+            edge 4 from there".
           </li>
           <li>
             <strong>Range</strong> — inside a split, <code>e1..e3</code> (or <code>e1..3</code>) is shorthand for
@@ -289,7 +292,7 @@ move straight                  # a bare action — always runs`}</pre>
             <tr><td><code>move nearest-unvisited</code></td><td>Step to the closest unvisited neighbour — the built-in Walker.</td></tr>
             <tr><td><code>move [straight, r1, l1]</code></td><td>Split: branch forward, right and left at once.</td></tr>
             <tr><td><code>move [r1..r4]</code></td><td>Split over a range of turns — the same as <code>[r1, r2, r3, r4]</code>.</td></tr>
-            <tr><td><code>move straight -&gt; r1</code></td><td>Hop two edges in one tick; only the final tile is visited.</td></tr>
+            <tr><td><code>move straight@r1</code></td><td>Chain two edges in one tick with <code>@</code>; only the final tile is visited.</td></tr>
             <tr><td><code>if visited@target == 0 then move [r1, l1, straight]</code></td><td>A <a href="#predicates">predicate</a> gates the move: split three ways, but keep only the branches landing on an <em>unvisited</em> tile (<code>@target</code> on the attribute tests each destination).</td></tr>
           </tbody>
         </table>
@@ -417,21 +420,22 @@ put [A, B] = [C, visited]:avg                                         # write th
           </li>
         </ul>
         <p>
-          Write with <code>put [A] = &lt;formula&gt;</code> (set) or <code>increase [A] [by &lt;formula&gt;]</code>{' '}
-          (add). Tile registries are <strong>always in brackets</strong> — just like when you read them:{' '}
-          <code>[A]</code> (lowercase <code>[a]</code> too). <code>[A, B]</code> is the <em>sum</em> when read,
+          Write with <code>put A = &lt;formula&gt;</code> (set) or <code>increase A [by &lt;formula&gt;]</code>{' '}
+          (add). A tile registry can be written <strong>bare</strong> — <code>A</code> (lowercase{' '}
+          <code>a</code> too) — or as a one-element list <code>[A]</code>; both mean the same registry, since{' '}
+          <code>[…]</code> now clearly marks a <em>list</em>. <code>[A, B]</code> is the <em>sum</em> when read,
           and writes <strong>both</strong> (each gets the same value) on the left of a <code>put</code>/
           <code>increase</code>. Walker registries are bare <code>P</code> / <code>Q</code> / <code>R</code> for
-          both reading and writing. A <code>@</code>-path writes another tile — <code>put [B@e1] = 1</code> sets B
+          both reading and writing. A <code>@</code>-path writes another tile — <code>put B@e1 = 1</code> sets B
           on the neighbour across edge 1. Formulas may also use any tile attribute and the walker's{' '}
           <code>steps</code>, <code>splits</code>, <code>heading</code>.
         </p>
-        <pre className="guide-code">{`put [A] = visited + 1   # set tile registry A
+        <pre className="guide-code">{`put A = visited + 1     # set tile registry A
 put [A, B] = 1          # set both A and B at once
 increase P              # add 1 to walker registry P
-put Q = [A]             # copy the tile's A into the walker's Q
-put [B@e1] = 1          # set B on the neighbour across edge 1
-if [A, B] > 0 then ...  # true when A + B is positive`}</pre>
+put Q = A               # copy the tile's A into the walker's Q
+put B@e1 = 1            # set B on the neighbour across edge 1
+if A > 0 then ...       # true when A is positive`}</pre>
         <p className="guide-note">
           If two walkers share a tile in one tick, <code>increase</code> from both <strong>adds up</strong>,
           but a <code>put</code> is <strong>last-writer-wins</strong>. Prefer <code>increase</code> when
@@ -486,6 +490,81 @@ move straight`}</pre>
         <p>
           <code>update &lt;setting&gt; &lt;value&gt;</code> changes the walker's own setting from here on —
           e.g. <code>update max-split 3</code>, <code>update heading 2</code> (aim at edge 2), <code>update movement absolute</code>.
+        </p>
+      </section>
+
+      <section className="guide-section" id="blocks-search">
+        <h2>Blocks &amp; search</h2>
+
+        <p className="guide-subhead"><strong>Grouping with a block</strong></p>
+        <p>
+          Besides the one-line <code>if &lt;predicate&gt; then &lt;action&gt;</code>, you can group several
+          statements under one condition with a <strong>block</strong>:
+        </p>
+        <pre className="guide-code">{`if visited-neighbors == 1 {
+  put A = 1
+  move nearest-unvisited
+}`}</pre>
+        <p>
+          The lines inside run top-to-bottom <strong>only if the predicate is true</strong> — the same as
+          writing that <code>if</code> on each line. Any statement can live in a block (moves, registry
+          writes, directives, even nested blocks or a <code>find-tile</code>) — everything <em>except</em> the
+          header <a href="#settings">settings</a> (<code>max-split</code> and friends), which stay at the top.
+        </p>
+
+        <p className="guide-subhead"><strong>Searching for a tile — <code>find-tile</code></strong></p>
+        <p>
+          <code>find-tile &lt;predicate&gt; {'{ … }'}</code> looks outward from the walker for a tile matching
+          the predicate and hands it back. The <code>move</code> lines inside are <strong>ghost moves</strong>:
+          they don't move the walker — they say how the search <em>spreads</em>, tile to tile, in a
+          breadth-first sweep. The <strong>first</strong> tile it reaches (always at least one hop away) whose
+          predicate holds is the result — exactly one tile, or none if the search runs dry. (The sweep fans out
+          fully; <code>max-split</code> doesn't limit it.)
+        </p>
+        <p>Use it two ways. <strong>Inline</strong>, straight as a move's destination:</p>
+        <pre className="guide-code">{`if visited == 2 then move find-tile A == 5 {
+  move straight
+}`}</pre>
+        <p>
+          Or as its own line, then reference what it found by number — <code>f0</code> is the first{' '}
+          <code>find-tile</code> you wrote, <code>f1</code> the second, and so on:
+        </p>
+        <pre className="guide-code">{`find-tile A == 5 {
+  move straight
+  move r1
+}
+if visited == 2 then move f0`}</pre>
+        <p>
+          A found tile <code>fN</code> is a <strong>base</strong>: it names a tile you can move to
+          (<code>move f0</code>), continue a <a href="#moving">chain</a> from (<code>move f1@e0</code> —
+          then step across edge 0), or read an attribute on (<code>tile-type@f1</code>,{' '}
+          <code>A@f1</code>). Because it names a tile, it must come <strong>first</strong> —{' '}
+          <code>move e0@f1</code> and <code>visited@e0@f1</code> are not allowed.
+        </p>
+        <p className="guide-note">
+          Numbering follows the <em>order you wrote them</em>, so <code>fN</code> is stable. If a{' '}
+          <code>find-tile</code> didn't run this tick (a guard skipped it) or found nothing, its <code>fN</code>{' '}
+          reads as off-grid — a <code>move fN</code> simply does nothing, and <code>tile-type@fN</code> falls
+          back to its default. Referencing an <code>fN</code> with no matching block is an error.
+        </p>
+
+        <p className="guide-subhead"><strong>Did it find anything? — <code>exists@path</code></strong></p>
+        <p>
+          Reading through <code>fN</code> when the search found nothing gives you the same default a
+          resolved-but-zero tile would — <code>visited@f0</code> reads <code>0</code> either way, so you
+          can't tell "not found" from "found, and it has 0 visits" just by looking at a value. Use{' '}
+          <code>exists@f0</code> to test the search itself: true only if that <code>find-tile</code>{' '}
+          actually located a tile this tick.
+        </p>
+        <pre className="guide-code">{`find-tile A == 5 {
+  move nearest-unvisited
+}
+if exists@f0 then move f0`}</pre>
+        <p>
+          <code>exists@path</code> works on any <code>@</code>-path, not just <code>fN</code> — it's the
+          general "did this resolve to a real tile" test behind every off-grid fallback.{' '}
+          <code>exists@e0</code> is true only if there's a neighbour across edge 0 (false at the boundary of
+          the tiling), useful for guarding a move before it runs off the edge.
         </p>
       </section>
 

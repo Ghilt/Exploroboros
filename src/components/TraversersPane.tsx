@@ -270,8 +270,9 @@ function TraverserEditor({
             <HelpButton title="Traverser rules">
               <p>
                 A traverser definition is a little program, run <strong>top-to-bottom every tick</strong>:{' '}
-                <code>if &lt;predicate&gt; then &lt;action&gt;</code> lines that move the walker and write
-                registries (a bare action always fires).
+                <code>if &lt;predicate&gt; then &lt;action&gt;</code> lines (or an{' '}
+                <code>if &lt;predicate&gt; {'{ … }'}</code> block) that move the walker and write registries
+                (a bare action always fires). <code>find-tile</code> searches the plane for a tile.
               </p>
               <p className="help-readmore">
                 <a href="#/guide" target="_blank" rel="noopener noreferrer">
@@ -288,14 +289,20 @@ function TraverserEditor({
         {showSyntax && (
           <div className="trav-syntax-body">
             <pre className="trav-syntax-code">{`if <predicate> then <action>     run top-to-bottom each tick
+if <predicate> { … }             a block: the lines run only if true
 <action>                         a bare action always fires
 
 move straight | r1 | l2 | e3 | nearest-unvisited
 move [r1, l1]                    split — capped by max-split
-move straight -> r1              two hops in one tick
-put [A] = [A] + 1                write a tile registry (A/B/C)
+move e0@e4                       two hops in one tick (@ chains)
+put A = A + 1                    write a tile registry (A/B/C, bare)
 increase P                       bump a walker register (P/Q/R)
-directive if <predicate> always forbid move`}</pre>
+directive if <predicate> always forbid move
+
+find-tile <predicate> {          search outward for a tile → f0
+  move nearest-unvisited         (these ghost moves fan the search)
+}
+move f0                          then step to the tile it found`}</pre>
             <ul className="trav-syntax-legend">
               <li>
                 <strong>predicate</strong> — a tile test (<code>visited-neighbors == 1</code>), a saved
@@ -304,11 +311,20 @@ directive if <predicate> always forbid move`}</pre>
               </li>
               <li>
                 <strong>edges</strong> — <code>straight</code>, <code>r1</code>/<code>l1</code> (turn),{' '}
-                <code>e3</code> (numbered edge), <code>nearest-unvisited</code>.
+                <code>e3</code> (numbered edge), <code>nearest-unvisited</code>. Chain hops with{' '}
+                <code>@</code>: <code>e0@e4</code>.
               </li>
               <li>
-                <strong>registries</strong> — <code>[A]</code>/<code>[B]</code>/<code>[C]</code> sit on the
-                tile; <code>P</code>/<code>Q</code>/<code>R</code> travel with the walker.
+                <strong>registries</strong> — <code>A</code>/<code>B</code>/<code>C</code> sit on the tile
+                (bracket a list: <code>[A, B]</code>); <code>P</code>/<code>Q</code>/<code>R</code> travel
+                with the walker.
+              </li>
+              <li>
+                <strong>find-tile</strong> — a breadth-first search; its <code>move</code> lines fan the
+                search out, and the first tile matching the predicate becomes <code>f0</code> (then{' '}
+                <code>f1</code>…). Use it as a move target or read it: <code>tile-type@f0</code>. Test
+                whether it found anything with <code>exists@f0</code> — a plain read (e.g.{' '}
+                <code>visited@f0</code>) can't tell "not found" from "found, value 0".
               </li>
               <li>
                 <strong>header</strong> (top, any order) — <code>max-split</code>, <code>heading</code>{' '}

@@ -7,7 +7,7 @@
 
 import { parsePredicate, resolvePredRefs, type Result } from '../../dsl'
 import { parseProgram } from './parse'
-import type { Guard, Program, Stmt } from './types'
+import type { Action, EdgeTarget, FindMove, FindTile, Guard, Program, Stmt } from './types'
 
 function resolveGuard(guard: Guard, names: ReadonlyMap<string, string>): Result<Guard> {
   if (guard.pred.kind === 'named') {
@@ -29,17 +29,86 @@ function resolveGuard(guard: Guard, names: ReadonlyMap<string, string>): Result<
   return resolved.ok ? { ok: true, value: { pred: { kind: 'inline', pred: resolved.value } } } : resolved
 }
 
+// A find-tile carries a goal predicate + guarded body moves — all of which may name saved predicates, so
+// resolve them too (recursively, since a body move could hold... only edge chains, but its guard can).
+function resolveFind(find: FindTile, names: ReadonlyMap<string, string>): Result<FindTile> {
+  const pred = resolveGuard(find.pred, names)
+  if (!pred.ok) return pred
+  const body: FindMove[] = []
+  for (const m of find.body) {
+    if (m.guard) {
+      const r = resolveGuard(m.guard, names)
+      if (!r.ok) return r
+      body.push({ guard: r.value, target: m.target })
+    } else body.push(m)
+  }
+  return { ok: true, value: { index: find.index, pred: pred.value, body } }
+}
+
+// A move/morph target may hold an INLINE find-tile as a chain base — resolve its guards in place.
+function resolveTarget(target: EdgeTarget, names: ReadonlyMap<string, string>): Result<EdgeTarget> {
+  const out = []
+  for (const c of target) {
+    if (c.base?.kind === 'find') {
+      const r = resolveFind(c.base.find, names)
+      if (!r.ok) return r
+      out.push({ base: { kind: 'find' as const, find: r.value }, refs: c.refs })
+    } else out.push(c)
+  }
+  return { ok: true, value: out }
+}
+
+function resolveAction(a: Action, names: ReadonlyMap<string, string>): Result<Action> {
+  if (a.kind === 'move' || a.kind === 'morph') {
+    const r = resolveTarget(a.target, names)
+    return r.ok ? { ok: true, value: { ...a, target: r.value } } : r
+  }
+  return { ok: true, value: a }
+}
+
+function resolveStmt(s: Stmt, names: ReadonlyMap<string, string>): Result<Stmt> {
+  switch (s.kind) {
+    case 'reset':
+      return { ok: true, value: s }
+    case 'directive': {
+      const r = resolveGuard(s.guard, names)
+      return r.ok ? { ok: true, value: { ...s, guard: r.value } } : r
+    }
+    case 'rule': {
+      let guard = s.guard
+      if (guard) {
+        const r = resolveGuard(guard, names)
+        if (!r.ok) return r
+        guard = r.value
+      }
+      const a = resolveAction(s.action, names)
+      if (!a.ok) return a
+      return { ok: true, value: guard ? { kind: 'rule', guard, action: a.value } : { kind: 'rule', action: a.value } }
+    }
+    case 'if-block': {
+      const g = resolveGuard(s.guard, names)
+      if (!g.ok) return g
+      const body: Stmt[] = []
+      for (const b of s.body) {
+        const r = resolveStmt(b, names)
+        if (!r.ok) return r
+        body.push(r.value)
+      }
+      return { ok: true, value: { kind: 'if-block', guard: g.value, body } }
+    }
+    case 'find-tile': {
+      const r = resolveFind(s.find, names)
+      return r.ok ? { ok: true, value: { kind: 'find-tile', find: r.value } } : r
+    }
+  }
+}
+
 export function resolveNames(prog: Program, names: ReadonlyMap<string, string>): Result<Program> {
   const statements: Stmt[] = []
   for (const s of prog.statements) {
-    if ((s.kind === 'rule' && s.guard) || s.kind === 'directive') {
-      const guard = s.kind === 'rule' ? s.guard! : s.guard
-      const r = resolveGuard(guard, names)
-      if (!r.ok) return r
-      statements.push({ ...s, guard: r.value })
-    } else {
-      statements.push(s)
-    }
+    const r = resolveStmt(s, names)
+    if (!r.ok) return r
+    statements.push(r.value)
   }
   return { ok: true, value: { settings: prog.settings, statements } }
 }

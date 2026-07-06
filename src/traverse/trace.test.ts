@@ -106,18 +106,18 @@ describe('tick trace', () => {
   })
 
   it('a multi-hop chain records the chain text and the FINAL destination only', () => {
-    const traced = stepTraversersTraced(state('move straight -> straight'))
+    const traced = stepTraversersTraced(state('move straight@straight'))
     const move = traced.trace.traversers[0].statements.find((s) => s.kind === 'move')
     if (move?.kind !== 'move') throw new Error('expected a move statement')
-    expect(move.candidates[0].chainText).toBe('straight -> straight')
+    expect(move.candidates[0].chainText).toBe('straight@straight')
     expect(move.candidates[0].dest).toBe('sq:2,4') // two east hops
     expect(traced.traversers[0].tile).toBe('sq:2,4')
   })
 
   it('records writes (put / increase) as statement traces', () => {
-    const ss = stmts(state('put [A] = 5\nincrease P by 3'))
+    const ss = stmts(state('put A = 5\nincrease P by 3'))
     expect(ss.map((s) => s.kind)).toEqual(['write', 'write'])
-    expect(ss.map((s) => s.source)).toEqual(['put [A] = 5', 'increase P by 3'])
+    expect(ss.map((s) => s.source)).toEqual(['put A = 5', 'increase P by 3'])
   })
 
   it('coalesces two identical branches and reports the merge', () => {

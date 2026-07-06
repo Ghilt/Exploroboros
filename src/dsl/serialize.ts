@@ -22,6 +22,8 @@ function segStr(seg: PathSeg): string {
       return 'target'
     case 'tile':
       return `tile ${seg.index}`
+    case 'found':
+      return `f${seg.index}`
   }
 }
 
@@ -93,6 +95,8 @@ function predText(p: Pred): Texted {
       return { s: `${exprText(p.left).s} ${p.op} ${exprText(p.right).s}`, prec: 4 }
     case 'shape':
       return { s: `tile-type${pathStr(p.path)} ${p.op} ${p.shape}`, prec: 4 }
+    case 'exists':
+      return { s: `exists${pathStr(p.path)}`, prec: 4 }
     case 'listcmp': {
       const inner = p.elems.map((e) => exprText(e).s).join(', ')
       return { s: `[${inner}]:${p.reducer} ${p.op} ${exprText(p.right).s}`, prec: 4 }

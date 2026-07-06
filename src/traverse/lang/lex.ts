@@ -14,7 +14,9 @@ const isAlpha = (c: string) => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 
 // Multi-char symbols matched before their single-char prefixes. `..` is the edge range in a move target
 // (`e1..3`, `r1..r4`); the number lexer leaves it alone (a `.` not followed by a digit isn't consumed).
-const MULTI = ['->', '==', '!=', '<=', '>=', '..']
+// Move chains use `@` as the hop separator (`e0@e4`, `straight@straight`), matching how attribute
+// `@`-paths chain — so there is no multi-char `->` any more.
+const MULTI = ['==', '!=', '<=', '>=', '..']
 // `{` `}` aren't used by the traverser statement grammar itself — they're here because the
 // Initial-state DSL (src/initstate) reuses this generic tokenizer, and its `auto-place … {…}` spec
 // needs braces. Harmless in a traverser program (they'd just fail in the parser). `:` is a list reducer

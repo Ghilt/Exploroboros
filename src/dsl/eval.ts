@@ -118,6 +118,11 @@ export function evalPredicate(pred: Pred, ctx: EvalContext): boolean {
       const matches = sub.node.shape === pred.shape
       return pred.op === '==' ? matches : !matches
     }
+    case 'exists':
+      // The general "did this path resolve" test — the same resolution a reading attribute falls back
+      // from, exposed directly so a resolved tile's own (possibly zero/false) values can't be confused
+      // with the path not resolving at all.
+      return ctxForLeaf(ctx, pred.path) !== null
     case 'not':
       return !evalPredicate(pred.operand, ctx)
     case 'bool':

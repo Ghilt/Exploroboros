@@ -13,10 +13,11 @@ import type { Tiling, TileNode } from '../../tiling'
 import { nodeById } from '../../tiling'
 import { evalNumber, evalPredicate, predReadsTarget, serializePath, type EvalContext, type PathSeg, type TilePath } from '../../dsl'
 import type { TileState } from '../../canvas'
-import { resolveChain } from './edges'
+import { resolveChain, type Hop } from './edges'
+import { bfsFind } from './find'
 import { serializeChain, serializeGuard, serializeStmt } from './serialize'
-import type { Action, DExpr, EdgeRef, EdgeTarget, Guard, Movement, Program, WriteTarget } from './types'
-import type { CandidateTrace, GuardEval, ReadTile, RejectReason, TraverserTrace } from '../trace'
+import type { Action, ChainBase, DExpr, EdgeRef, EdgeTarget, FindTile, Guard, Movement, Program, Stmt, WriteTarget } from './types'
+import type { CandidateTrace, GuardEval, ReadTile, RejectReason, StmtTrace, TraverserTrace } from '../trace'
 
 export type WalkerState = {
   tile: string
@@ -66,6 +67,7 @@ function segToEdgeRef(seg: PathSeg): EdgeRef | null {
       return { kind: 'edge', index: seg.index }
     case 'target':
     case 'tile':
+    case 'found':
       return null
   }
 }
@@ -115,6 +117,10 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
   const branches: Branch[] = []
   const tileWrites: TileWrite[] = []
   const directives: Array<{ allow: boolean; guard: Guard }> = []
+  // A find-tile's result, keyed by its source-position index — the tile referenced as `fN`. Populated
+  // when a find-tile runs (a standalone statement or an inline move base); null / absent = not found or
+  // not run this tick, so a later `fN` reads as off-grid.
+  const found: Hop[] = []
 
   // The walker attributes the DSL sees (heading = the edge number `straight` exits). Rebuilt each read
   // so it reflects mutations.
@@ -126,19 +132,32 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
     q: self.q,
     r: self.r,
   })
-  const currentNode = nodeById(tiling, walker.tile) ?? null
-
-  // Resolve an attribute's `@`-path to another tile's node (or null at a boundary / missing tile). No
-  // path -> the current tile. `@target` -> the move destination under consideration (`dest`), or the
-  // current tile outside a move context (so a stray `@target` is never silently always-false). `@tile N`
-  // -> the tile with that absolute number. Otherwise chain the edge hops from the current tile/heading.
-  const resolvePathNode = (dest: string | null, path: TilePath): TileNode | null => {
-    if (path.length === 0) return currentNode
+  // Resolve an attribute's `@`-path to another tile's node (or null at a boundary / missing tile),
+  // starting from an arbitrary ROOT tile + heading (the walker's own for a normal guard; a frontier tile
+  // during a find-tile search). No path -> the root tile. `@target` -> the move destination under
+  // consideration (`dest`), or the root tile outside a move context. `@tile N` -> the absolute tile.
+  // `@fN` -> the tile a find-tile located this tick, from which any trailing edge hops chain (an absolute
+  // anchor — the root doesn't affect it). Otherwise chain the edge hops from the root tile/heading.
+  const resolvePathFrom = (rootTile: string, rootHeading: number, dest: string | null, path: TilePath): TileNode | null => {
+    if (path.length === 0) return nodeById(tiling, rootTile) ?? null
     const first = path[0]
-    if (first.kind === 'target') return nodeById(tiling, dest ?? walker.tile) ?? null
+    if (first.kind === 'target') return nodeById(tiling, dest ?? rootTile) ?? null
     if (first.kind === 'tile') {
       const id = tileByIndex[first.index]
       return id ? nodeById(tiling, id) ?? null : null
+    }
+    if (first.kind === 'found') {
+      const start = found[first.index]
+      if (!start) return null // find-tile found nothing / hasn't run this tick -> off-grid
+      const rest: EdgeRef[] = []
+      for (let i = 1; i < path.length; i += 1) {
+        const ref = segToEdgeRef(path[i])
+        if (!ref) return null
+        rest.push(ref)
+      }
+      if (rest.length === 0) return nodeById(tiling, start.tile) ?? null
+      const h = resolveChain(tiling, overlay, start.tile, start.heading, self.movement, rest)
+      return h ? nodeById(tiling, h.tile) ?? null : null
     }
     const refs: EdgeRef[] = []
     for (const seg of path) {
@@ -146,15 +165,16 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
       if (!ref) return null // a terminal seg mid-chain (the parser forbids it) -> no tile
       refs.push(ref)
     }
-    const hop = resolveChain(tiling, overlay, walker.tile, self.heading, self.movement, refs)
+    const hop = resolveChain(tiling, overlay, rootTile, rootHeading, self.movement, refs)
     return hop ? nodeById(tiling, hop.tile) ?? null : null
   }
-  // The nodeForPath hook handed to the evaluator. When `record` is given (trace mode only) each
-  // resolution is logged for the debug read-tile highlights; otherwise it's a plain resolve (zero cost).
+  // The nodeForPath hook handed to the evaluator, rooted at `rootTile`/`rootHeading`. When `record` is
+  // given (trace mode only) each resolution is logged for the debug read-tile highlights; otherwise it's
+  // a plain resolve (zero cost).
   const makeNodeForPath =
-    (dest: string | null, record?: ReadTile[]) =>
+    (rootTile: string, rootHeading: number, dest: string | null, record?: ReadTile[]) =>
     (path: TilePath): TileNode | null => {
-      const node = resolvePathNode(dest, path)
+      const node = resolvePathFrom(rootTile, rootHeading, dest, path)
       if (record) {
         record.push({
           id: node?.id ?? null,
@@ -165,12 +185,17 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
       }
       return node
     }
-  const ctxFor = (dest: string | null, record?: ReadTile[]): EvalContext | null =>
-    currentNode
-      ? { node: currentNode, tiling, overlay, indexById, traverser: traverserAttrs(), nodeForPath: makeNodeForPath(dest, record) }
+  // An eval context rooted at any tile+heading. Tile attributes read `rootTile`; walker attributes stay
+  // the walker's own (heading = self.heading — a walker property, not the frontier tile's).
+  const ctxAt = (rootTile: string, rootHeading: number, dest: string | null, record?: ReadTile[]): EvalContext | null => {
+    const rootNode = nodeById(tiling, rootTile) ?? null
+    return rootNode
+      ? { node: rootNode, tiling, overlay, indexById, traverser: traverserAttrs(), nodeForPath: makeNodeForPath(rootTile, rootHeading, dest, record) }
       : null
+  }
+  const ctxFor = (dest: string | null, record?: ReadTile[]): EvalContext | null => ctxAt(walker.tile, self.heading, dest, record)
 
-  // A guard's boolean, rooted at the current tile (its attributes redirect themselves via `@`-paths).
+  // A guard's boolean, rooted at the walker's current tile (attributes redirect themselves via `@`-paths).
   const evalGuard = (guard: Guard, dest: string | null): boolean => {
     if (guard.pred.kind === 'named') return false // resolved at compile; defensive
     const ctx = ctxFor(dest)
@@ -193,6 +218,46 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
   const evalDExpr = (d: DExpr): number => {
     const ctx = ctxFor(null)
     return ctx ? evalNumber(d.expr, ctx) : 0
+  }
+
+  // Evaluate a (compiled, inline) guard rooted at a given tile+heading — used by a find-tile search for
+  // its goal predicate and its body-move guards, at each frontier tile. `dest` = the tile itself, so a
+  // stray `@target` reads that tile rather than nothing.
+  const evalGuardAt = (rootTile: string, rootHeading: number, guard: Guard): boolean => {
+    if (guard.pred.kind === 'named') return false
+    const ctx = ctxAt(rootTile, rootHeading, rootTile)
+    return ctx ? evalPredicate(guard.pred.pred, ctx) : false
+  }
+
+  // Run a find-tile search from the walker's tile: the body moves expand the BFS frontier (ghost moves —
+  // they never move the walker, and max-split doesn't cap them), the pred is the goal test. Returns the
+  // nearest matching tile (>= 1 hop away) or null. Bounded by the tiling's tile count.
+  const runFind = (find: FindTile): Hop => {
+    if (!nodeById(tiling, walker.tile)) return null
+    const expand = (node: { tile: string; heading: number }): Array<{ tile: string; heading: number }> => {
+      const out: Array<{ tile: string; heading: number }> = []
+      for (const m of find.body) {
+        if (m.guard && !evalGuardAt(node.tile, node.heading, m.guard)) continue
+        for (const c of m.target) {
+          const hop = resolveChain(tiling, overlay, node.tile, node.heading, self.movement, c.refs) // body chains carry no base
+          if (hop) out.push(hop)
+        }
+      }
+      return out
+    }
+    const matches = (node: { tile: string; heading: number }) => evalGuardAt(node.tile, node.heading, find.pred)
+    return bfsFind({ tile: walker.tile, heading: self.heading }, expand, matches, tiling.nodes.length)
+  }
+
+  // Resolve a move chain's base to the hop it starts from: the walker's current tile (no base), a found
+  // tile (`fN`), or an inline find-tile run right now (also stored as its `fN`). null = the search found
+  // nothing, so the whole chain is a boundary (no move).
+  const resolveBase = (base?: ChainBase): Hop => {
+    if (!base) return { tile: walker.tile, heading: self.heading }
+    if (base.kind === 'found') return found[base.index] ?? null
+    const hop = runFind(base.find)
+    found[base.find.index] = hop
+    return hop
   }
 
   // Decide whether a candidate destination is allowed. Order (owner's spec): any active `forbid`
@@ -233,7 +298,10 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
         record.push({ chainText: serializeChain(chain), dest: null, destType: null, heading: null, survived: false, reject: { by: 'max-split' } })
         continue
       }
-      const hop = resolveChain(tiling, overlay, walker.tile, self.heading, self.movement, chain)
+      // Start from the chain's base tile (the walker's own, a found tile, or an inline find-tile run
+      // now), then follow its edge hops. A base that found nothing is a boundary (no move).
+      const start = resolveBase(chain.base)
+      const hop = start ? resolveChain(tiling, overlay, start.tile, start.heading, self.movement, chain.refs) : null
       if (!hop) {
         if (record)
           record.push({ chainText: serializeChain(chain), dest: null, destType: null, heading: null, survived: false, reject: { by: 'boundary' } })
@@ -260,7 +328,7 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
       else self.r = op === 'set' ? value : self.r + value
       return
     }
-    const node = resolvePathNode(null, target.path ?? [])
+    const node = resolvePathFrom(walker.tile, self.heading, null, target.path ?? [])
     if (node) tileWrites.push({ tile: node.id, reg: target.reg, op, value })
   }
 
@@ -291,60 +359,83 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
     }
   }
 
-  for (const stmt of program.statements) {
-    if (stmt.kind === 'reset') {
-      directives.length = 0
-      if (trace) trace.statements.push({ kind: 'reset', source: 'reset directives' })
-      continue
-    }
-    if (stmt.kind === 'directive') {
-      directives.push({ allow: stmt.allow, guard: stmt.guard })
-      if (trace) trace.statements.push({ kind: 'directive', source: serializeStmt(stmt), allow: stmt.allow })
-      continue
-    }
-    const g = stmt.guard
-    const isMove = stmt.action.kind === 'move' || stmt.action.kind === 'morph'
-    if (isMove) {
-      // The move's own guard is decided PER CANDIDATE inside moveAllowed, so an active `allow` directive
-      // can override it (forbid > allow > own guard). Fast path: a guard that neither reads `@target` nor
-      // could be overridden by an active `allow` is constant across candidates — decide it once, skipping
-      // the whole rule if false (or dropping it, so nothing re-checks it per candidate, if true).
-      const inline = g && g.pred.kind === 'inline' ? g.pred.pred : null
-      const readsTarget = !!inline && predReadsTarget(inline)
-      const hasAllow = directives.some((d) => d.allow)
-      let ownGuard: Guard | undefined = g ?? undefined
-      if (g && !readsTarget && !hasAllow) {
-        const ev = trace ? evalGuardTraced(g, null) : null
-        const ok = ev ? ev.result : evalGuard(g, null)
-        if (!ok) {
-          if (trace && ev) trace.statements.push({ kind: 'gate-skip', source: serializeStmt(stmt), guard: guardEval(g, ev) })
-          continue
-        }
-        ownGuard = undefined
+  // Run a statement list top-to-bottom. `into` (present only in trace mode) is the StmtTrace array this
+  // level records into — an if-block passes its OWN nested array so the log mirrors the block structure.
+  // Recursive so an if-block runs its body inline (shared directives stack + self-state + found list).
+  const runStatements = (stmts: ReadonlyArray<Stmt>, into?: StmtTrace[]) => {
+    for (const stmt of stmts) {
+      if (stmt.kind === 'reset') {
+        directives.length = 0
+        into?.push({ kind: 'reset', source: 'reset directives' })
+        continue
       }
-      const candidates: CandidateTrace[] | undefined = trace ? [] : undefined
-      applyAction(stmt.action, ownGuard, candidates)
-      if (trace)
-        trace.statements.push({
+      if (stmt.kind === 'directive') {
+        directives.push({ allow: stmt.allow, guard: stmt.guard })
+        into?.push({ kind: 'directive', source: serializeStmt(stmt), allow: stmt.allow })
+        continue
+      }
+      if (stmt.kind === 'if-block') {
+        const ev = into ? evalGuardTraced(stmt.guard, null) : null
+        const ok = ev ? ev.result : evalGuard(stmt.guard, null)
+        if (into && ev) {
+          const body: StmtTrace[] = []
+          into.push({ kind: 'if-block', source: `if ${serializeGuard(stmt.guard)}`, guard: guardEval(stmt.guard, ev), result: ok, body })
+          if (ok) runStatements(stmt.body, body)
+        } else if (ok) {
+          runStatements(stmt.body)
+        }
+        continue
+      }
+      if (stmt.kind === 'find-tile') {
+        found[stmt.find.index] = runFind(stmt.find)
+        into?.push({ kind: 'find-tile', source: `find-tile ${serializeGuard(stmt.find.pred)}`, foundTile: found[stmt.find.index]?.tile ?? null })
+        continue
+      }
+      // stmt.kind === 'rule'
+      const g = stmt.guard
+      const isMove = stmt.action.kind === 'move' || stmt.action.kind === 'morph'
+      if (isMove) {
+        // The move's own guard is decided PER CANDIDATE inside moveAllowed, so an active `allow` directive
+        // can override it (forbid > allow > own guard). Fast path: a guard that neither reads `@target` nor
+        // could be overridden by an active `allow` is constant across candidates — decide it once, skipping
+        // the whole rule if false (or dropping it, so nothing re-checks it per candidate, if true).
+        const inline = g && g.pred.kind === 'inline' ? g.pred.pred : null
+        const readsTarget = !!inline && predReadsTarget(inline)
+        const hasAllow = directives.some((d) => d.allow)
+        let ownGuard: Guard | undefined = g ?? undefined
+        if (g && !readsTarget && !hasAllow) {
+          const ev = into ? evalGuardTraced(g, null) : null
+          const ok = ev ? ev.result : evalGuard(g, null)
+          if (!ok) {
+            if (into && ev) into.push({ kind: 'gate-skip', source: serializeStmt(stmt), guard: guardEval(g, ev) })
+            continue
+          }
+          ownGuard = undefined
+        }
+        const candidates: CandidateTrace[] | undefined = into ? [] : undefined
+        applyAction(stmt.action, ownGuard, candidates)
+        into?.push({
           kind: 'move',
           source: serializeStmt(stmt),
           morphDef: stmt.action.kind === 'morph' ? stmt.action.def : undefined,
           candidates: candidates ?? [],
         })
-    } else {
-      // Non-move rules (put/increase/update): directives don't apply; a guard gates the action up front.
-      if (g) {
-        const ev = trace ? evalGuardTraced(g, null) : null
-        const ok = ev ? ev.result : evalGuard(g, null)
-        if (!ok) {
-          if (trace && ev) trace.statements.push({ kind: 'gate-skip', source: serializeStmt(stmt), guard: guardEval(g, ev) })
-          continue
+      } else {
+        // Non-move rules (put/increase/update): directives don't apply; a guard gates the action up front.
+        if (g) {
+          const ev = into ? evalGuardTraced(g, null) : null
+          const ok = ev ? ev.result : evalGuard(g, null)
+          if (!ok) {
+            if (into && ev) into.push({ kind: 'gate-skip', source: serializeStmt(stmt), guard: guardEval(g, ev) })
+            continue
+          }
         }
+        applyAction(stmt.action)
+        into?.push({ kind: stmt.action.kind === 'update' ? 'update' : 'write', source: serializeStmt(stmt) })
       }
-      applyAction(stmt.action)
-      if (trace) trace.statements.push({ kind: stmt.action.kind === 'update' ? 'update' : 'write', source: serializeStmt(stmt) })
     }
   }
+  runStatements(program.statements, trace?.statements)
 
   return {
     branches,

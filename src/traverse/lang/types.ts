@@ -20,8 +20,17 @@ export type EdgeRef =
   | { kind: 'edge'; index: number }
   | { kind: 'unvisited' }
 
-// A chain hops several edges in ONE tick (re-aiming along each); only the final tile is visited.
-export type Chain = ReadonlyArray<EdgeRef> // length >= 1
+// A move chain may start from a base tile OTHER than the walker's current one:
+//  - found N: a tile a `find-tile` search located this tick — `move f0`, or with a trailing chain
+//    `move f1@e0`.
+//  - find: an INLINE `find-tile <pred> { … }` run right here; its result is the base (and is stored as
+//    this find-tile's `fN` for later reference too).
+// No base = the walker's current tile (the common case). `fN` can only ever be a base, never a later hop
+// (`move e0@f1` is rejected at parse time — an edge ref can't be `fN`).
+export type ChainBase = { kind: 'found'; index: number } | { kind: 'find'; find: FindTile }
+// A chain hops several edges in ONE tick (re-aiming along each) from its base tile; only the final tile
+// is visited. `refs` may be empty when a base names the destination directly (`move f0`).
+export type Chain = { base?: ChainBase; refs: ReadonlyArray<EdgeRef> }
 // A move target: one chain, or a set of chains that split (capped by max-split).
 export type EdgeTarget = ReadonlyArray<Chain> // length 1 = single move; >1 = split
 
@@ -31,6 +40,15 @@ export type EdgeTarget = ReadonlyArray<Chain> // length 1 = single move; >1 = sp
 // shape test false.
 export type GuardPred = { kind: 'inline'; pred: Pred } | { kind: 'named'; name: string }
 export type Guard = { pred: GuardPred }
+
+// A `find-tile <pred> { <moves> }` search: a breadth-first "ghost walk" from the walker's tile. The body
+// moves say how the frontier EXPANDS — they never move the real walker, and max-split does NOT cap them
+// (the search fans out fully). The first tile AT LEAST ONE hop away whose `pred` holds is returned
+// (nearest-first, BFS order) — exactly one tile, or none if the search exhausts. Every find-tile in a
+// program gets a source-position `index`, exposed as `fN` (`move f0`, `tile-type@f1`, …). Body moves may
+// be guarded but carry no base (each hops from the frontier tile it's expanding).
+export type FindMove = { guard?: Guard; target: EdgeTarget }
+export type FindTile = { index: number; pred: Guard; body: ReadonlyArray<FindMove> }
 
 // A numeric value in a put/increase. Attributes inside carry their own `@`-path if they read another tile.
 export type DExpr = { expr: Expr }
@@ -63,7 +81,12 @@ export type Rule = { kind: 'rule'; guard?: Guard; action: Action }
 // directives. Grammar: `directive if <guard> always forbid|allow move`.
 export type Directive = { kind: 'directive'; allow: boolean; guard: Guard }
 export type Reset = { kind: 'reset' }
-export type Stmt = Rule | Directive | Reset
+// A grouped conditional: run `body` top-to-bottom only when `guard` holds. Any statement except header
+// settings may live inside, and blocks nest. (The single-line `if <guard> then <action>` stays a Rule.)
+export type IfBlock = { kind: 'if-block'; guard: Guard; body: ReadonlyArray<Stmt> }
+// A standalone find-tile search that only records its result as `fN`; a later statement uses it (`move f0`).
+export type FindStmt = { kind: 'find-tile'; find: FindTile }
+export type Stmt = Rule | Directive | Reset | IfBlock | FindStmt
 
 export type Settings = {
   maxSplit: number

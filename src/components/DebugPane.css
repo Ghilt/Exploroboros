@@ -133,6 +133,13 @@
 .dbg-detail code { font-family: var(--mono); }
 .dbg-empty { margin: var(--space-1) 0; color: var(--muted); font-size: 0.76rem; }
 
+/* An if-block's nested body — indented with a rule down the left so the grouping reads. */
+.dbg-block-body {
+  margin: 0 0 var(--space-1) var(--space-3);
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--border);
+}
+
 /* Verdict chips (pills — reuse accent / muted, no green/red). */
 .dbg-chip {
   margin-left: auto;

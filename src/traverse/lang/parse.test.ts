@@ -22,28 +22,32 @@ describe('traverser DSL parser', () => {
 
   it('parses a bare move and a guarded move', () => {
     const p = ok('move straight\nif visited > 0 then move l1')
-    expect(p.statements[0]).toEqual({ kind: 'rule', action: { kind: 'move', target: [[{ kind: 'straight' }]] } })
+    expect(p.statements[0]).toEqual({ kind: 'rule', action: { kind: 'move', target: [{ refs: [{ kind: 'straight' }] }] } })
     const r = p.statements[1]
     expect(r.kind).toBe('rule')
     if (r.kind === 'rule') {
       expect(r.guard?.pred.kind).toBe('inline')
-      expect(r.action).toEqual({ kind: 'move', target: [[{ kind: 'turn', dir: 'l', n: 1 }]] })
+      expect(r.action).toEqual({ kind: 'move', target: [{ refs: [{ kind: 'turn', dir: 'l', n: 1 }] }] })
     }
   })
 
-  it('parses split sets and chains', () => {
-    const p = ok('move [r1, l1]\nmove straight -> r2 -> e3')
+  it('parses split sets and @-chains', () => {
+    const p = ok('move [r1, l1]\nmove straight@r2@e3')
     expect(p.statements[0]).toEqual({
       kind: 'rule',
-      action: { kind: 'move', target: [[{ kind: 'turn', dir: 'r', n: 1 }], [{ kind: 'turn', dir: 'l', n: 1 }]] },
+      action: { kind: 'move', target: [{ refs: [{ kind: 'turn', dir: 'r', n: 1 }] }, { refs: [{ kind: 'turn', dir: 'l', n: 1 }] }] },
     })
     expect(p.statements[1]).toEqual({
       kind: 'rule',
       action: {
         kind: 'move',
-        target: [[{ kind: 'straight' }, { kind: 'turn', dir: 'r', n: 2 }, { kind: 'edge', index: 3 }]],
+        target: [{ refs: [{ kind: 'straight' }, { kind: 'turn', dir: 'r', n: 2 }, { kind: 'edge', index: 3 }] }],
       },
     })
+  })
+
+  it('rejects the old -> chain separator (use @)', () => {
+    expect(parseProgram('move straight -> r2').ok).toBe(false)
   })
 
   it('parses a named-predicate guard', () => {
@@ -80,10 +84,10 @@ describe('traverser DSL parser', () => {
 
   it('parses eN move edges', () => {
     const p = ok('move e0\nmove [e1, e2]')
-    expect(p.statements[0]).toEqual({ kind: 'rule', action: { kind: 'move', target: [[{ kind: 'edge', index: 0 }]] } })
+    expect(p.statements[0]).toEqual({ kind: 'rule', action: { kind: 'move', target: [{ refs: [{ kind: 'edge', index: 0 }] }] } })
     expect(p.statements[1]).toEqual({
       kind: 'rule',
-      action: { kind: 'move', target: [[{ kind: 'edge', index: 1 }], [{ kind: 'edge', index: 2 }]] },
+      action: { kind: 'move', target: [{ refs: [{ kind: 'edge', index: 1 }] }, { refs: [{ kind: 'edge', index: 2 }] }] },
     })
   })
 
@@ -115,10 +119,13 @@ describe('traverser DSL parser', () => {
     })
   })
 
-  it('rejects a bare tile registry in a write, nudging to brackets', () => {
-    const r = parseProgram('put A = 1')
-    expect(r.ok).toBe(false)
-    if (!r.ok) expect(r.error.message).toContain('[A]')
+  it('parses a bare tile-registry write (put A / increase A / put A@e1)', () => {
+    const p = ok('put A = visited + 1\nincrease A\nput A@e1 = 1')
+    expect(p.statements[0]).toMatchObject({ kind: 'rule', action: { kind: 'put', target: [{ kind: 'tile-reg', reg: 'a' }] } })
+    expect(p.statements[1]).toMatchObject({ action: { kind: 'increase', target: [{ kind: 'tile-reg', reg: 'a' }] } })
+    expect(p.statements[2]).toMatchObject({
+      action: { kind: 'put', target: [{ kind: 'tile-reg', reg: 'a', path: [{ kind: 'edge', index: 1 }] }] },
+    })
   })
 
   it('expands an edge/turn range in a move target', () => {
@@ -127,16 +134,16 @@ describe('traverser DSL parser', () => {
       action: {
         kind: 'move',
         target: [
-          [{ kind: 'turn', dir: 'r', n: 1 }],
-          [{ kind: 'turn', dir: 'r', n: 2 }],
-          [{ kind: 'turn', dir: 'r', n: 3 }],
-          [{ kind: 'turn', dir: 'r', n: 4 }],
+          { refs: [{ kind: 'turn', dir: 'r', n: 1 }] },
+          { refs: [{ kind: 'turn', dir: 'r', n: 2 }] },
+          { refs: [{ kind: 'turn', dir: 'r', n: 3 }] },
+          { refs: [{ kind: 'turn', dir: 'r', n: 4 }] },
         ],
       },
     })
     expect(ok('move [e1..3, e6..e8]').statements[0]).toEqual({
       kind: 'rule',
-      action: { kind: 'move', target: [1, 2, 3, 6, 7, 8].map((index) => [{ kind: 'edge', index }]) },
+      action: { kind: 'move', target: [1, 2, 3, 6, 7, 8].map((index) => ({ refs: [{ kind: 'edge', index }] })) },
     })
   })
 
@@ -148,7 +155,7 @@ describe('traverser DSL parser', () => {
     const p = ok(
       'morph spinner straight\nupdate max-split 4\ndirective if visited > 0 always forbid move\nreset directives',
     )
-    expect(p.statements[0]).toEqual({ kind: 'rule', action: { kind: 'morph', def: 'spinner', target: [[{ kind: 'straight' }]] } })
+    expect(p.statements[0]).toEqual({ kind: 'rule', action: { kind: 'morph', def: 'spinner', target: [{ refs: [{ kind: 'straight' }] }] } })
     expect(p.statements[1]).toEqual({ kind: 'rule', action: { kind: 'update', setting: 'max-split', value: 4 } })
     expect(p.statements[2]).toMatchObject({ kind: 'directive', allow: false })
     expect(p.statements[3]).toEqual({ kind: 'reset' })
@@ -172,7 +179,7 @@ describe('traverser DSL parser', () => {
     if (r.guard?.pred.kind === 'inline') expect(predReadsTarget(r.guard.pred.pred)).toBe(true)
     expect(r.action).toEqual({
       kind: 'move',
-      target: [[{ kind: 'turn', dir: 'r', n: 1 }], [{ kind: 'turn', dir: 'l', n: 1 }]],
+      target: [{ refs: [{ kind: 'turn', dir: 'r', n: 1 }] }, { refs: [{ kind: 'turn', dir: 'l', n: 1 }] }],
     })
   })
 
@@ -194,6 +201,106 @@ describe('traverser DSL parser', () => {
 
   it('reports an error for a guard with no then', () => {
     const r = parseProgram('if visited > 0 move straight')
+    expect(r.ok).toBe(false)
+  })
+
+  it('parses a bare tile registry read in a guard (A == 5)', () => {
+    const p = ok('if A == 5 then move straight')
+    const r = p.statements[0]
+    if (r.kind !== 'rule' || r.guard?.pred.kind !== 'inline') throw new Error('expected an inline rule guard')
+    const pred = r.guard.pred.pred
+    expect(pred).toMatchObject({ kind: 'compare', op: '==', left: { kind: 'regterm', reg: 'a' }, right: { kind: 'number', value: 5 } })
+  })
+
+  it('parses an if-block with several statements', () => {
+    const p = ok('if visited-neighbors == 1 {\n  put A = 1\n  move nearest-unvisited\n}')
+    expect(p.statements).toHaveLength(1)
+    const b = p.statements[0]
+    if (b.kind !== 'if-block') throw new Error('expected an if-block')
+    expect(b.body.map((s) => s.kind)).toEqual(['rule', 'rule'])
+    expect(b.body[1]).toMatchObject({ kind: 'rule', action: { kind: 'move', target: [{ refs: [{ kind: 'unvisited' }] }] } })
+  })
+
+  it('nests if-blocks', () => {
+    const p = ok('if visited > 0 {\n  if A > 0 {\n    move straight\n  }\n}')
+    const outer = p.statements[0]
+    if (outer.kind !== 'if-block') throw new Error('expected an outer if-block')
+    expect(outer.body[0].kind).toBe('if-block')
+  })
+
+  it('rejects a header setting inside a block', () => {
+    const r = parseProgram('if visited > 0 {\n  max-split = 3\n}')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.message).toContain('header setting')
+  })
+
+  it('parses a standalone find-tile and a later move f0', () => {
+    const p = ok('find-tile A == 5 {\n  move nearest-unvisited\n}\nif visited == 2 then move f0')
+    const f = p.statements[0]
+    if (f.kind !== 'find-tile') throw new Error('expected a find-tile statement')
+    expect(f.find.index).toBe(0)
+    expect(f.find.body).toHaveLength(1)
+    const mv = p.statements[1]
+    if (mv.kind !== 'rule' || mv.action.kind !== 'move') throw new Error('expected a guarded move')
+    expect(mv.action.target).toEqual([{ base: { kind: 'found', index: 0 }, refs: [] }])
+  })
+
+  it('parses an inline find-tile as a move base', () => {
+    const p = ok('if visited == 2 then move find-tile A == 5 {\n  move straight\n}')
+    const r = p.statements[0]
+    if (r.kind !== 'rule' || r.action.kind !== 'move') throw new Error('expected a move rule')
+    const base = r.action.target[0].base
+    if (base?.kind !== 'find') throw new Error('expected an inline find base')
+    expect(base.find.index).toBe(0)
+  })
+
+  it('parses a found base with a trailing chain and a split of them', () => {
+    const p = ok('find-tile A == 5 { move straight }\nmove [f0@e0, f0@straight]')
+    const mv = p.statements[1]
+    if (mv.kind !== 'rule' || mv.action.kind !== 'move') throw new Error('expected a move')
+    expect(mv.action.target).toEqual([
+      { base: { kind: 'found', index: 0 }, refs: [{ kind: 'edge', index: 0 }] },
+      { base: { kind: 'found', index: 0 }, refs: [{ kind: 'straight' }] },
+    ])
+  })
+
+  it('numbers find-tile occurrences by source position (f0, f1)', () => {
+    const p = ok('find-tile A == 1 { move straight }\nfind-tile A == 2 { move r1 }\nmove [f0, f1]')
+    expect((p.statements[0] as { kind: 'find-tile'; find: { index: number } }).find.index).toBe(0)
+    expect((p.statements[1] as { kind: 'find-tile'; find: { index: number } }).find.index).toBe(1)
+  })
+
+  it('reads a found tile in a guard (tile-type@f0)', () => {
+    const p = ok('find-tile A == 5 { move straight }\nif tile-type@f0 == wedge then move f0')
+    const r = p.statements[1]
+    if (r.kind !== 'rule' || r.guard?.pred.kind !== 'inline') throw new Error('expected an inline guard')
+    expect(r.guard.pred.pred).toMatchObject({ kind: 'shape', shape: 'wedge', path: [{ kind: 'found', index: 0 }] })
+  })
+
+  it('rejects fN with no matching find-tile', () => {
+    const r = parseProgram('move f0')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.message).toContain('f0')
+  })
+
+  it('rejects fN out of range (f2 with two find-tiles)', () => {
+    const r = parseProgram('find-tile A == 1 { move straight }\nfind-tile A == 2 { move r1 }\nmove f2')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.message).toContain('f2')
+  })
+
+  it('rejects fN as a non-first hop (e0@f1)', () => {
+    expect(parseProgram('find-tile A == 5 { move straight }\nmove e0@f0').ok).toBe(false)
+  })
+
+  it('rejects a non-move statement inside a find-tile body', () => {
+    const r = parseProgram('find-tile A == 5 {\n  put A = 1\n}')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.message).toMatch(/move commands/)
+  })
+
+  it('rejects a base (fN / find-tile) inside a find-tile body move', () => {
+    const r = parseProgram('find-tile A == 5 {\n  move f0\n}')
     expect(r.ok).toBe(false)
   })
 })

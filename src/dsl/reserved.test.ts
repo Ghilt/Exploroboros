@@ -4,8 +4,9 @@ import { RESERVED_WORDS, reservedNameError } from './reserved'
 describe('reservedNameError', () => {
   it('rejects DSL keywords across all three grammars', () => {
     const words = [
-      'and', 'or', 'not', 'of', 'default', 'tile-type', // predicate
+      'and', 'or', 'not', 'of', 'default', 'tile-type', 'exists', // predicate
       'move', 'morph', 'put', 'increase', 'update', 'if', 'then', 'directive', 'forbid', 'allow', 'reset', // traverser
+      'find-tile', 'f', // find-tile search
       'max-split', 'heading', 'movement', 'relative', 'absolute', 'straight', 'nearest-unvisited', // settings/edges
       'auto-place', 'line', 'blob', 'visited', // initial state
     ]
@@ -24,8 +25,8 @@ describe('reservedNameError', () => {
     expect(reservedNameError('Move')).toBeTruthy()
   })
 
-  it('rejects the positional reference patterns (t/e/r/l + integer)', () => {
-    for (const w of ['t1', 't12', 'e0', 'e3', 'r1', 'l2', 'R5', 'E7', 'L10']) {
+  it('rejects the positional reference patterns (t/e/r/l/f + integer)', () => {
+    for (const w of ['t1', 't12', 'e0', 'e3', 'r1', 'l2', 'R5', 'E7', 'L10', 'f0', 'f1', 'F5']) {
       expect(reservedNameError(w), w).toBeTruthy()
     }
   })

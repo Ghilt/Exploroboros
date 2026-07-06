@@ -56,6 +56,11 @@ export type AttrScope = 'tile' | 'traverser'
 // resolved per candidate) and `tile N` (the tile with absolute number N). The traverser layer resolves
 // these against a walker (heading/movement/dest); in a walker-free context (coloring) a path resolves
 // to nothing and the attribute falls back to its default.
+// `found N` (`@fN`) names a tile a `find-tile` search located this tick — it's a BASE hop: it must come
+// FIRST in a path (it establishes the starting tile + heading) and may be followed by chainable edge
+// hops (`tile-type@f1`, `visited@f1@e0`), but never appear after another hop (`@e0@f1` is illegal). It
+// only resolves in the traverser layer (which owns the per-tick found list); walker-free contexts
+// (coloring) resolve it to nothing → default.
 export type PathSeg =
   | { kind: 'straight' }
   | { kind: 'turn'; dir: 'r' | 'l'; n: number }
@@ -63,6 +68,7 @@ export type PathSeg =
   | { kind: 'unvisited' }
   | { kind: 'target' }
   | { kind: 'tile'; index: number }
+  | { kind: 'found'; index: number }
 export type TilePath = ReadonlyArray<PathSeg>
 
 // ---- numeric expressions ----
@@ -83,9 +89,10 @@ export type Group = { kind: 'group'; inner: Expr } // ( expr )
 // the comparison to EACH element then combine. Default (no `:modifier`) is `sum`.
 export type Reducer = 'sum' | 'avg' | 'min' | 'max' | 'all' | 'any' | 'none' | 'xor'
 
-// A tile registry A/B/C as a VALUE. Only ever a list element — `[A]`, `[A, B]`, `[visited@e1, A@e3]` —
-// with an optional `@`-path to read it on another tile. Outside a list, registries are written `[A]`
-// (a one-element list). Case-insensitive on input; stored lowercase.
+// A tile registry A/B/C as a VALUE, with an optional `@`-path to read it on another tile. Usable bare
+// (`A`, `A@e1`) OR as a list element (`[A]`, `[A, B]`, `[visited@e1, A@e3]`) — since `[…]` now clearly
+// means "a list", a lone registry needn't be bracketed. `[A]` is just a one-element list of this term,
+// so bare and bracketed forms round-trip to their own text. Case-insensitive on input; stored lowercase.
 export type RegLetter = 'a' | 'b' | 'c'
 export type RegTerm = { kind: 'regterm'; reg: RegLetter; path?: TilePath }
 // A list of numeric value terms reduced to ONE number: `[A, B]` (sum is the default), `[a, b]:avg`
@@ -115,7 +122,13 @@ export type PredGroup = { kind: 'pgroup'; inner: Pred } // ( predicate )
 // enough — no quoting. The parser has no registry, so it can't validate the name eagerly;
 // resolvePredRefs inlines it (or errors on an unknown/cyclic name) before eval ever sees one.
 export type PredRef = { kind: 'predref'; name: string }
-export type Pred = Compare | ShapeTest | Not | BoolBin | PredGroup | PredRef | ListNumCompare | ListShapeCompare
+// Does an `@`-path resolve to a real tile? `exists@f0` is true iff a find-tile search located a tile;
+// `exists@e0` is true iff there's a neighbour across edge 0 (false at a boundary) — the general test
+// behind any "off-grid" fallback, since a resolved tile's OWN attribute values (0, false, …) are
+// otherwise indistinguishable from "this path didn't resolve at all". A path is required — the current
+// tile always exists, so a bare `exists` would be trivially true and is rejected as a likely mistake.
+export type Exists = { kind: 'exists'; path: TilePath }
+export type Pred = Compare | ShapeTest | Not | BoolBin | PredGroup | PredRef | ListNumCompare | ListShapeCompare | Exists
 
 // ---- parse results (errors never thrown across the module boundary) ----
 export type Span = { start: number; end: number }

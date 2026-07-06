@@ -36,6 +36,8 @@ export function predReadsTarget(pred: Pred): boolean {
       return exprReadsTarget(pred.left) || exprReadsTarget(pred.right)
     case 'shape':
       return pathHasTarget(pred.path)
+    case 'exists':
+      return pathHasTarget(pred.path)
     case 'listcmp':
       return pred.elems.some(exprReadsTarget) || exprReadsTarget(pred.right)
     case 'shapecmp':
@@ -47,4 +49,69 @@ export function predReadsTarget(pred: Pred): boolean {
     case 'pgroup':
       return predReadsTarget(pred.inner)
   }
+}
+
+// Collect the `found` (`@fN`) indices a predicate / expression reads, so the traverser compiler can
+// reject a reference to a find-tile that doesn't exist (`move f2` with only two `find-tile` blocks).
+// Same shallow AST walk as predReadsTarget; a `found` seg can only ever be a path's first hop.
+function pathFoundIndices(path: TilePath | undefined, out: number[]): void {
+  if (path) for (const s of path) if (s.kind === 'found') out.push(s.index)
+}
+export function exprFoundIndices(expr: Expr, out: number[] = []): number[] {
+  switch (expr.kind) {
+    case 'number':
+      break
+    case 'attr':
+    case 'regterm':
+      pathFoundIndices(expr.path, out)
+      break
+    case 'list':
+      expr.elems.forEach((e) => exprFoundIndices(e, out))
+      break
+    case 'neg':
+      exprFoundIndices(expr.operand, out)
+      break
+    case 'group':
+      exprFoundIndices(expr.inner, out)
+      break
+    case 'bin':
+      exprFoundIndices(expr.left, out)
+      exprFoundIndices(expr.right, out)
+      break
+  }
+  return out
+}
+export function predFoundIndices(pred: Pred, out: number[] = []): number[] {
+  switch (pred.kind) {
+    case 'predref':
+      break
+    case 'compare':
+      exprFoundIndices(pred.left, out)
+      exprFoundIndices(pred.right, out)
+      break
+    case 'shape':
+      pathFoundIndices(pred.path, out)
+      break
+    case 'exists':
+      pathFoundIndices(pred.path, out)
+      break
+    case 'listcmp':
+      pred.elems.forEach((e) => exprFoundIndices(e, out))
+      exprFoundIndices(pred.right, out)
+      break
+    case 'shapecmp':
+      pred.paths.forEach((p) => pathFoundIndices(p, out))
+      break
+    case 'not':
+      predFoundIndices(pred.operand, out)
+      break
+    case 'bool':
+      predFoundIndices(pred.left, out)
+      predFoundIndices(pred.right, out)
+      break
+    case 'pgroup':
+      predFoundIndices(pred.inner, out)
+      break
+  }
+  return out
 }

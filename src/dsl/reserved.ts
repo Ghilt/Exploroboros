@@ -15,7 +15,7 @@ import { malformedNameError } from './names'
 
 const WORDS: ReadonlyArray<string> = [
   // predicate DSL keywords + the shape test
-  'and', 'or', 'not', 'of', 'tile', 'default', 'tile-type',
+  'and', 'or', 'not', 'of', 'tile', 'default', 'tile-type', 'exists',
   // @-path / edge words shared by the predicate paths and traverser moves
   'straight', 's', 'nearest-unvisited', 'target', 'e', 'r', 'l',
   // traverser DSL — settings
@@ -23,6 +23,8 @@ const WORDS: ReadonlyArray<string> = [
   // traverser DSL — actions + statement keywords
   'move', 'morph', 'put', 'increase', 'update', 'by',
   'directive', 'if', 'then', 'always', 'forbid', 'allow', 'reset', 'directives',
+  // find-tile search + its `fN` result reference
+  'find-tile', 'f',
   // movement values
   'relative', 'absolute',
   // list reducers (`[a, b]:sum` … `:xor`)
@@ -38,9 +40,10 @@ const WORDS: ReadonlyArray<string> = [
 // Lower-cased so the check is case-insensitive (names and the grammar both fold case for registries etc.).
 export const RESERVED_WORDS: ReadonlySet<string> = new Set(WORDS.map((w) => w.toLowerCase()))
 
-// Positional reference tokens the DSLs read by shape: an edge (`e3`), a turn (`r1`/`l2`), or a traverser
-// reference (`t1`) in the Initial-state DSL. A name of this shape would be swallowed as that reference.
-const REFERENCE_PATTERN = /^[terl][0-9]+$/i
+// Positional reference tokens the DSLs read by shape: an edge (`e3`), a turn (`r1`/`l2`), a traverser
+// reference (`t1`) in the Initial-state DSL, or a found-tile reference (`f0`/`f1`) in the traverser DSL.
+// A name of this shape would be swallowed as that reference.
+const REFERENCE_PATTERN = /^[terlf][0-9]+$/i
 
 // Returns a human error if `name` can't be used — malformed (space / illegal char / bad start), a
 // reserved grammar word, or a positional reference pattern — else null. Duplicate-name checks (against
@@ -52,7 +55,7 @@ export function reservedNameError(name: string): string | null {
   if (!n) return null // an empty name is handled elsewhere (it auto-names from the DSL text)
   if (RESERVED_WORDS.has(n.toLowerCase())) return `"${n}" is a reserved word in the rule language — choose another name`
   if (REFERENCE_PATTERN.test(n)) {
-    return `"${n}" clashes with an edge / turn / traverser reference (like e1, r1, l1, t1) — choose another name`
+    return `"${n}" clashes with an edge / turn / traverser / found-tile reference (like e1, r1, l1, t1, f1) — choose another name`
   }
   return null
 }

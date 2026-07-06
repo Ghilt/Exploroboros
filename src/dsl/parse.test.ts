@@ -48,6 +48,52 @@ describe('parse — precedence & structure', () => {
     })
   })
 
+  it('parses a BARE registry read A (no brackets needed)', () => {
+    expect(ok('A > 0')).toEqual({
+      kind: 'compare',
+      op: '>',
+      left: { kind: 'regterm', reg: 'a' },
+      right: { kind: 'number', value: 0 },
+    })
+    // a bare registry with an @-path reads a neighbour's registry
+    expect(ok('A@e1 == 2')).toMatchObject({
+      kind: 'compare',
+      left: { kind: 'regterm', reg: 'a', path: [{ kind: 'edge', index: 1 }] },
+    })
+    // `A` alone (no comparison) is a value, so it reports "expected a comparison" — not "unknown predicate"
+    expect(errOf('A')).toMatch(/comparison/)
+  })
+
+  it('parses exists@path — requires a path, rejects a bare exists', () => {
+    expect(ok('exists@f0')).toEqual({ kind: 'exists', path: [{ kind: 'found', index: 0 }] })
+    expect(ok('exists@e0')).toEqual({ kind: 'exists', path: [{ kind: 'edge', index: 0 }] })
+    expect(ok('exists@r1@e5')).toEqual({
+      kind: 'exists',
+      path: [{ kind: 'turn', dir: 'r', n: 1 }, { kind: 'edge', index: 5 }],
+    })
+    expect(errOf('exists')).toMatch(/needs a path/)
+  })
+
+  it('composes exists@path with and/or/not', () => {
+    expect(ok('exists@f0 and not exists@f1')).toEqual({
+      kind: 'bool',
+      op: 'and',
+      left: { kind: 'exists', path: [{ kind: 'found', index: 0 }] },
+      right: { kind: 'not', operand: { kind: 'exists', path: [{ kind: 'found', index: 1 }] } },
+    })
+  })
+
+  it('parses a found-tile reference @fN in a path (base only)', () => {
+    expect(ok('tile-type@f1 == wedge')).toMatchObject({ kind: 'shape', shape: 'wedge', path: [{ kind: 'found', index: 1 }] })
+    // @fN may lead a chain of edge hops
+    expect(ok('visited@f0@e2 > 0')).toMatchObject({
+      kind: 'compare',
+      left: { kind: 'attr', name: 'visited', path: [{ kind: 'found', index: 0 }, { kind: 'edge', index: 2 }] },
+    })
+    // …but never sit after another hop
+    expect(errOf('visited@e0@f1 > 0')).toMatch(/first hop/)
+  })
+
   it('rejects the old registry-a name with a pointer to [A]', () => {
     expect(errOf('registry-a > 0')).toContain('[A]')
   })

@@ -20,6 +20,7 @@ export function resolvePredRefs(
   switch (pred.kind) {
     case 'compare':
     case 'shape':
+    case 'exists':
     // Lists hold Exprs, not nested Preds, so they can't contain a predref — return them unchanged.
     case 'listcmp':
     case 'shapecmp':

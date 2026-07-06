@@ -56,6 +56,13 @@ describe('buildDslCompletions', () => {
     const not = buildDslCompletions({}).find((x) => x.value === 'not')
     expect(not?.kind).toBe('keyword')
   })
+
+  it('offers the bare tile registries A/B/C as completions', () => {
+    const values = buildDslCompletions({}).map((x) => x.value)
+    expect(values).toContain('A')
+    expect(values).toContain('B')
+    expect(values).toContain('C')
+  })
 })
 
 describe('statement-start keyword lists', () => {
@@ -71,6 +78,7 @@ describe('statement-start keyword lists', () => {
       'update',
       'directive',
       'reset directives',
+      'find-tile',
       'heading',
       'max-split',
       'max-steps',

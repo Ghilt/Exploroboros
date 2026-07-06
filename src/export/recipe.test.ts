@@ -164,4 +164,23 @@ describe('migrateRecipe (the upgrade chain that keeps old images readable)', () 
     // No `enabled` field is forced on — absent means enabled, so old rules keep colouring.
     expect((out as { coloringRules: { enabled?: boolean }[] }).coloringRules[0].enabled).toBeUndefined()
   })
+
+  it('the real v6→v7 migration is a no-op — the DSL grew additively, so a v6 program is unchanged', () => {
+    // v7 is stamped only so an OLDER build refuses a new-syntax image cleanly; the programs are text and
+    // still parse, so the migration leaves everything (including traverser text) alone but for the version.
+    const traversers = [{ id: 't1', name: 'W', text: 'move straight' }]
+    const out = migrateRecipe({ schemaVersion: 6, traversers }, 7)
+    expect(out).toMatchObject({ schemaVersion: 7, traversers })
+  })
+
+  it('opens a full v6 recipe by migrating it to the current schema', () => {
+    // A recipe stamped v6 (built at the current shape, just an older version number) migrates cleanly and
+    // parseRecipe reports the version it came from — old shared-gallery images keep opening.
+    const r = { ...buildRecipe(input()), schemaVersion: 6 }
+    const res = parseRecipe(JSON.stringify(r))
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    expect(res.recipe.schemaVersion).toBe(RECIPE_SCHEMA_VERSION)
+    expect(res.migratedFrom).toBe(6)
+  })
 })

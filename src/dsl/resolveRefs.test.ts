@@ -68,12 +68,12 @@ describe('resolvePredRefs', () => {
     expect(resolveErr('loop', names)).toMatch(/refers to itself/)
   })
 
-  it('detects an indirect cycle (A -> B -> A)', () => {
+  it('detects an indirect cycle (foo -> bar -> foo)', () => {
     const names = new Map([
-      ['a', 'b'],
-      ['b', 'a'],
+      ['foo', 'bar'],
+      ['bar', 'foo'],
     ])
-    expect(resolveErr('a', names)).toMatch(/refers to itself/)
+    expect(resolveErr('foo', names)).toMatch(/refers to itself/)
   })
 
   it('does not treat sibling references to the same name as a false cycle', () => {

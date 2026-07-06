@@ -56,6 +56,11 @@ export type StmtTrace =
   | { kind: 'move'; source: string; morphDef?: string; candidates: CandidateTrace[] }
   | { kind: 'write'; source: string }
   | { kind: 'update'; source: string }
+  // A grouped `if <pred> { … }`: its guard verdict, whether it ran, and the nested statements' traces
+  // (present only when it ran).
+  | { kind: 'if-block'; source: string; guard: GuardEval; result: boolean; body: StmtTrace[] }
+  // A `find-tile` search: the tile it located this tick (null = nothing found).
+  | { kind: 'find-tile'; source: string; foundTile: string | null }
 
 // One walker's whole tick: its identity + start state, every statement it evaluated, and the raw
 // branches it produced (PRE-coalesce — its own decision; cross-walker coalescing/age-drops are tick

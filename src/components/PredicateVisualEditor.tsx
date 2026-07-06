@@ -253,7 +253,9 @@ export function PredicateVisualEditor({ text, onChange }: { text: string; onChan
         )
       case 'listcmp':
       case 'shapecmp':
-        // A boolean-reduced list comparison. Shown as a static chip; edit it in Text mode.
+      case 'exists':
+        // A boolean-reduced list comparison, or an exists@path test. Shown as a static chip; edit it in
+        // Text mode.
         return <span className="pv-static pv-reg">{serialize(p)}</span>
     }
   }

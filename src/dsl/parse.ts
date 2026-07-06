@@ -84,6 +84,7 @@ class Parser {
       return { kind: 'pgroup', inner }
     }
     if (this.isKeyword('tile-type')) return this.parseShapeTest()
+    if (this.isKeyword('exists')) return this.parseExistsTest()
     if (this.looksLikeBarePredicateRef()) {
       const t = this.next()
       return { kind: 'predref', name: t.text }
@@ -107,7 +108,10 @@ class Parser {
   // can't contain spaces (enforced when authoring), so `_` joins words: `Has_A and Has_C`.
   private looksLikeBarePredicateRef(): boolean {
     const t = this.peek()
-    if (t.kind !== 'ident' || KEYWORDS.has(t.text) || t.text === 'tile-type' || attrSpec(t.text)) return false
+    if (t.kind !== 'ident' || KEYWORDS.has(t.text) || t.text === 'tile-type' || t.text === 'exists' || attrSpec(t.text)) return false
+    // A bare registry letter (A/B/C) is a value, not a predicate name — let it fall through to the
+    // expression path so `A` alone reports "expected a comparison" rather than "unknown predicate".
+    if (/^[abc]$/i.test(t.text)) return false
     const nxt = this.toks[this.pos + 1]
     return nxt.kind === 'eof' || nxt.kind === 'rparen' || (nxt.kind === 'ident' && (nxt.text === 'and' || nxt.text === 'or'))
   }
@@ -134,6 +138,17 @@ class Parser {
     }
     this.next()
     return path ? { kind: 'shape', op, shape: nameTok.text, path } : { kind: 'shape', op, shape: nameTok.text }
+  }
+
+  // exists@<path> — true iff the path resolves to a real tile (false at a boundary, a missing tile, or a
+  // relative hop in a walker-free context). A path is required: the current tile always exists, so bare
+  // `exists` is almost certainly a typo for `exists@e0` / `exists@f0`.
+  private parseExistsTest(): Pred {
+    const head = this.next() // 'exists'
+    if (this.peek().kind !== 'at') {
+      throw new ParseFail('"exists" needs a path — the current tile always exists, e.g. exists@f0 or exists@e0', head.span)
+    }
+    return { kind: 'exists', path: this.parsePath() }
   }
 
   private parenIsPredicate(): boolean {
@@ -212,9 +227,17 @@ class Parser {
       return this.parseListExpr()
     }
     if (t.kind === 'ident') {
+      // A bare tile registry A/B/C is a value on its own — `[…]` now means "a list", so a lone registry
+      // needn't be bracketed (`A`, `A@e1`); a one-element list `[A]` is still fine and distinct.
+      if (/^[abc]$/i.test(t.text)) {
+        this.next()
+        const path = this.peek().kind === 'at' ? this.parsePath() : undefined
+        const reg = t.text.toLowerCase() as RegLetter
+        return path ? { kind: 'regterm', reg, path } : { kind: 'regterm', reg }
+      }
       return this.parseAttribute()
     }
-    throw new ParseFail('expected a number, attribute, "[A]", or "("', t.span)
+    throw new ParseFail('expected a number, attribute, a registry (A/B/C), "[…]", or "("', t.span)
   }
 
   // A `[…]` list used as a VALUE (an atom): numeric elements reduced by sum (default) / avg / min / max.
@@ -442,6 +465,11 @@ class Parser {
         }
         return [seg]
       }
+      // `@fN` is a BASE: it names the found tile the chain starts from, so it must come first; edge hops
+      // may follow it (`@f1@e0`) but it can never sit after another hop (`@e0@f1`).
+      if (seg.kind === 'found' && segs.length > 0) {
+        throw new ParseFail('a found-tile reference "fN" must be the first hop, e.g. @f1 or @f1@e0', segTok.span)
+      }
       segs.push(seg)
     }
     return segs
@@ -478,15 +506,16 @@ class Parser {
       if (!Number.isInteger(idx) || idx < 0) throw new ParseFail('tile number must be a whole number ≥ 0', num.span)
       return { kind: 'tile', index: idx }
     }
-    const m = /^([erl])([0-9]+)$/.exec(word)
+    const m = /^([erlf])([0-9]+)$/.exec(word)
     if (m) {
       this.next()
       const n = Number(m[2])
       if (m[1] === 'e') return { kind: 'edge', index: n }
+      if (m[1] === 'f') return { kind: 'found', index: n }
       if (n < 1) throw new ParseFail('a turn must be r1/l1 or higher', t.span)
       return { kind: 'turn', dir: m[1] as 'r' | 'l', n }
     }
-    throw new ParseFail(`"${word}" is not an edge — use @e0, @r1/@l1…, @straight, @nearest-unvisited, or @target`, t.span)
+    throw new ParseFail(`"${word}" is not an edge — use @e0, @r1/@l1…, @straight, @nearest-unvisited, @fN, or @target`, t.span)
   }
 
   private isKeyword(word: string): boolean {

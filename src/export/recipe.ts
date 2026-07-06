@@ -24,7 +24,7 @@ import { boundsCenter, tileOffset } from './remap'
 //     this version, and refuses one that's NEWER than this build (with reason 'too-new' → "update the app").
 //   APP_VERSION — a human-readable stamp of the build that made the image, for display + bug tracing
 //     only; never branched on. Bump freely.
-export const RECIPE_SCHEMA_VERSION = 6
+export const RECIPE_SCHEMA_VERSION = 7
 export const APP_VERSION = '0.1.0'
 export const RECIPE_KEYWORD = 'exploroboros:recipe'
 
@@ -196,6 +196,15 @@ const MIGRATIONS: ReadonlyArray<Migration> = [
   // this step only advances the version so a v6 build accepts a v5 image (and refuses a >v6 one).
   {
     from: 5,
+    migrate: (r) => r,
+  },
+  // v6 → v7: the traverser DSL grew `@`-chained moves, bare `A`/`B`/`C` registries, `if { … }` blocks,
+  // and `find-tile` search (`fN`). These are ADDITIVE / relaxing, so a v6 recipe's programs still parse
+  // and reproduce unchanged — the bump exists only so a recipe that USES the new syntax is stamped v7,
+  // and an older build (which can't understand it) refuses it cleanly ("update the app") instead of
+  // silently failing to compile the traverser. No shape change, so the step is a no-op.
+  {
+    from: 6,
     migrate: (r) => r,
   },
 ]

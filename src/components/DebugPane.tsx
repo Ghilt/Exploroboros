@@ -211,6 +211,32 @@ function StmtRow({
     )
   }
 
+  if (s.kind === 'find-tile') {
+    return (
+      <div className="dbg-stmt-group">
+        {head}
+        <div className="dbg-detail" onMouseEnter={() => onHover(groups)} onMouseLeave={() => onHover(null)}>
+          {s.foundTile ? <>found {num(s.foundTile)}</> : <>no tile matched the search</>}
+        </div>
+      </div>
+    )
+  }
+
+  if (s.kind === 'if-block') {
+    return (
+      <div className="dbg-stmt-group">
+        {head}
+        {s.result && s.body.length > 0 && (
+          <div className="dbg-block-body">
+            {s.body.map((b, k) => (
+              <StmtRow key={k} w={w} s={b} rowKey={`${rowKey}.b${k}`} num={num} onHover={onHover} pinnedKey={pinnedKey} onPinToggle={onPinToggle} />
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return head
 }
 
@@ -224,6 +250,10 @@ function Verdict({ s }: { s: StmtTrace }) {
     }
     case 'directive':
       return <span className="dbg-chip dbg-chip--dir">{s.allow ? 'allow' : 'forbid'}</span>
+    case 'if-block':
+      return <span className={cx('dbg-chip', s.result ? 'dbg-chip--fire' : 'dbg-chip--skip')}>{s.result ? 'ran' : 'skipped'}</span>
+    case 'find-tile':
+      return <span className={cx('dbg-chip', s.foundTile ? 'dbg-chip--fire' : 'dbg-chip--skip')}>{s.foundTile ? 'found' : 'not found'}</span>
     default:
       return <span className="dbg-chip">{s.kind === 'reset' ? 'reset' : 'done'}</span>
   }

@@ -197,6 +197,75 @@ describe('traverser program execution', () => {
     const both = addVisits(eastOnly, ['sq:3,2'], 0)
     expect(run('if visited@straight > 0 and visited@l1 == 0 then move r1', 'sq:2,2', both).branches).toHaveLength(0)
   })
+
+  it('reads and writes a BARE tile registry (put A / if A)', () => {
+    expect(run('put A = 5').tileWrites).toEqual([{ tile: 'sq:2,2', reg: 'a', op: 'set', value: 5 }])
+    const hasA: ReadonlyMap<string, TileState> = new Map([['sq:2,2', { visits: [], a: 1, b: 0, c: 0 }]])
+    expect(run('if A > 0 then increase P', 'sq:2,2', hasA).next.p).toBe(1)
+    expect(run('if A > 0 then increase P').next.p).toBe(0) // A defaults to 0 on an unseeded tile
+  })
+
+  it('runs an if-block body only when its guard holds', () => {
+    const src = 'if visited > 0 {\n  put A = 1\n  move straight\n}'
+    const visited = addVisits(new Map(), ['sq:2,2'], 0)
+    const ran = run(src, 'sq:2,2', visited)
+    expect(ran.tileWrites).toEqual([{ tile: 'sq:2,2', reg: 'a', op: 'set', value: 1 }])
+    expect(ran.branches[0]?.tile).toBe('sq:2,3')
+    const skipped = run(src) // unvisited -> block skipped
+    expect(skipped.tileWrites).toHaveLength(0)
+    expect(skipped.branches).toHaveLength(0)
+  })
+
+  it('runs a nested if-block', () => {
+    const overlay: ReadonlyMap<string, TileState> = new Map([['sq:2,2', { visits: [0], a: 1, b: 0, c: 0 }]])
+    const src = 'if visited > 0 {\n  if A > 0 {\n    move straight\n  }\n}'
+    expect(run(src, 'sq:2,2', overlay).branches[0]?.tile).toBe('sq:2,3')
+    const noA: ReadonlyMap<string, TileState> = new Map([['sq:2,2', { visits: [0], a: 0, b: 0, c: 0 }]])
+    expect(run(src, 'sq:2,2', noA).branches).toHaveLength(0) // inner guard false
+  })
+
+  // A tile two east has A=5; the ghost search fans over all four edges to reach it.
+  const withA5at = (id: string): ReadonlyMap<string, TileState> => new Map([[id, { visits: [], a: 5, b: 0, c: 0 }]])
+
+  it('find-tile (inline) moves the walker to the located tile', () => {
+    const res = run('move find-tile A == 5 {\n  move [e0, e1, e2, e3]\n}', 'sq:2,2', withA5at('sq:2,4'))
+    expect(res.branches[0]?.tile).toBe('sq:2,4')
+  })
+
+  it('a standalone find-tile stores its result as f0 for a later move', () => {
+    const res = run('find-tile A == 5 {\n  move [e0, e1, e2, e3]\n}\nmove f0', 'sq:2,2', withA5at('sq:2,4'))
+    expect(res.branches[0]?.tile).toBe('sq:2,4')
+  })
+
+  it('a found tile can start a chain (move f0@e0)', () => {
+    // f0 = sq:2,4; then e0 (north) -> sq:3,4.
+    const res = run('find-tile A == 5 {\n  move [e0, e1, e2, e3]\n}\nmove f0@e0', 'sq:2,2', withA5at('sq:2,4'))
+    expect(res.branches[0]?.tile).toBe('sq:3,4')
+  })
+
+  it('find-tile that matches nothing makes move fN a no-op', () => {
+    const res = run('find-tile A == 5 {\n  move [e0, e1, e2, e3]\n}\nmove f0', 'sq:2,2', new Map())
+    expect(res.branches).toHaveLength(0)
+  })
+
+  it('exists@f0 distinguishes "not found" from "found but zero" — a plain read cannot', () => {
+    const searchSrc = 'find-tile A == 5 {\n  move [e0, e1, e2, e3]\n}\n'
+    // Found (sq:2,4 has A=5, and its `visited` is legitimately 0) — exists is true.
+    const found = run(`${searchSrc}if exists@f0 then increase P`, 'sq:2,2', withA5at('sq:2,4'))
+    expect(found.next.p).toBe(1)
+    expect(run(`${searchSrc}if visited@f0 == 0 then increase Q`, 'sq:2,2', withA5at('sq:2,4')).next.q).toBe(1) // ALSO 0 — ambiguous on its own
+    // Not found — exists is false, even though the plain read ALSO comes back 0 (the ambiguity this fixes).
+    const missing = run(`${searchSrc}if exists@f0 then increase P`, 'sq:2,2', new Map())
+    expect(missing.next.p).toBe(0)
+    expect(run(`${searchSrc}if visited@f0 == 0 then increase Q`, 'sq:2,2', new Map()).next.q).toBe(1) // same reading as "found, 0 visits"
+  })
+
+  it('exists@e0 tests a plain boundary (no find-tile involved)', () => {
+    expect(run('if exists@e0 then increase P', 'sq:2,2').next.p).toBe(1) // has a north neighbour
+    // r grows north on a 5x5 grid (rows 0..4) -> row 4 is the north edge, no edge-0 neighbour there
+    // (sq:0,0 having no SOUTH neighbour, per the resolveAbsolutePath test below, confirms this framing).
+    expect(run('if exists@e0 then increase P', 'sq:4,2').next.p).toBe(0)
+  })
 })
 
 describe('resolveAbsolutePath — walker-free @-paths (the coloring context)', () => {
@@ -231,6 +300,8 @@ describe('resolveAbsolutePath — walker-free @-paths (the coloring context)', (
     expect(idOf([{ kind: 'turn', dir: 'r', n: 1 }])).toBeNull()
     expect(idOf([{ kind: 'unvisited' }])).toBeNull()
     expect(idOf([{ kind: 'target' }])).toBeNull()
+    // a `found` ref needs the traverser's per-tick search — nothing to resolve in a coloring context
+    expect(idOf([{ kind: 'found', index: 0 }])).toBeNull()
     // a relative seg ANYWHERE in the chain disqualifies the whole path
     expect(idOf([{ kind: 'edge', index: 0 }, { kind: 'straight' }])).toBeNull()
   })

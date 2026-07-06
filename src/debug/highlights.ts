@@ -41,6 +41,20 @@ export function statementGroups(w: TraverserTrace, s: StmtTrace): HighlightGroup
       { role: 'rejected', ids: s.candidates.filter((c) => !c.survived).map((c) => c.dest) },
     ])
   }
+  if (s.kind === 'if-block') {
+    // The block's guard + every tile it read (the found/neighbour tiles that decided whether it ran).
+    return build([
+      { role: 'current', ids: [w.tile] },
+      { role: 'decorator', ids: s.guard.readTiles.map((r) => r.id) },
+    ])
+  }
+  if (s.kind === 'find-tile') {
+    // Point at the tile the search located (if any) as the "chosen" tile.
+    return build([
+      { role: 'current', ids: [w.tile] },
+      { role: 'chosen', ids: [s.foundTile] },
+    ])
+  }
   // directive / write / update / reset — nothing to point at but the current tile.
   return build([{ role: 'current', ids: [w.tile] }])
 }

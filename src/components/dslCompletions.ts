@@ -31,7 +31,10 @@ export function buildDslCompletions(opts: {
   }
   for (const a of TILE_ATTRIBUTES) push({ value: a.name, kind: 'attribute', hint: a.indexed ? 'takes [n]' : undefined })
   push({ value: 'tile-type', kind: 'attribute', hint: '== shape' })
+  // Tile registries A/B/C are first-class values now (bare, or in a list `[A]`) — offer them everywhere.
+  for (const reg of ['A', 'B', 'C']) push({ value: reg, kind: 'attribute', hint: 'tile registry' })
   push({ value: 'not', kind: 'keyword', hint: 'negate' })
+  push({ value: 'exists', kind: 'keyword', hint: '@path resolves to a tile' })
   if (opts.includeTraverser) {
     for (const a of ATTRIBUTES) if (a.scopes.includes('traverser') && !a.alias) push({ value: a.name, kind: 'walker' })
   }
@@ -42,8 +45,9 @@ export function buildDslCompletions(opts: {
 // The keywords a TRAVERSER line can start with (the authoritative set from the traverser parser): the
 // header settings, the `if` guard, the bare actions, and the directive forms.
 export const TRAVERSER_STARTERS: ReadonlyArray<DslCompletion> = [
-  { value: 'if', kind: 'keyword', hint: 'guard an action' },
+  { value: 'if', kind: 'keyword', hint: 'guard an action, or { … } block' },
   { value: 'move', kind: 'keyword', hint: 'step along an edge' },
+  { value: 'find-tile', kind: 'keyword', hint: 'search for a tile → fN' },
   { value: 'put', kind: 'keyword', hint: 'set a registry' },
   { value: 'increase', kind: 'keyword', hint: 'bump a registry' },
   { value: 'morph', kind: 'keyword', hint: 'switch definition' },
