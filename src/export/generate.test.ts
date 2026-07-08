@@ -21,7 +21,7 @@ function recipe(overrides: Partial<Recipe> = {}): Recipe {
     traversers: [],
     coloringRules: [{ id: 'r', predicate: { kind: 'ref', id: 'visited' }, color: { kind: 'flat', hex: '#ff0000' }, opacity: 1 }],
     initialState: '',
-    numberingScheme: 'normal',
+    numberingScheme: 'left-to-right',
     ...overrides,
   }
 }

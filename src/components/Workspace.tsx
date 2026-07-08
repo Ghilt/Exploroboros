@@ -29,7 +29,6 @@ import { TileMini } from './TileMini'
 import { HelpButton } from './HelpButton'
 import { ConfirmDialog } from './ConfirmDialog'
 import { SegmentedControl } from './SegmentedControl'
-import { NumberingIcon } from './NumberingIcon'
 import { SpeedBar, type SpeedStop } from './SpeedBar'
 import { Stepper } from './Stepper'
 import { DebugPane } from './DebugPane'
@@ -159,10 +158,10 @@ export function Workspace() {
   }, [selectedIds])
   // Tile display: edged outline / no outline / outline + printed stats (number + visited + counters).
   const [displayMode, setDisplayMode] = useState<DisplayMode>('edges')
-  // Board numbering scheme: the number drawn on tiles (stats mode) + shown in Inspect, and what
-  // find-lowest/highest-tile searches by. 'normal' = generation order (unchanged); 'spiral' = out from
-  // the centre. Saved in the recipe (find-lowest/highest reproduces its search).
-  const [numberingScheme, setNumberingScheme] = useState<NumberingScheme>('normal')
+  // Board numbering scheme: the number drawn on tiles (stats mode) + shown in Inspect, the `tile-number`
+  // attribute, `@tile N`, and what find-lowest/highest-tile search by. 'left-to-right' = reading order;
+  // 'spiral' = a true winding spiral from the centre; 'radial' = concentric rings. Saved in the recipe.
+  const [numberingScheme, setNumberingScheme] = useState<NumberingScheme>('left-to-right')
   // The run-owned bookmark cache for find-lowest/highest-tile, re-attached to each live tick so the
   // search resumes instead of rescanning; reset when a run starts/stops or the board changes out-of-band.
   const findLowestCacheRef = useRef<FindLowestCache>(new Map())
@@ -217,7 +216,7 @@ export function Workspace() {
   // The chosen numbering (order + O(1) position lookup) — the ONE tile number the user ever sees or
   // references: the number DRAWN on tiles + shown in Inspect, what find-lowest/highest-tile searches by,
   // the `tile-number` DSL attribute, and `@tile N` addressing. Memoized per (tiling, scheme). The raw
-  // generation order is never surfaced. 'normal' == generation order, so existing creations are unchanged.
+  // generation order is purely an internal tile-id detail and is never surfaced as a number.
   const numbering = useMemo(() => numberingFor(tiling, numberingScheme), [tiling, numberingScheme])
 
   // tile id -> its user-facing number (the scheme position), backing the `tile-number` attribute in every
@@ -473,7 +472,7 @@ export function Workspace() {
     setViewingId(null)
     clearDebug()
     findLowestCacheRef.current = new Map()
-    setNumberingScheme(recipe.numberingScheme ?? 'normal')
+    setNumberingScheme(recipe.numberingScheme ?? 'left-to-right')
     const editGrid = Math.max(GRID_MIN, Math.min(GRID_MAX, Math.round((recipe.gridW + recipe.gridH) / 2)))
     setTilingId(recipe.tilingId)
     setGridInput(editGrid)
@@ -1177,25 +1176,27 @@ export function Workspace() {
                   Inspect). Choose how they’re ordered:
                 </p>
                 <p>
-                  <strong>normal</strong> — the order tiles were generated in.{' '}
-                  <strong>spiral</strong> — counting outward from the centre.
+                  <strong>left-to-right</strong> — reading order: each row left to right, top to bottom.{' '}
+                  <strong>spiral</strong> — one path winding out from the centre, +1 around and around to
+                  the edge. <strong>radial</strong> — concentric rings out from the centre.
                 </p>
                 <p>
                   This is also what <code>find-lowest-tile</code> / <code>find-highest-tile</code> search
-                  by — so with <strong>spiral</strong>, “lowest” means the tile nearest the centre.
+                  by — so with <strong>spiral</strong> or <strong>radial</strong>, “lowest” means the tile
+                  nearest the centre.
                 </p>
               </HelpButton>
             </span>
-            <SegmentedControl
-              ariaLabel="tile numbering"
+            <select
+              className="cs-select"
+              aria-label="tile numbering"
               value={numberingScheme}
-              onChange={setNumberingScheme}
-              size="md"
-              options={[
-                { value: 'normal', label: <NumberingIcon kind="normal" />, title: 'normal — generation order (as before)' },
-                { value: 'spiral', label: <NumberingIcon kind="spiral" />, title: 'spiral — numbered outward from the centre' },
-              ]}
-            />
+              onChange={(e) => setNumberingScheme(e.target.value as NumberingScheme)}
+            >
+              <option value="left-to-right">left-to-right</option>
+              <option value="spiral">spiral</option>
+              <option value="radial">radial</option>
+            </select>
           </div>
         </details>
 

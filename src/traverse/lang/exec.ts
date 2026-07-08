@@ -90,7 +90,7 @@ export function resolveAbsolutePath(
   overlay: ReadonlyMap<string, TileState>,
   startId: string,
   path: TilePath,
-  // The user-facing numbering order for `@tile N` (absent = generation order = the 'normal' scheme).
+  // The user-facing numbering order for `@tile N` (absent = generation order, a test-only fallback).
   order?: ReadonlyArray<string>,
 ): TileNode | null {
   if (path.length === 0) return nodeById(tiling, startId) ?? null

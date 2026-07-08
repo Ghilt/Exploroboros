@@ -26,9 +26,9 @@ export type Prepared = {
   baseOverlay: Map<string, TileState>
 }
 
-// tile id -> its user-facing number under the board numbering scheme (backs `tile-number`). 'normal'
-// is generation order, so an old recipe (migrated to 'normal') is byte-identical to before.
-export function buildIndexById(tiling: Tiling, scheme: NumberingScheme = 'normal'): Map<string, number> {
+// tile id -> its user-facing number under the board numbering scheme (backs `tile-number`). Defaults to
+// 'left-to-right' (the reading-order scheme); a recipe always carries its own scheme.
+export function buildIndexById(tiling: Tiling, scheme: NumberingScheme = 'left-to-right'): Map<string, number> {
   const map = new Map<string, number>()
   numberingFor(tiling, scheme).order.forEach((id, i) => map.set(id, i))
   return map
@@ -116,7 +116,7 @@ export function remapPaint(paint: Recipe['paint'], tiling: Tiling): Map<string, 
 
 export function prepareFromRecipe(recipe: Recipe, tiling: Tiling): Prepared {
   const defs = buildDefs(recipe.traversers, recipe.predicates)
-  const indexById = buildIndexById(tiling, recipe.numberingScheme ?? 'normal')
+  const indexById = buildIndexById(tiling, recipe.numberingScheme ?? 'left-to-right')
   const handOverlay = remapPaint(recipe.paint, tiling)
   // The Initial-state document, resolved against the EXPORT tiling (grid-relative) — seed walkers +
   // registry/visited set-writes. Mirrors the live Workspace assembly so preview == export: referenced

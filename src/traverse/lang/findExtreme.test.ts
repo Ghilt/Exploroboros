@@ -20,7 +20,7 @@ function compile(src: string): Program {
 function walkerOn(tile: string, prog: Program): WalkerState {
   return { tile, heading: 1, steps: 0, splits: 0, maxSplit: prog.settings.maxSplit, maxSteps: prog.settings.maxSteps, movement: prog.settings.movement, p: 0, q: 0, r: 0 }
 }
-// A single tick (no numbering supplied -> the search uses generation order = the 'normal' scheme).
+// A single tick (no numbering supplied -> the search falls back to generation order).
 function run(src: string, tile: string, overlay: ReadonlyMap<string, TileState>) {
   const prog = compile(src)
   return runProgram({ tiling, overlay, indexById, tileByIndex, walker: walkerOn(tile, prog), program: prog })

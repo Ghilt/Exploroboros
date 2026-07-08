@@ -44,7 +44,7 @@ export function computeExport(
     prep.indexById,
     undefined,
     onProgress,
-    numberingFor(tiling, recipe.numberingScheme ?? 'normal'),
+    numberingFor(tiling, recipe.numberingScheme ?? 'left-to-right'),
   )
   onStage?.('colorize')
   const colorFor = colorize(recipe.coloringRules, prep.predicateText, prep.predicateNames, tiling, run.overlay, prep.indexById)

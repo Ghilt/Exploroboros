@@ -572,6 +572,18 @@
   font-size: 0.78rem;
   color: var(--fg);
 }
+/* The tile-numbering dropdown — a plain, compact native select that follows the control tokens. */
+.canvas-settings .cs-select {
+  height: var(--control-h);
+  padding: 0 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-2, 0.4rem);
+  background: var(--surface, var(--bg));
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
 /* "registries" label + faded hint + "?" explainer, shown once the advanced section is open. */
 .adv-reg-head {
   display: flex;

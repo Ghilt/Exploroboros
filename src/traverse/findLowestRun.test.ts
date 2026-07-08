@@ -9,7 +9,7 @@ import { parseProgram, stepTraversers, stepTraversersInto, type FindLowestCache,
 // between them). Each tick the walker jumps to the globally-lowest unvisited tile.
 const tiling = buildTiling('square', 4)
 const indexById = new Map(tiling.nodes.map((n, i) => [n.id, i] as const))
-const numbering = numberingFor(tiling, 'normal')
+const numbering = numberingFor(tiling, 'left-to-right')
 
 const FL: Program = (() => {
   const r = parseProgram('find-lowest-tile visited == 0\nmove f0')
@@ -66,7 +66,7 @@ describe('tile-number in a walker guard follows the numbering scheme', () => {
   const walkerAt = (t: string): Traverser => ({ id: 'w', tile: t, heading: 0, def: 't', steps: 0, splits: 0, maxSplit: 1, maxSteps: 50000, movement: 'relative', p: 0, q: 0, r: 0 })
   // Run one tick with a walker sitting on the centre; return the A written on the centre (1 iff the
   // `tile-number == 0` guard fired). The centre is number 0 ONLY under spiral, so the verdict flips by scheme.
-  const centreA = (scheme: 'normal' | 'spiral') => {
+  const centreA = (scheme: 'left-to-right' | 'spiral') => {
     const num = numberingFor(tiling, scheme)
     const idx = new Map<string, number>()
     num.order.forEach((id, i) => idx.set(id, i))
@@ -77,6 +77,6 @@ describe('tile-number in a walker guard follows the numbering scheme', () => {
   it('same tile, opposite verdict under normal vs spiral', () => {
     expect(centre).not.toBe(tiling.nodes[0].id) // spiral-0 (centre) is not generation-0 (a corner)
     expect(centreA('spiral')).toBe(1) // centre IS spiral number 0 → guard fires
-    expect(centreA('normal')).toBe(0) // centre is NOT generation number 0 → guard skipped
+    expect(centreA('left-to-right')).toBe(0) // centre is NOT left-to-right number 0 (top-left is) → skipped
   })
 })

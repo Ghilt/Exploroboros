@@ -605,10 +605,11 @@ if exists@f0 then move f0`}</pre>
 move f0                # jump to the lowest-numbered unvisited tile`}</pre>
         <p>
           “Lowest” means the lowest <strong>tile number</strong>, and you pick how tiles are numbered in{' '}
-          <strong>canvas settings</strong> (in the Inspect pane): <strong>normal</strong> counts in the order
-          tiles were generated; <strong>spiral</strong> counts outward from the centre. So with{' '}
-          <strong>spiral</strong>, <code>find-lowest-tile visited == 0</code> finds the unvisited tile{' '}
-          <em>nearest the centre</em> — the numbering becomes a strategy knob.
+          <strong>canvas settings</strong> (in the Inspect pane): <strong>left-to-right</strong> (reading
+          order), <strong>spiral</strong> (one path winding out from the centre), or <strong>radial</strong>{' '}
+          (concentric rings out from the centre). So with <strong>spiral</strong> or <strong>radial</strong>,{' '}
+          <code>find-lowest-tile visited == 0</code> finds the unvisited tile <em>nearest the centre</em> —
+          the numbering becomes a strategy knob.
         </p>
         <p>
           Because the search looks at every tile with no walker in mind, its condition can read only the tile

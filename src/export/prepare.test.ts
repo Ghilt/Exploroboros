@@ -21,7 +21,7 @@ function recipe(overrides: Partial<Recipe> = {}): Recipe {
     traversers: [EDGE_DEF],
     coloringRules: [],
     initialState: '',
-    numberingScheme: 'normal',
+    numberingScheme: 'left-to-right',
     ...overrides,
   }
 }

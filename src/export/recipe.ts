@@ -24,7 +24,7 @@ import { boundsCenter, tileOffset } from './remap'
 //     this version, and refuses one that's NEWER than this build (with reason 'too-new' → "update the app").
 //   APP_VERSION — a human-readable stamp of the build that made the image, for display + bug tracing
 //     only; never branched on. Bump freely.
-export const RECIPE_SCHEMA_VERSION = 8
+export const RECIPE_SCHEMA_VERSION = 9
 export const APP_VERSION = '0.1.0'
 export const RECIPE_KEYWORD = 'exploroboros:recipe'
 
@@ -74,8 +74,9 @@ export type Recipe = {
   // The Initial-state DSL document (the `auto-place` lines) — seeds traversers + registries + visited by
   // grid-relative rules, resolved against the export grid on reopen. Empty string = none. (schema v3)
   initialState: string
-  // The board numbering scheme (schema v8) — what find-lowest/highest-tile searches by, so an image that
-  // uses those constructs reproduces the same tiles. 'normal' = generation order (no effect if unused).
+  // The board numbering scheme (schema v8; values revised in v9) — the user-facing tile number, so an
+  // image that uses `tile-number` / `@tile N` / find-lowest/highest reproduces the same tiles.
+  // 'left-to-right' | 'spiral' | 'radial' (see src/tiling/numbering.ts).
   numberingScheme: NumberingScheme
 }
 
@@ -213,11 +214,19 @@ const MIGRATIONS: ReadonlyArray<Migration> = [
     migrate: (r) => r,
   },
   // v7 → v8: a board numbering scheme was added (what find-lowest/highest-tile searches by). Old images
-  // predate those constructs, so 'normal' (generation order) reproduces them unchanged. The bump also
+  // predate those constructs, so the generation-order default reproduces them unchanged. The bump also
   // stamps any image that USES find-lowest/highest so an older build refuses it cleanly ("update the app").
   {
     from: 7,
-    migrate: (r) => ({ ...r, numberingScheme: 'normal' }),
+    migrate: (r) => ({ ...r, numberingScheme: 'left-to-right' }),
+  },
+  // v8 → v9: the numbering scheme names/meanings changed. The old 'spiral' was actually concentric rings,
+  // now called 'radial'; the old default 'normal' (generation order) became the geometric 'left-to-right'
+  // reading order; the name 'spiral' now means a true winding spiral (no old recipe used it). Map the old
+  // values to their equivalents so a v8 image reproduces the SAME numbering it recorded.
+  {
+    from: 8,
+    migrate: (r) => ({ ...r, numberingScheme: r.numberingScheme === 'spiral' ? 'radial' : 'left-to-right' }),
   },
 ]
 
@@ -283,8 +292,8 @@ function isCurrentShape(r: AnyRecipe): boolean {
   if (!Array.isArray(r.predicates) || !Array.isArray(r.traversers) || !Array.isArray(r.coloringRules)) return false
   if (typeof r.initialState !== 'string') return false
   // numberingScheme is guaranteed by migration/build; tolerate a hand-made recipe that omits it (defaults
-  // to 'normal' downstream) but reject a bogus value.
-  if (r.numberingScheme !== undefined && r.numberingScheme !== 'normal' && r.numberingScheme !== 'spiral') return false
+  // to 'left-to-right' downstream) but reject a bogus value.
+  if (r.numberingScheme !== undefined && !['left-to-right', 'spiral', 'radial'].includes(r.numberingScheme as string)) return false
   const out = r.output as RecipeOutput | undefined
   if (!out || typeof out.width !== 'number' || typeof out.height !== 'number') return false
   for (const s of r.seeds) if (!isVec2((s as RecipeSeed).offset)) return false

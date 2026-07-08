@@ -111,7 +111,7 @@ const recipe = (background: string, seeds: RecipeSeed[], traverser: StoredTraver
   traversers: [traverser],
   coloringRules,
   initialState: '',
-  numberingScheme: 'normal',
+  numberingScheme: 'left-to-right',
 })
 
 // Shared move lists.
@@ -292,7 +292,7 @@ const XOR_DIAMOND: Recipe = {
   ],
   initialState:
     'auto-place line {t1,0,100,0}\nauto-place blob {[A],50,100,1,1}\nauto-place blob {[A],50,0,1,1}\nauto-place line {t2,0,0,2}',
-  numberingScheme: 'normal',
+  numberingScheme: 'left-to-right',
 }
 
 // Image filename (in src/assets/gallery/) → its recipe.

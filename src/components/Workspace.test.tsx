@@ -168,7 +168,7 @@ describe('Workspace', () => {
   it('clears the selection on a non-selecting interaction (paint / empty tap)', () => {
     render(<Workspace />)
     fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
-    expect(screen.getByText('Tile #0')).toBeTruthy()
+    expect(screen.getByText(/^Tile #\d+$/)).toBeTruthy() // the tile's number (whatever the numbering scheme)
     fireEvent.click(screen.getByTestId('mock-deselect'))
     expect(screen.getByText(/click a tile to inspect/i)).toBeTruthy() // back to the empty hint
   })
@@ -194,7 +194,7 @@ describe('Workspace', () => {
     render(<Workspace />)
     expect(screen.getByText(/click a tile to inspect/i)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
-    expect(screen.getByText('Tile #0')).toBeTruthy()
+    expect(screen.getByText(/^Tile #\d+$/)).toBeTruthy() // the tile's number (whatever the numbering scheme)
     expect(screen.getByText('row')).toBeTruthy()
     expect(screen.getByText('column')).toBeTruthy()
   })
@@ -350,7 +350,7 @@ describe('Workspace', () => {
     expect(screen.getByRole('button', { name: /expand inspect/i })).toBeTruthy()
     // Clicking a tile auto-opens Inspect (the accordion would otherwise hide it) and shows the tile.
     fireEvent.click(screen.getByRole('button', { name: 'sq:0,0' }))
-    expect(screen.getByText('Tile #0')).toBeTruthy()
+    expect(screen.getByText(/^Tile #\d+$/)).toBeTruthy() // the tile's number (whatever the numbering scheme)
   })
 
   // Last in the file: it adds a custom traverser definition, which persists via localStorage for the

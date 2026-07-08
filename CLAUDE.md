@@ -19,8 +19,11 @@ It grows out of a Python prototype (the "nandeck octagon visualizer"); its hard-
 - **Verify before commit.** Nothing is committed until the owner has **verified it on a real device** (phone
   + desktop). I build it, run finite checks (build / typecheck / test), then hand off for the owner to look
   at. See §7 for how to expose the dev server to a phone.
-- **Record what's verified.** When the owner confirms a feature, add a row to the §7 verification log, *then*
-  commit — noting the feature and how it was verified.
+- **Record what's verified.** When the owner confirms a feature, add a row to the §7 verification log
+  noting the feature + how it was verified. **Docs are part of the change: update §6/§7/§8/§9 (and any
+  guide text) IN THE SAME commit as the code — never a separate "docs:" commit** (owner's call — the split
+  is noise). Because the doc update rides in the commit, don't try to record that commit's own hash in the
+  §7 row (it can't exist yet); leave the commit column `—` (git log + the date/feature identify it).
 - **Maintain the todo list.** §8 is the living backlog of what's left to build. Keep it current — add items as
   they surface; when the owner verifies a finished item, check it off there (and add the §7 row). While
   working I mirror the open items into the in-session task tracker to tick them off as I go.
@@ -32,7 +35,9 @@ It grows out of a Python prototype (the "nandeck octagon visualizer"); its hard-
   `title`) for quick hints; for a concept that needs a sentence or two, add a small faded **"?" explainer**
   (`HelpButton`, §9) that opens a little info dialog — kept muted so it doesn't clutter. When a new feature
   introduces a non-obvious concept, **ask the owner** whether it wants a "?" explainer there.
-- **Commits:** only on the owner's say-so; to `main` unless told otherwise; the owner pushes.
+- **Commits:** only on the owner's say-so; to `main` unless told otherwise; the owner pushes. **No
+  `Co-Authored-By` / co-authorship trailer in commit messages** (owner's call — it's noise). Keep messages
+  to a clear subject + body.
 - **No merge commits — keep history linear.** Always **rebase**, never merge: `git pull --rebase` (the repo
   has `pull.rebase=true` set), and rebase a divergent branch onto its base rather than merging it. Do not
   create merge commits.
@@ -349,19 +354,22 @@ still needed into this doc **before** then; do not rely on the path persisting.
   bug**: absolute edge numbers are clockwise-**handed**, so a triangle's selective `eK@eK` routing is chiral
   (only a full fan preserves the tiling's mirror symmetry) — see §9. A permanent `symmetry.test.ts` now guards
   that the engine keeps full-fan patterns symmetric.
-- **Board numbering schemes + `find-lowest/highest-tile` (committed 2026-07-08, `3992681`):** a **tile
-  numbering** the user chooses — **normal** (generation order, unchanged) or **spiral** (out from the bounds
-  centre: sorted by distance, then clockwise angle, then id — works on ANY tiling). Picked in a new **"canvas
-  settings"** collapsible at the foot of the Inspect pane (always shown), which also now hosts the **display
-  mode** control (moved out of the toolbar); the numbering toggle uses two little digit **pictograms**
-  (`NumberingIcon`, the owner's `789/456/123` vs `789/612/543`). Pure `src/tiling/numbering.ts`
+- **Board numbering schemes + `find-lowest/highest-tile` (2026-07-08):** a **tile numbering** the user picks
+  from a dropdown in a new **"canvas settings"** section at the foot of the Inspect pane (which also now hosts
+  the **display-mode** control, moved out of the toolbar). Three schemes, all working on ANY tiling (from
+  geometry + adjacency): **`left-to-right`** (reading order — rows top→bottom, each left→right), **`spiral`**
+  (a true flowing spiral, built as a greedy **wall-following WALK** — from the centre, each step takes the
+  unvisited neighbour reached by the sharpest right turn from the current heading, i.e. the classic
+  right-hand rule — so it winds outward as one connected +1 path to an edge, consecutive numbers always
+  adjacent), **`radial`** (concentric rings out from the centre).
+  Pure `src/tiling/numbering.ts`
   (`numberingOrder` / `numberOf` / `numberingFor`, memoized per (tiling, scheme) like `orientation.ts`).
   **The scheme is the ONE user-facing tile number everywhere** — the stats label, Inspect "Tile #N", the
   `tile-number` DSL attribute (coloring + traverser + initial-state guards), `@tile N` addressing, AND what
   the new searches order by; the raw generation order is never surfaced (it stays only as internal tile ids).
   Two new traverser-DSL statements: **`find-lowest-tile <pred>`** / **`find-highest-tile <pred>`** — a GLOBAL
   scan (no `{ }` body, unlike `find-tile`'s BFS) returning the lowest-/highest-**numbered** tile matching a
-  walker-free condition, stored as `fN` (so `move f0`, `exists@f0`, `tile-type@f0` all work). So spiral +
+  walker-free condition, stored as `fN` (so `move f0`, `exists@f0`, `tile-type@f0` all work). So `spiral` +
   `find-lowest-tile visited == 0` = the unvisited tile nearest the centre — the numbering becomes a strategy
   knob. Backed by an efficient **per-query bookmark cache** (`src/traverse/lang/findLowest.ts`): a search
   resumes from a cursor instead of rescanning; the bookmark moves forward as tiles fill (≈one pass total per
@@ -369,8 +377,9 @@ still needed into this doc **before** then; do not rely on the path persisting.
   the written tiles ∪ their neighbours; a multi-hop/`@tile` "global" predicate falls back to a rescan). The
   condition is walker-free (compile-enforced: tile attributes + absolute `@e`-paths only — no heading/steps/
   P/Q/R or relative/`@target`/`@fN`), so the answer is a pure function of (tile, overlay) and shareable across
-  walkers/ticks. Recipe **schema v7 → v8** (additive `numberingScheme`, default `normal`; old images still
-  open — and normal == generation order so they reproduce byte-identically). See §9.
+  walkers/ticks. Recipe **schema v9** (additive `numberingScheme`; migrations default old images so they
+  reproduce identically). See §9. *(Shipped a first cut — normal/spiral rings + pictogram buttons — then the
+  owner refined it the same day to the three geometric schemes + a proper flowing spiral + the dropdown.)*
 - **Next up:** **`exploroboros.io` custom domain** (register + attach — §8) → **DSL-driven traversers** (custom
   rules in the Traversers pane — paint/move/visit/split/guards/state, §5; reuses the predicate DSL) → **persist
   user exports across reloads** (IndexedDB).
@@ -462,7 +471,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-07-06 | **Export-failure debug log — a failed export downloads a rich, self-contained JSON report.** A non-abort export failure now auto-downloads `exploroboros-export-error-<tiling>-<stamp>.json` (the toast names it) instead of only flashing "Export failed". It carries the full recipe (traverser DSL + coloring + initial-state + predicates + seeds + paint + tiling + grid + output), the pipeline **stage** that died, worker-vs-main path, the underlying error name/stack, environment, caps, progress reached, and guarded diagnostics (real tile count, caps-clamped target canvas size → reveals OOM, per-traverser compile check, unresolved seed defs, initial-state compile). New `ExportFailure` (path/stage/cause) + worker error name/stack/stage across the boundary + `worker.onerror` capture; pure `src/export/debugReport.ts` + DOM `src/export/debugLog.ts`; `clampResolution` split out of `sizing.ts`. | ⚠️ partial — see note | owner hit "Export failed: export worker failed" earlier but **could not reproduce it on demand** ("cant reproduce, i guess we will know when it happens next time, please commit"), so the actual failure→download round-trip wasn't device-exercised; the log builder itself IS verified — build / lint / **836 tests** (18 new: `debugReport` happy/broken-traverser/unresolved-seed/robustness + `toErrorInfo` unwrap + `clampResolution`) **and a live-runtime exercise** on this worktree's preview (5342) that dynamically imported the app's own `buildExportDebugReport` and, against a simulated worker `ExportFailure`, unwrapped the cause (`RangeError`, path `worker`, stage `run`), built the real kalleboda tiling (14 489 tiles), flagged the broken traverser + its orphaned seed, and clamped a 20000² request to 8192² | `89929a7` |
 | 2026-07-06 | **Downloadable traverse log — whole-run trace for debugging a pattern.** A "⤓ Download full log" button (bottom of Inspect, by the traverser log) runs the current setup to completion **traced** and downloads a self-contained JSON: every tick's per-walker decisions (statements + each candidate move and why chosen/rejected), a **geometry dictionary** (every tile id → shape + x,y, so positions can be checked for symmetry), a per-tick summary for the whole run, and the final visited/registry state. Pure `buildTraverseLog` (`src/traverse/traceLog.ts`, mirrors `initRun`, full traces capped but summary/final cover the whole run). Built while diagnosing an owner-reported "asymmetric fractal" on Kagome & Squares — see the §9 note: it is **NOT an engine bug**, it's that absolute edge numbers are clockwise-**handed**, so a triangle's selective `eK@eK` routing is chiral (a full fan `[e0..e2]` stays symmetric). New permanent `symmetry.test.ts` guards that the engine keeps full-fan patterns symmetric. | ✅ yes | owner asked me to find the asymmetry ("no guessing") + wanted a downloadable traverse log; I root-caused it with a headless real-engine probe + a control experiment (full-fan stays symmetric 14 ticks → engine exonerated; `e1@e1`→(+2,0), `e2@e2`→(0,−1.15) while the true mirror of `e1@e1` is (−2,0)=`e2@e5`), reported it, then owner said "good commit the debug log downloader". Build / lint / **842 tests** (6 new: traceLog + the symmetry regression); branch served on this worktree's preview (5342, footer-labelled) — the download button click itself wasn't device-exercised (headless tab hidden) | `8eebf56` |
 | 2026-07-08 | **Fix — a traverser's `else` / `else if` branch was silently dropped at compile.** The name-resolution pass (`resolveNames`, `src/traverse/lang/compile.ts`) rebuilt each `if`-block from only its guard + `body`, discarding `elseBody` — so after `compileProgram` (parse + resolve, what the store/runtime use) a program with an `else`/`else if` lost that branch: it never ran, and any named predicate inside it went unresolved. Parse, serialize, and exec all handled `elseBody`; only resolve forgot it (and the existing else tests used raw `parseProgram`, bypassing resolve, so they missed it). Both branches + the top level now route through one shared `resolveStmtList` helper so a branch can't be dropped again. Same pass fixed the sibling gap in `parse.ts`'s `stmtFoundRefs` (it scanned only `body`): a dangling `fN` reference inside an `else` now raises a clear parse error instead of silently becoming a runtime no-op. Spotted while adding find-lowest-tile; unrelated to it. | ✅ yes | owner reviewed the plain-language account + said "this is probably correct, please commit". The bug was proven **fail-first** (new tests fail on the old code — else dropped; a bad name in an else wrongly accepted — and pass after the fix), backed by build / lint / **846 tests** (4 new: else preserved through compile; named predicates resolved in else + else-if; an unknown name in an else errors; a dangling `fN` in an else rejected). No gallery recipe uses `else`, so the fix provably can't alter any ported fractal. On-device `if/else` authoring was offered on this worktree's preview (5585, footer-labelled) but the owner approved on the tests + review | `45ae43b` |
-| 2026-07-08 | **Board numbering (normal / spiral) + `find-lowest/highest-tile` + "canvas settings" pane.** A user-chosen tile **numbering** — normal (generation order) or **spiral** (out from the bounds centre) — is now the ONE user-facing tile number everywhere: the stats label, Inspect "Tile #N", the `tile-number` DSL attribute (coloring + traverser + init-state guards), `@tile N` addressing, and the new searches. Chosen in a new **"canvas settings"** collapsible at the foot of Inspect (always visible), which also hosts the **display-mode** control moved out of the toolbar; numbering shows the owner's two digit **pictograms** (`NumberingIcon`). New **`find-lowest-tile`/`find-highest-tile <pred>`** — a global scan for the lowest/highest-**numbered** matching tile → `fN` — backed by an efficient per-query **bookmark cache** (forward-resume; nudge back only on a *changed* tile below it; walker-free condition, compile-enforced). Pure `src/tiling/numbering.ts` + `src/traverse/lang/findLowest.ts`; recipe **schema v7→v8** (additive `numberingScheme`, default normal → old images reproduce identically). Second pass this session made `tile-number`/`@tile N` follow the scheme after the owner caught coloring-by-tile-number still using generation order. | ✅ yes | owner asked for the two numbering options + the canvas-settings section + a "go to the lowest tile of a predicate" structure with a smart cache ("nudge back on *change*, not just decrease" — implemented as written); then reported that coloring by `tile-number` ignored the scheme (fixed → everything user-facing now follows it) and asked about `@tile N` (explained); said "this is good, commit this". Backed by build / lint / **873 tests** (numbering + findLowest cache incl. forward/nudge-back/neighbour/global + parse/serialize/compile + walker-free rejection + exec `f0`/`exists@f0` + v7→v8 migration + a **live==export** guard + a colorize `tile-number`/`@tile`-follow-scheme guard + a traverser same-tile-opposite-verdict guard) + served-source & DOM checks on this worktree's preview (5697, footer-labelled: canvas-settings section renders with both pictograms, display control gone from the toolbar, clean console boot). Headless tab can't fire React clicks (§9), so the on-device click-through (flip spiral, watch numbers count out, author find-lowest) is the owner's to confirm on 5697. | `3992681` |
+| 2026-07-08 | **Board numbering (left-to-right / spiral / radial) + `find-lowest/highest-tile` + "canvas settings" pane.** A user-chosen tile **numbering** — **left-to-right** (reading order), **spiral** (a greedy wall-following WALK from the centre — each step turns the sharpest right onto an unvisited neighbour, winding out as one +1 path to an edge), or **radial** (concentric rings) — is the ONE user-facing tile number everywhere: the stats label, Inspect "Tile #N", the `tile-number` DSL attribute (coloring + traverser + init-state guards), `@tile N` addressing, and the new searches; raw generation order is never surfaced. All three work on any tiling from geometry + adjacency (`src/tiling/numbering.ts`). Picked from a **dropdown** in a new **"canvas settings"** section at the foot of Inspect (always visible), which also hosts the **display-mode** control moved out of the toolbar. New **`find-lowest-tile`/`find-highest-tile <pred>`** — a global scan for the lowest/highest-**numbered** matching tile → `fN` (`move f0`, `exists@f0` all work) — backed by an efficient per-query **bookmark cache** (`src/traverse/lang/findLowest.ts`; forward-resume, nudge back only on a *changed* tile below it, walker-free condition compile-enforced). Recipe **schema v9** (additive `numberingScheme`; migrations default old images so they reproduce identically — no recipe uses `tile-number`/`@tile`, so nothing existing changed). | ✅ yes | owner asked for the numbering options + the canvas-settings section + a "go to the lowest tile of a predicate" structure with a smart cache ("nudge back on *change*, not just decrease" — implemented as written). Shipped a first cut (normal/spiral rings + pictogram buttons), then the owner refined it: coloring by `tile-number` must follow the scheme (fixed → everything user-facing now does), "spiral should be a path that winds +1 around and around to the edge" (added a true spiral; the old rings became **radial**), "left-to-right for hexagons is wrong — top to bottom first" (made it a geometric reading order), and "remove the buttons, use a dropdown". A first pass built `spiral` as sorted concentric rings, which the owner found stranded tiles ("even worse now") and then DEFINED precisely — "start in the middle, move the sharpest right you can without going backwards" — so `spiral` was rebuilt as exactly that greedy wall-following WALK (a 7×7 dump winds 0-at-centre → 48-at-corner, every step edge-adjacent — a clean clockwise spiral). Backed by build / lint / **879 tests** (numbering.test: left-to-right reads the top row L→R on square + top→bottom/left→right on HEX; radial rings monotone-by-distance; spiral centre-first + ends-on-boundary + consecutive-numbers-edge-adjacent walk + distinct-from-radial; find-lowest cache forward/nudge-back/neighbour/global; v8→v9 + v7→v8 migrations; colorize + traverser `tile-number`/`@tile`-follow-scheme guards). The corrected spiral was served on this worktree's preview (5697) with a 7×7 dump shown (0-at-centre winding to 48-at-corner, every step adjacent); owner reviewed and said "excellent please commit". | — |
 
 ## 8. Todo list (working backlog)
 
@@ -529,10 +538,11 @@ in-session task tracker.
     adds mid-edge vertices so `stitch()` builds adjacency; ~1/7 reflected (`hat-reflected` shape).
     `src/tiling/generators/hat.ts` *(done & verified 2026-07-04, `f3f7d27`)*. Follow-ups if wanted: P2 kite/dart
     Penrose; the **spectre** (chiral aperiodic monotile, no reflections).
-  - [x] Tile numbering as a canvas control — user-selectable scheme in the **canvas settings** section
-    (Inspect): **normal** (generation order) or **spiral** (out from the centre). It's the ONE user-facing
-    number everywhere (stats label, Inspect, `tile-number` attribute, `@tile N`, `find-lowest/highest-tile`);
-    generation order is never surfaced. Pure `src/tiling/numbering.ts`; recipe schema v8 *(2026-07-08, `3992681`)*
+  - [x] Tile numbering as a canvas control — a dropdown in the **canvas settings** section (Inspect) with
+    three geometric schemes: **left-to-right** (reading order), **spiral** (a true winding spiral from the
+    centre), **radial** (concentric rings). It's the ONE user-facing number everywhere (stats label, Inspect,
+    `tile-number` attribute, `@tile N`, `find-lowest/highest-tile`); generation order is never surfaced. Pure
+    `src/tiling/numbering.ts`; recipe schema v9 *(2026-07-08)*
   - [x] Visualise edge numbering + opposite edges for the user — the Inspect **tile mini** (`TileMini`)
     draws the selected tile's real vertices in its on-canvas orientation with every edge numbered as the
     DSL sees it (`clockwiseEdgeOrder`), edge 0 accented, plus a **"Straightness"** blurb (wedges: dotted
@@ -932,10 +942,13 @@ Hard-won; read before fighting the tooling again.
     reinterpretation of old syntax), so the step just advances the version; it exists only so a recipe that
     USES the new syntax is stamped v7 and an older build refuses it cleanly ("update the app") instead of
     trying and failing to compile the traverser; **+ v7→v8 (2026-07-08), ADDITIVE** — a `numberingScheme`
-    (`normal` | `spiral`) field for the board numbering; old images default to `normal`, and `normal` IS the
-    old generation order, so they reproduce byte-identically. It matters for reproduction because the scheme
-    now drives the `tile-number` attribute, `@tile N` addressing, and `find-lowest/highest-tile`'s order —
-    so a `spiral` creation must record it). Current exports are **`schemaVersion: 8`**. **The live gallery's stored `recipe_json` was ALSO rewritten
+    field for the board numbering; old images default to the generation-order reading, matters for
+    reproduction because the scheme drives the `tile-number` attribute, `@tile N`, and `find-lowest/highest`;
+    **+ v8→v9 (2026-07-08), a VALUE remap** — the scheme names/meanings were revised (`src/tiling/numbering.ts`):
+    the old `spiral` was really concentric rings → **`radial`**; the old default `normal` (generation order)
+    → the geometric **`left-to-right`** reading order; `spiral` now means a true winding spiral. The migration
+    maps `spiral`→`radial`, else→`left-to-right`, so a v8 image reproduces the SAME numbering it recorded.
+    Current exports are **`schemaVersion: 9`**. **The live gallery's stored `recipe_json` was ALSO rewritten
     once via `tools/migrate-names.mjs --apply`** (idempotent; a name-only transform, leaving each row's schema
     version for on-read migration) — do the same if names ever need another sweep. **Pre-release exception (2026-06-29, again 2026-07-03):**
     the breaking DSL changes (directives → predicate-first + `@ target`, then decoration → per-attribute
@@ -971,18 +984,29 @@ Hard-won; read before fighting the tooling again.
   fills it and only the canvas (pan/zoom) and docks (own overflow) scroll. There's **no page header**
   (the nav's Canvas tab covers it). **Mobile** keeps the normal stacked, scrolling layout — don't
   re-add a header or a fixed page height there.
-- **Tile numbering is the user's, never generation order** (`src/tiling/numbering.ts`; the "canvas settings"
-  section in Inspect). A scheme (`normal` = `tiling.nodes` order, `spiral` = out from the bounds centre)
-  gives each tile ONE number, and that number is what every user-facing surface uses: the stats label +
-  Inspect "Tile #N" (`numberOf`), the **`tile-number` DSL attribute**, **`@tile N`** addressing, and
+- **Tile numbering is the user's, never generation order** (`src/tiling/numbering.ts`; a dropdown in the
+  "canvas settings" section of Inspect). Three schemes, all working on any tiling from geometry + adjacency:
+  **`left-to-right`** (reading order — rows top→bottom via single-linkage y-clustering, each row left→right;
+  NOT `tiling.nodes` order, which numbers hexagons column-first), **`spiral`** (a true flowing spiral, built
+  as a greedy **wall-following WALK**, `buildSpiral`: from the centre tile, each step goes to the unvisited
+  neighbour reached by the SHARPEST RIGHT turn from the current heading — maximise the signed clockwise turn,
+  a ~180° reversal disqualified — i.e. the classic right-hand rule, which on a filled convex patch hugs the
+  visited blob and winds outward as one connected +1 path, consecutive numbers edge-adjacent; a dead-end
+  resumes from the nearest unvisited tile. **A spiral is a WALK, not sorted rings** — two earlier ring-based
+  cuts both misordered (a geometric arm-SORT `round()`-stranded tiles a whole winding away; BFS-rings-swept-
+  by-angle mis-sequenced within AND between rings) — so don't reintroduce ring sorting for `spiral`),
+  **`radial`** (concentric rings by exact distance, then
+  clockwise angle — right rings but the numbering jumps back to the top each ring; this is what the first cut
+  wrongly called "spiral"). Each gives a tile ONE number, and that number is EVERY user-facing surface: the stats
+  label + Inspect "Tile #N" (`numberOf`), the **`tile-number` DSL attribute**, **`@tile N`** addressing, and
   **`find-lowest/highest-tile`**'s ordering. Mechanism: `indexById` (threaded through EvalContext /
   TraverseState / colorize / prepare) is built from the scheme's `order` (id → scheme number, backs
   `tile-number`); `@tile N` resolves via the scheme `order` (traverse: `computeTick`'s `tileByIndex =
   state.numbering?.order`; colorize: `resolveAbsolutePath(…, order)` where colorize inverts `indexById`).
-  So DON'T reintroduce `tiling.nodes` order for anything the user sees — the raw generation order is only an
-  internal tile-id detail. `normal` == generation order, so it's the identity for every existing recipe.
-  The `Numbering` bundle `{order, posOf}` (`numberingFor`) is threaded into the run (TraverseState) for
-  `find-lowest/highest`; recipe stores `numberingScheme` (schema v8) so a spiral creation reproduces.
+  So DON'T reintroduce `tiling.nodes` order for anything the user sees — raw generation order is only an
+  internal tile-id detail, surfaced as NO number. The `Numbering` bundle `{order, posOf}` (`numberingFor`)
+  is threaded into the run (TraverseState) for `find-lowest/highest`; recipe stores `numberingScheme`
+  (schema v9) so a non-default creation reproduces.
 - Edge numbering has **two layers**: internal **local CCW side index** (geometry/winding) vs the
   user-facing **clockwise-from-top** number (`clockwiseEdgeOrder`). Don't conflate them.
   **The 0/360 seam is at north**, so `clockwiseEdgeOrder` **anchors edge 0 on the most-north edge** then
