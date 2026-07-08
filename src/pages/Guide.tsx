@@ -590,6 +590,33 @@ if exists@f0 then move f0`}</pre>
           <code>exists@e0</code> is true only if there's a neighbour across edge 0 (false at the boundary of
           the tiling), useful for guarding a move before it runs off the edge.
         </p>
+
+        <p className="guide-subhead">
+          <strong>Whole-plane search — <code>find-lowest-tile</code> / <code>find-highest-tile</code></strong>
+        </p>
+        <p>
+          Where <code>find-tile</code> walks outward from where the walker stands, these scan the{' '}
+          <em>whole plane</em> and return the <strong>lowest-</strong> (or <strong>highest-</strong>)
+          <em> numbered</em> tile matching a condition — no <code>{'{ … }'}</code> block, just the condition.
+          The result lands in <code>fN</code> exactly like <code>find-tile</code>, so you use it the same way
+          (<code>move f0</code>, <code>exists@f0</code>, <code>tile-type@f0</code>).
+        </p>
+        <pre className="guide-code">{`find-lowest-tile visited == 0
+move f0                # jump to the lowest-numbered unvisited tile`}</pre>
+        <p>
+          “Lowest” means the lowest <strong>tile number</strong>, and you pick how tiles are numbered in{' '}
+          <strong>canvas settings</strong> (in the Inspect pane): <strong>normal</strong> counts in the order
+          tiles were generated; <strong>spiral</strong> counts outward from the centre. So with{' '}
+          <strong>spiral</strong>, <code>find-lowest-tile visited == 0</code> finds the unvisited tile{' '}
+          <em>nearest the centre</em> — the numbering becomes a strategy knob.
+        </p>
+        <p>
+          Because the search looks at every tile with no walker in mind, its condition can read only the tile
+          itself and <strong>absolute</strong> neighbours (<code>visited</code>, <code>[A]</code>,{' '}
+          <code>visited@e0</code>, <code>tile-type == …</code>) — not the walker's heading / steps / registers
+          or a relative direction like <code>straight</code> or <code>@target</code>. The engine keeps a
+          bookmark per search, so it doesn't rescan the whole plane every tick.
+        </p>
       </section>
 
       <section className="guide-section" id="initial-state">

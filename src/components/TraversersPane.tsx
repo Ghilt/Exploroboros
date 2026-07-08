@@ -303,7 +303,10 @@ find-tile <predicate> {          search outward for a tile → f0
   max-split = 4                  fan width (default 1 = single path)
   move [e0, e1, e2, e3]          ghost moves spread the search
 }
-move f0                          then step to the tile it found`}</pre>
+move f0                          then step to the tile it found
+
+find-lowest-tile visited == 0    lowest-numbered match, whole plane → f1
+find-highest-tile [A] > 0        highest-numbered match → f2`}</pre>
             <ul className="trav-syntax-legend">
               <li>
                 <strong>predicate</strong> — a tile test (<code>visited-neighbors == 1</code>), a saved
@@ -327,6 +330,13 @@ move f0                          then step to the tile it found`}</pre>
                 …). Use it as a move target or read it: <code>tile-type@f0</code>. Test whether it found
                 anything with <code>exists@f0</code> — a plain read (e.g. <code>visited@f0</code>) can't tell
                 "not found" from "found, value 0".
+              </li>
+              <li>
+                <strong>find-lowest-tile</strong> / <strong>find-highest-tile</strong> — no braces: they scan
+                the WHOLE plane for the lowest- (or highest-) <em>numbered</em> matching tile → <code>fN</code>.
+                The number follows the board numbering (canvas settings), so with <strong>spiral</strong>{' '}
+                “lowest” is the nearest the centre. The condition reads only the tile itself + absolute{' '}
+                <code>@e</code>-paths (no walker heading / <code>@target</code>).
               </li>
               <li>
                 <strong>header</strong> (top, any order) — <code>max-split</code>, <code>heading</code>{' '}

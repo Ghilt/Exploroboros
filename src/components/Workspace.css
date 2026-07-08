@@ -555,6 +555,23 @@
 .adv-section > dl {
   margin-top: 0.2rem;
 }
+/* Canvas settings (display + numbering): one control per row, a label on the left. Always shown in the
+   Inspect pane (these are global, not per-tile), so it sits below any per-tile "advanced" block. */
+.canvas-settings > .cs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin: 0.55rem 0;
+}
+.canvas-settings .cs-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--fg);
+}
 /* "registries" label + faded hint + "?" explainer, shown once the advanced section is open. */
 .adv-reg-head {
   display: flex;

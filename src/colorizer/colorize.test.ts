@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { squareTiling } from '../tiling'
+import { squareTiling, numberingFor } from '../tiling'
 import { addVisit, type TileState } from '../canvas'
 import { parsePredicate } from '../dsl'
 import { colorize, compileRules } from './colorize'
@@ -152,5 +152,31 @@ describe('colorize — predicate resolution', () => {
     const broken = inline('visited >', flat('#fff'))
     expect(compileRules([missing, broken], NO_TEXT, NO_TEXT)).toHaveLength(0)
     expect(run([missing, broken], addVisit(new Map(), 'sq:0,0')).size).toBe(0)
+  })
+})
+
+describe('colorize — the numbering scheme drives tile-number + @tile (never raw generation order)', () => {
+  // The user-facing number the caller passes in `indexById`; here the SPIRAL scheme (centre = 0).
+  const spiralIndex = () => {
+    const m = new Map<string, number>()
+    numberingFor(sq, 'spiral').order.forEach((id, i) => m.set(id, i))
+    return m
+  }
+  const centre = numberingFor(sq, 'spiral').order[0]
+
+  it('tile-number == 0 colours the scheme-number-0 tile (spiral centre), not generation tile 0', () => {
+    expect(centre).not.toBe(sq.nodes[0].id) // the two orders genuinely differ on a 3x3
+    const out = colorize([inline('tile-number == 0', flat('#ff0000'))], NO_TEXT, NO_TEXT, sq, new Map(), spiralIndex())
+    expect(out.size).toBe(1)
+    expect(out.has(centre)).toBe(true)
+    expect(out.has(sq.nodes[0].id)).toBe(false)
+  })
+
+  it('@tile N addresses by the scheme numbering', () => {
+    // @tile 0 = the spiral centre. Visit it → `visited@tile 0 == 0` is false for every tile → nothing painted.
+    const visitedCentre = addVisit(new Map(), centre)
+    expect(colorize([inline('visited@tile 0 == 0', flat('#00ff00'))], NO_TEXT, NO_TEXT, sq, visitedCentre, spiralIndex()).size).toBe(0)
+    // Leave it unvisited → true everywhere → every tile painted.
+    expect(colorize([inline('visited@tile 0 == 0', flat('#00ff00'))], NO_TEXT, NO_TEXT, sq, new Map(), spiralIndex()).size).toBe(sq.nodes.length)
   })
 })

@@ -3,8 +3,8 @@
 // assembly in Workspace.tsx (defs / predicateText / predicateNames / indexById) so an export compiles
 // IDENTICALLY to the live run. Pure & isomorphic, so it runs in the worker and under Vitest.
 
-import type { Tiling } from '../tiling'
-import { nodeById, nearestEdge } from '../tiling'
+import type { Tiling, NumberingScheme } from '../tiling'
+import { nodeById, nearestEdge, numberingFor } from '../tiling'
 import type { TileState } from '../canvas'
 import { compileProgram, type Program, type Traverser } from '../traverse'
 import { applyInitWrites, compileDoc, mergeByTile, resolveInitialState } from '../initstate'
@@ -26,9 +26,11 @@ export type Prepared = {
   baseOverlay: Map<string, TileState>
 }
 
-export function buildIndexById(tiling: Tiling): Map<string, number> {
+// tile id -> its user-facing number under the board numbering scheme (backs `tile-number`). 'normal'
+// is generation order, so an old recipe (migrated to 'normal') is byte-identical to before.
+export function buildIndexById(tiling: Tiling, scheme: NumberingScheme = 'normal'): Map<string, number> {
   const map = new Map<string, number>()
-  tiling.nodes.forEach((node, i) => map.set(node.id, i))
+  numberingFor(tiling, scheme).order.forEach((id, i) => map.set(id, i))
   return map
 }
 
@@ -114,7 +116,7 @@ export function remapPaint(paint: Recipe['paint'], tiling: Tiling): Map<string, 
 
 export function prepareFromRecipe(recipe: Recipe, tiling: Tiling): Prepared {
   const defs = buildDefs(recipe.traversers, recipe.predicates)
-  const indexById = buildIndexById(tiling)
+  const indexById = buildIndexById(tiling, recipe.numberingScheme ?? 'normal')
   const handOverlay = remapPaint(recipe.paint, tiling)
   // The Initial-state document, resolved against the EXPORT tiling (grid-relative) — seed walkers +
   // registry/visited set-writes. Mirrors the live Workspace assembly so preview == export: referenced

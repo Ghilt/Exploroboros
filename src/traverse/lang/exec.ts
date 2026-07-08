@@ -15,6 +15,7 @@ import { evalNumber, evalPredicate, predReadsTarget, serializePath, type EvalCon
 import type { TileState } from '../../canvas'
 import { resolveChain, type Hop } from './edges'
 import { bfsFind } from './find'
+import { findExtreme, type FindLowestCache, type MatchAt, type Numbering } from './findLowest'
 import { serializeChain, serializeGuard, serializeStmt } from './serialize'
 import type { Action, ChainBase, DExpr, EdgeRef, EdgeTarget, FindTile, Guard, Movement, Program, Stmt, WriteTarget } from './types'
 import type { CandidateTrace, GuardEval, ReadTile, RejectReason, StmtTrace, TraverserTrace } from '../trace'
@@ -39,6 +40,12 @@ export type ExecInput = {
   tileByIndex: ReadonlyArray<string>
   walker: WalkerState
   program: Program
+  // For find-lowest/highest-tile: the board numbering to search (order = ascending "number"; absent =
+  // generation order = the normal scheme), the current step (stamps/validates the per-query bookmark), and
+  // the run-owned bookmark cache (absent = a throwaway per-call map — correct, just not cached across ticks).
+  numbering?: Numbering
+  step?: number
+  findLowestCache?: FindLowestCache
 }
 
 export type Branch = { tile: string; heading: number; morphDef?: string }
@@ -83,10 +90,16 @@ export function resolveAbsolutePath(
   overlay: ReadonlyMap<string, TileState>,
   startId: string,
   path: TilePath,
+  // The user-facing numbering order for `@tile N` (absent = generation order = the 'normal' scheme).
+  order?: ReadonlyArray<string>,
 ): TileNode | null {
   if (path.length === 0) return nodeById(tiling, startId) ?? null
   const first = path[0]
-  if (first.kind === 'tile') return path.length === 1 ? tiling.nodes[first.index] ?? null : null
+  if (first.kind === 'tile') {
+    if (path.length !== 1) return null
+    const id = order ? order[first.index] : tiling.nodes[first.index]?.id
+    return id ? nodeById(tiling, id) ?? null : null
+  }
   const refs: EdgeRef[] = []
   for (const seg of path) {
     if (seg.kind !== 'edge') return null // relative / target segments need a walker
@@ -95,6 +108,31 @@ export function resolveAbsolutePath(
   // heading is irrelevant for absolute `edge` refs; pass 0 / 'relative' as inert placeholders.
   const hop = resolveChain(tiling, overlay, startId, 0, 'relative', refs)
   return hop ? nodeById(tiling, hop.tile) ?? null : null
+}
+
+// Build a walker-FREE predicate evaluator: does `pred` hold at tile `id`, read against `overlay`? Only
+// absolute `@`-paths resolve (edge chains / `tile N`, via resolveAbsolutePath) — the same reads the
+// colorizer allows and exactly what find-lowest/highest-tile is restricted to at compile — so the search
+// and its cache maintenance always agree. A missing tile is false. The find-lowest search (below) closes
+// this over the FROZEN overlay; the cache maintenance (step.ts) closes it over the post-write overlay.
+export function makeMatchAt(
+  tiling: Tiling,
+  overlay: ReadonlyMap<string, TileState>,
+  indexById: ReadonlyMap<string, number>,
+  order?: ReadonlyArray<string>,
+): MatchAt {
+  return (pred, id) => {
+    const node = nodeById(tiling, id)
+    if (!node) return false
+    const ctx: EvalContext = {
+      node,
+      tiling,
+      overlay,
+      indexById,
+      nodeForPath: (path) => resolveAbsolutePath(tiling, overlay, node.id, path, order),
+    }
+    return evalPredicate(pred, ctx)
+  }
 }
 
 
@@ -119,8 +157,11 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
   const directives: Array<{ allow: boolean; guard: Guard }> = []
   // A find-tile's result, keyed by its source-position index — the tile referenced as `fN`. Populated
   // when a find-tile runs (a standalone statement or an inline move base); null / absent = not found or
-  // not run this tick, so a later `fN` reads as off-grid.
+  // not run this tick, so a later `fN` reads as off-grid. find-lowest/highest-tile fill the same slots.
   const found: Hop[] = []
+  // The find-lowest/highest bookmark cache — the run-owned one when supplied (shared across walkers +
+  // ticks), else a throwaway map so a lone read is still correct (just not cached).
+  const findCache: FindLowestCache = input.findLowestCache ?? new Map()
 
   // The walker attributes the DSL sees (heading = the edge number `straight` exits). Rebuilt each read
   // so it reflects mutations.
@@ -395,6 +436,20 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
       if (stmt.kind === 'find-tile') {
         found[stmt.find.index] = runFind(stmt.find)
         into?.push({ kind: 'find-tile', source: `find-tile ${serializeGuard(stmt.find.pred)}`, foundTile: found[stmt.find.index]?.tile ?? null })
+        continue
+      }
+      if (stmt.kind === 'find-extreme') {
+        // A GLOBAL scan for the lowest/highest-numbered matching tile. The predicate is walker-free
+        // (compile-enforced), so the found tile is arrived at by no crossing — give it heading 0 (north):
+        // absolute `f0@eN` is unaffected, and relative hops (`f0@straight`) read from north.
+        const gp = stmt.find.pred.pred
+        const pred = gp.kind === 'inline' ? gp.pred : null
+        const order = input.numbering?.order ?? tileByIndex
+        const id = pred
+          ? findExtreme(order, stmt.find.dir, pred, findCache, input.step ?? 0, makeMatchAt(tiling, overlay, indexById, order))
+          : null
+        found[stmt.find.index] = id ? { tile: id, heading: 0 } : null
+        into?.push({ kind: 'find-tile', source: serializeStmt(stmt), foundTile: id })
         continue
       }
       // stmt.kind === 'rule'

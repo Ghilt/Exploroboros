@@ -5,7 +5,7 @@
 
 import type { Tiling } from '../tiling'
 import type { TileState } from '../canvas'
-import type { Movement, Program } from './lang'
+import type { FindLowestCache, Movement, Numbering, Program } from './lang'
 
 // One walker. `heading` is the clockwise-from-top edge NUMBER its `straight` move exits (0 = the north
 // edge, increasing clockwise, current-tile-relative) — so `r1` is heading+1, `l1` is heading-1, and the
@@ -38,6 +38,11 @@ export type TraverseState = {
   step: number
   defs: ReadonlyMap<string, Program>
   indexById: ReadonlyMap<string, number>
+  // The board numbering find-lowest/highest-tile searches by (absent = normal / generation order), and the
+  // run-owned bookmark cache the search advances instead of rescanning each tick (absent = no caching, still
+  // correct). The caller re-attaches the SAME cache object each tick so bookmarks survive across ticks.
+  numbering?: Numbering
+  findLowestCache?: FindLowestCache
 }
 
 // The next state a tick produces.

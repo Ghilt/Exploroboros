@@ -26,6 +26,8 @@ export {
   clockwiseFromTopKey,
 } from './geometry'
 export { tileOrientation, orientationMap } from './orientation'
+export { numberingOrder, numberOf, numberingFor } from './numbering'
+export type { NumberingScheme } from './numbering'
 export { oppositeSides, interiorAngleDeg, makeShapeDef, SQUARE } from './shapes'
 export { stitch } from './stitch'
 export type { StitchOptions } from './stitch'

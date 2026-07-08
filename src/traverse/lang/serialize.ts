@@ -108,6 +108,8 @@ export function serializeStmt(s: Stmt, indent = ''): string {
     }
     case 'find-tile':
       return findTileText(s.find, indent)
+    case 'find-extreme':
+      return `find-${s.find.dir === 'low' ? 'lowest' : 'highest'}-tile ${serializeGuard(s.find.pred)}`
   }
 }
 

@@ -1,7 +1,7 @@
 import './Workspace.css'
 import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
-import type { Tiling, TileNode } from '../tiling'
-import { nodeById, neighborEdges, uniqueNeighbors, tileOrientation, headingArrowDir } from '../tiling'
+import type { Tiling, TileNode, NumberingScheme } from '../tiling'
+import { nodeById, neighborEdges, uniqueNeighbors, tileOrientation, headingArrowDir, numberOf, numberingFor } from '../tiling'
 import {
   buildTiling,
   canPaste,
@@ -20,7 +20,7 @@ import {
   MANUAL_STEP,
 } from '../canvas'
 import type { TileClip, TileState, Registry, PaintTarget } from '../canvas'
-import { stepTraversers, stepTraversersTraced, rotateHeading, renameSeedDefs, compileProgram, DEFAULT_SETTINGS, buildTraverseLog, serializeTraverseLog, traverseLogFilename, type Traverser, type Program, type TickTrace } from '../traverse'
+import { stepTraversers, stepTraversersTraced, rotateHeading, renameSeedDefs, compileProgram, DEFAULT_SETTINGS, buildTraverseLog, serializeTraverseLog, traverseLogFilename, type Traverser, type Program, type TickTrace, type FindLowestCache } from '../traverse'
 import { compileDoc, resolveInitialState, mergeByTile, applyInitWrites, type InitResolved } from '../initstate'
 import { TilingCanvas, type DisplayMode, type DragMode, type HighlightGroups } from './TilingCanvas'
 import { TilingPicker } from './TilingPicker'
@@ -29,6 +29,7 @@ import { TileMini } from './TileMini'
 import { HelpButton } from './HelpButton'
 import { ConfirmDialog } from './ConfirmDialog'
 import { SegmentedControl } from './SegmentedControl'
+import { NumberingIcon } from './NumberingIcon'
 import { SpeedBar, type SpeedStop } from './SpeedBar'
 import { Stepper } from './Stepper'
 import { DebugPane } from './DebugPane'
@@ -158,6 +159,13 @@ export function Workspace() {
   }, [selectedIds])
   // Tile display: edged outline / no outline / outline + printed stats (number + visited + counters).
   const [displayMode, setDisplayMode] = useState<DisplayMode>('edges')
+  // Board numbering scheme: the number drawn on tiles (stats mode) + shown in Inspect, and what
+  // find-lowest/highest-tile searches by. 'normal' = generation order (unchanged); 'spiral' = out from
+  // the centre. Saved in the recipe (find-lowest/highest reproduces its search).
+  const [numberingScheme, setNumberingScheme] = useState<NumberingScheme>('normal')
+  // The run-owned bookmark cache for find-lowest/highest-tile, re-attached to each live tick so the
+  // search resumes instead of rescanning; reset when a run starts/stops or the board changes out-of-band.
+  const findLowestCacheRef = useRef<FindLowestCache>(new Map())
   // Mobile only: Fit / Reset / grid-size live behind a "⋯" button; this toggles that dropdown.
   const [toolsOpen, setToolsOpen] = useState(false)
   const moreRef = useRef<HTMLDivElement>(null)
@@ -206,12 +214,25 @@ export function Workspace() {
   // generator today; buildTiling falls back to it for any other id.
   const tiling = useMemo(() => buildTiling(tilingId, gridN), [tilingId, gridN])
 
-  // Tile "number" — generation order for now; a user-facing scheme is tracked in CLAUDE.md §8.
+  // The chosen numbering (order + O(1) position lookup) — the ONE tile number the user ever sees or
+  // references: the number DRAWN on tiles + shown in Inspect, what find-lowest/highest-tile searches by,
+  // the `tile-number` DSL attribute, and `@tile N` addressing. Memoized per (tiling, scheme). The raw
+  // generation order is never surfaced. 'normal' == generation order, so existing creations are unchanged.
+  const numbering = useMemo(() => numberingFor(tiling, numberingScheme), [tiling, numberingScheme])
+
+  // tile id -> its user-facing number (the scheme position), backing the `tile-number` attribute in every
+  // eval context (coloring, traverser guards, initial-state guards). Recomputed when the scheme flips.
   const indexById = useMemo(() => {
     const map = new Map<string, number>()
-    tiling.nodes.forEach((node, i) => map.set(node.id, i))
+    numbering.order.forEach((id, i) => map.set(id, i))
     return map
-  }, [tiling])
+  }, [numbering])
+  // Any HAND edit to the overlay during a LIVE run (paused or playing) can change what find-lowest/highest
+  // would pick, so drop the bookmarks — the next tick rebuilds them. While stopped, initRun resets them,
+  // so there's nothing to do (and painting a lot stays cheap).
+  const invalidateFindCache = () => {
+    if (runLive !== null) findLowestCacheRef.current = new Map()
+  }
 
   // Predicate id -> DSL text (bundled + custom), so a coloring rule can reference a predicate by id.
   const predicateText = useMemo(() => {
@@ -451,6 +472,8 @@ export function Workspace() {
     setSelectedIds([])
     setViewingId(null)
     clearDebug()
+    findLowestCacheRef.current = new Map()
+    setNumberingScheme(recipe.numberingScheme ?? 'normal')
     const editGrid = Math.max(GRID_MIN, Math.min(GRID_MAX, Math.round((recipe.gridW + recipe.gridH) / 2)))
     setTilingId(recipe.tilingId)
     setGridInput(editGrid)
@@ -539,7 +562,7 @@ export function Workspace() {
   // nothing). Returns the surviving walkers (or null when not running). Shared by the clock and manual step.
   const advanceOneTick = (): Traverser[] | null => {
     if (runLive === null) return null
-    const input = { tiling, overlay, traversers: runLive, step, defs, indexById }
+    const input = { tiling, overlay, traversers: runLive, step, defs, indexById, numbering, findLowestCache: findLowestCacheRef.current }
     const result = traceOn ? stepTraversersTraced(input) : stepTraversers(input)
     if (traceOn) pushTrace((result as ReturnType<typeof stepTraversersTraced>).trace)
     setOverlay(result.overlay)
@@ -633,6 +656,7 @@ export function Workspace() {
   // before Play takes effect), then mark each starting tile visited at step 0.
   const initRun = () => {
     clearDebug() // a fresh run starts a fresh log
+    findLowestCacheRef.current = new Map() // fresh run -> fresh find-lowest/highest bookmarks
     authoredOverlayRef.current = overlay // snapshot the authored board so Stop can revert run registry writes
     // Hand-placed seeds + the grid-relative Initial-state walkers (hand wins a shared tile). Same merge
     // as the export path (prepare.ts) so the preview grows exactly what an export would.
@@ -665,6 +689,7 @@ export function Workspace() {
     setRunLive(null)
     setStep(0)
     setOverlay((prev) => authoredBoard(prev, true, authoredOverlayRef.current))
+    findLowestCacheRef.current = new Map()
     clearDebug()
   }
   // Full Reset: wipe everything (painting + placed walkers) and end any run.
@@ -674,6 +699,7 @@ export function Workspace() {
     setSeeds([])
     setStep(0)
     setOverlay(new Map())
+    findLowestCacheRef.current = new Map()
     clearDebug()
   }
 
@@ -709,6 +735,7 @@ export function Workspace() {
       tiling,
       defs,
       indexById,
+      numbering,
       startSeeds,
       baseOverlay: applyInitWrites(exportBase, initWrites),
       meta: {
@@ -783,28 +810,39 @@ export function Workspace() {
     const set = new Set(ids)
     setSeeds((list) => list.map((t) => (set.has(t.tile) ? { ...t, heading: rotateHeading(tiling, t.tile, t.heading, dir) } : t)))
   }
-  const bumpVisitMany = (ids: ReadonlyArray<string>, delta: number) =>
+  const bumpVisitMany = (ids: ReadonlyArray<string>, delta: number) => {
+    invalidateFindCache()
     setOverlay((prev) => {
       if (delta >= 0) return addVisits(prev, ids, MANUAL_STEP)
       let next = prev
       for (const id of ids) next = removeManualVisit(next, id)
       return next
     })
-  const bumpRegMany = (ids: ReadonlyArray<string>, reg: Registry, delta: number) =>
+  }
+  const bumpRegMany = (ids: ReadonlyArray<string>, reg: Registry, delta: number) => {
+    invalidateFindCache()
     setOverlay((prev) => {
       let next = prev
       for (const id of ids) next = bumpRegistry(next, id, reg, delta)
       return next
     })
+  }
 
   // Inspect ±: + adds a hand-made visit (step -1); − removes one (never touches traverser history).
-  const bumpVisit = (id: string, delta: number) =>
+  const bumpVisit = (id: string, delta: number) => {
+    invalidateFindCache()
     setOverlay((prev) => (delta >= 0 ? addVisit(prev, id) : removeManualVisit(prev, id)))
-  const bumpReg = (id: string, reg: Registry, delta: number) =>
+  }
+  const bumpReg = (id: string, reg: Registry, delta: number) => {
+    invalidateFindCache()
     setOverlay((prev) => bumpRegistry(prev, id, reg, delta))
+  }
 
   // Paint: bump each given tile's current paint target (the canvas dedupes within a stroke).
-  const paint = (ids: ReadonlyArray<string>) => setOverlay((prev) => applyPaint(prev, ids, paintTarget))
+  const paint = (ids: ReadonlyArray<string>) => {
+    invalidateFindCache()
+    setOverlay((prev) => applyPaint(prev, ids, paintTarget))
+  }
 
   // Switching tiling type starts a fresh plane: drop the overlay and selection. Both are keyed by
   // tile id, which is only meaningful within one tiling — ids can collide across tilings (e.g. the
@@ -820,6 +858,7 @@ export function Workspace() {
       setRunLive(null)
       setSeeds([])
       setStep(0)
+      findLowestCacheRef.current = new Map()
       clearDebug()
     }
     setTilingId(id)
@@ -831,6 +870,7 @@ export function Workspace() {
   }
   const pasteTile = () => {
     if (selected && canPaste(clip, selected.shape)) {
+      invalidateFindCache()
       setOverlay((prev) => applyClip(prev, selected.id, clip))
     }
   }
@@ -895,16 +935,6 @@ export function Workspace() {
             </div>
           )}
         </div>
-        <SegmentedControl
-          ariaLabel="tile display"
-          value={displayMode}
-          onChange={setDisplayMode}
-          options={[
-            { value: 'edges', label: 'edges', title: 'tile edges drawn' },
-            { value: 'none', label: 'none', title: 'flush fills, no edges' },
-            { value: 'stats', label: 'stats', title: 'numbers + heading arrows inside tiles' },
-          ]}
-        />
         <div className="canvas-more-wrap" ref={moreRef}>
           <button type="button" className="canvas-btn canvas-more" onClick={() => setToolsOpen((o) => !o)} aria-label="more controls" aria-expanded={toolsOpen} title="More controls">⋯</button>
           <div className={`canvas-extra${toolsOpen ? ' is-open' : ''}`}>
@@ -926,6 +956,7 @@ export function Workspace() {
           traversers={traverserStore.traversers}
           coloringRules={coloringStore.rules}
           initialState={initialStateStore.text}
+          numberingScheme={numberingScheme}
           onStartExport={startExport}
         />
       </div>
@@ -984,7 +1015,7 @@ export function Workspace() {
               traverserHeads={traverserHeads}
               autoTraverserHeads={autoTraverserHeads}
               highlightGroups={traceOn ? highlightGroups : undefined}
-              tileNumber={(id) => indexById.get(id) ?? -1}
+              tileNumber={(id) => numberOf(tiling, numberingScheme, id)}
               onSelect={(id) => setSelectedIds([id])}
               onSelectTiles={setSelectedIds}
               onDeselect={() => setSelectedIds((cur) => (cur.length ? [] : cur))}
@@ -1084,7 +1115,7 @@ export function Workspace() {
           <InspectContent
             tiling={tiling}
             node={selected}
-            number={indexById.get(selected.id) ?? -1}
+            number={numberOf(tiling, numberingScheme, selected.id)}
             overlay={overlay}
             clip={clip}
             traverserHeading={selectedTraverser ? selectedTraverser.heading : selectedAuto ? selectedAuto.heading : null}
@@ -1119,6 +1150,55 @@ export function Workspace() {
           <p className="pane-hint">Click a tile to inspect it — or switch drag to “select” and box a group.</p>
         )}
 
+        {/* Global canvas settings — shown whatever the selection is (display mode used to sit in the
+            toolbar). Numbering also decides what find-lowest/highest-tile searches by. */}
+        <details className="adv-section canvas-settings" open>
+          <summary>canvas settings</summary>
+          <div className="cs-row">
+            <span className="cs-label">tile display</span>
+            <SegmentedControl
+              ariaLabel="tile display"
+              value={displayMode}
+              onChange={setDisplayMode}
+              size="md"
+              options={[
+                { value: 'edges', label: 'edges', title: 'tile edges drawn' },
+                { value: 'none', label: 'none', title: 'flush fills, no edges' },
+                { value: 'stats', label: 'stats', title: 'numbers + heading arrows inside tiles' },
+              ]}
+            />
+          </div>
+          <div className="cs-row">
+            <span className="cs-label">
+              tile numbering
+              <HelpButton title="Tile numbering">
+                <p>
+                  Every tile has a <strong>number</strong> (shown in the <em>stats</em> display and in
+                  Inspect). Choose how they’re ordered:
+                </p>
+                <p>
+                  <strong>normal</strong> — the order tiles were generated in.{' '}
+                  <strong>spiral</strong> — counting outward from the centre.
+                </p>
+                <p>
+                  This is also what <code>find-lowest-tile</code> / <code>find-highest-tile</code> search
+                  by — so with <strong>spiral</strong>, “lowest” means the tile nearest the centre.
+                </p>
+              </HelpButton>
+            </span>
+            <SegmentedControl
+              ariaLabel="tile numbering"
+              value={numberingScheme}
+              onChange={setNumberingScheme}
+              size="md"
+              options={[
+                { value: 'normal', label: <NumberingIcon kind="normal" />, title: 'normal — generation order (as before)' },
+                { value: 'spiral', label: <NumberingIcon kind="spiral" />, title: 'spiral — numbered outward from the centre' },
+              ]}
+            />
+          </div>
+        </details>
+
         <section className="inspect-log">
           <div className="inspect-log-head-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
             <h3 className="inspect-log-head">Traverser log</h3>
@@ -1136,7 +1216,7 @@ export function Workspace() {
             history={traceHistory}
             viewedStep={viewedStep}
             onViewStep={setViewedStep}
-            tileNumber={(id) => indexById.get(id) ?? -1}
+            tileNumber={(id) => numberOf(tiling, numberingScheme, id)}
             onHover={setHoveredHighlight}
             pinnedKey={pinned?.key ?? null}
             onPinToggle={(key, groups) => setPinned((cur) => (cur?.key === key ? null : { key, groups }))}

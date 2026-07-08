@@ -4,6 +4,7 @@
 // runs under Vitest and inside a Web Worker.
 
 import type { Tiling } from '../tiling'
+import { numberingFor } from '../tiling'
 import { buildTiling } from '../canvas'
 import { colorize } from '../colorizer'
 import type { Recipe } from './recipe'
@@ -43,6 +44,7 @@ export function computeExport(
     prep.indexById,
     undefined,
     onProgress,
+    numberingFor(tiling, recipe.numberingScheme ?? 'normal'),
   )
   onStage?.('colorize')
   const colorFor = colorize(recipe.coloringRules, prep.predicateText, prep.predicateNames, tiling, run.overlay, prep.indexById)

@@ -12,7 +12,7 @@
 import type { Tiling } from '../tiling'
 import { addVisits, type TileState } from '../canvas'
 import { stepTraversersTraced } from './step'
-import { DEFAULT_SETTINGS, type Program } from './lang'
+import { DEFAULT_SETTINGS, type FindLowestCache, type Numbering, type Program } from './lang'
 import type { Traverser } from './types'
 import type { TickTrace } from './trace'
 
@@ -63,12 +63,14 @@ export function buildTraverseLog(input: {
   startSeeds: ReadonlyArray<Traverser> // authored + Initial-state seeds, already merged (hand wins)
   baseOverlay: ReadonlyMap<string, TileState> // authored board + Initial-state set-writes (no step-0 visits yet)
   meta: TraverseLogMeta
+  numbering?: Numbering // what find-lowest/highest-tile searches by (absent = normal / generation order)
   maxTicks?: number
   maxTracedTicks?: number
 }): TraverseLog {
-  const { tiling, defs, indexById, startSeeds, baseOverlay, meta } = input
+  const { tiling, defs, indexById, startSeeds, baseOverlay, meta, numbering } = input
   const maxTicks = input.maxTicks ?? 400
   const maxTracedTicks = input.maxTracedTicks ?? 30
+  const findLowestCache: FindLowestCache = new Map()
 
   // Mirror initRun: refresh each seed's settings/registers from its definition, then stamp step-0 visits.
   const live: Traverser[] = startSeeds.map((s) => {
@@ -93,7 +95,7 @@ export function buildTraverseLog(input: {
   let prevVisited = countVisited(overlay)
   let tracedTruncated = false
   while (walkers.length > 0 && ran < maxTicks) {
-    const res = stepTraversersTraced({ tiling, overlay, traversers: walkers, step, defs, indexById })
+    const res = stepTraversersTraced({ tiling, overlay, traversers: walkers, step, defs, indexById, numbering, findLowestCache })
     overlay = res.overlay as Map<string, TileState>
     walkers = res.traversers
     step = res.step

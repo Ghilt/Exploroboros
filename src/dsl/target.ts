@@ -115,3 +115,115 @@ export function predFoundIndices(pred: Pred, out: number[] = []): number[] {
   }
   return out
 }
+
+// ---- walker-free (absolute) predicate analysis, for find-lowest/highest-tile (src/traverse/lang) ----
+// find-lowest/highest scans EVERY tile with no walker, so its condition must be a pure function of the
+// tile + overlay: tile attributes and ABSOLUTE `@`-paths only (edge chains `@e0@e1`, or a terminal
+// `@tile N`). Anything needing a walker — a traverser-scope attribute (steps/splits/heading/P/Q/R) or a
+// relative/target/found path segment — is rejected at compile so the answer stays cacheable + shareable.
+
+function pathIsAbsolute(path: TilePath | undefined): boolean {
+  return !path || path.every((s) => s.kind === 'edge' || s.kind === 'tile')
+}
+
+function exprIsAbsolute(expr: Expr): boolean {
+  switch (expr.kind) {
+    case 'number':
+      return true
+    case 'attr':
+      return expr.scope !== 'traverser' && pathIsAbsolute(expr.path)
+    case 'regterm':
+      return pathIsAbsolute(expr.path)
+    case 'list':
+      return expr.elems.every(exprIsAbsolute)
+    case 'neg':
+      return exprIsAbsolute(expr.operand)
+    case 'group':
+      return exprIsAbsolute(expr.inner)
+    case 'bin':
+      return exprIsAbsolute(expr.left) && exprIsAbsolute(expr.right)
+  }
+}
+
+// Is a predicate a pure function of (tile, overlay)? `predref` should be inlined before this runs; treat
+// it as non-absolute defensively.
+export function predIsAbsolute(pred: Pred): boolean {
+  switch (pred.kind) {
+    case 'predref':
+      return false
+    case 'compare':
+      return exprIsAbsolute(pred.left) && exprIsAbsolute(pred.right)
+    case 'shape':
+      return pathIsAbsolute(pred.path)
+    case 'exists':
+      return pathIsAbsolute(pred.path)
+    case 'listcmp':
+      return pred.elems.every(exprIsAbsolute) && exprIsAbsolute(pred.right)
+    case 'shapecmp':
+      return pred.paths.every(pathIsAbsolute)
+    case 'not':
+      return predIsAbsolute(pred.operand)
+    case 'bool':
+      return predIsAbsolute(pred.left) && predIsAbsolute(pred.right)
+    case 'pgroup':
+      return predIsAbsolute(pred.inner)
+  }
+}
+
+// How far a (walker-free, absolute) predicate reads — drives the find-lowest cache's incremental
+// maintenance. 'self' reads only the tile; 'neighbor' reads at most one absolute edge hop away; 'global'
+// reads a multi-hop chain or a fixed `@tile N` (a write anywhere can flip the answer, so that query must
+// rescan). Assumes an absolute predicate; any non-edge seg is treated as 'global' to stay safe.
+export type PathReach = 'self' | 'neighbor' | 'global'
+const REACH_RANK: Record<PathReach, number> = { self: 0, neighbor: 1, global: 2 }
+function maxReach(a: PathReach, b: PathReach): PathReach {
+  return REACH_RANK[a] >= REACH_RANK[b] ? a : b
+}
+function pathReach(path: TilePath | undefined): PathReach {
+  if (!path || path.length === 0) return 'self'
+  let hops = 0
+  for (const s of path) {
+    if (s.kind === 'edge') hops += 1
+    else return 'global' // a fixed `tile N`, or any relative/target/found seg -> a distant write can flip it
+  }
+  return hops <= 1 ? 'neighbor' : 'global'
+}
+function exprReach(expr: Expr): PathReach {
+  switch (expr.kind) {
+    case 'number':
+      return 'self'
+    case 'attr':
+    case 'regterm':
+      return pathReach(expr.path)
+    case 'list':
+      return expr.elems.reduce<PathReach>((r, e) => maxReach(r, exprReach(e)), 'self')
+    case 'neg':
+      return exprReach(expr.operand)
+    case 'group':
+      return exprReach(expr.inner)
+    case 'bin':
+      return maxReach(exprReach(expr.left), exprReach(expr.right))
+  }
+}
+export function predPathReach(pred: Pred): PathReach {
+  switch (pred.kind) {
+    case 'predref':
+      return 'global'
+    case 'compare':
+      return maxReach(exprReach(pred.left), exprReach(pred.right))
+    case 'shape':
+      return pathReach(pred.path)
+    case 'exists':
+      return pathReach(pred.path)
+    case 'listcmp':
+      return pred.elems.reduce<PathReach>((r, e) => maxReach(r, exprReach(e)), exprReach(pred.right))
+    case 'shapecmp':
+      return pred.paths.reduce<PathReach>((r, p) => maxReach(r, pathReach(p)), 'self')
+    case 'not':
+      return predPathReach(pred.operand)
+    case 'bool':
+      return maxReach(predPathReach(pred.left), predPathReach(pred.right))
+    case 'pgroup':
+      return predPathReach(pred.inner)
+  }
+}

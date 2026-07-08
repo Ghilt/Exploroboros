@@ -8,7 +8,7 @@
 
 import type { Tiling } from '../tiling'
 import { EMPTY_TILE_STATE, type TileState } from '../canvas'
-import { stepTraversersInto, DEFAULT_SETTINGS, type Traverser, type Program } from '../traverse'
+import { stepTraversersInto, DEFAULT_SETTINGS, type FindLowestCache, type Numbering, type Traverser, type Program } from '../traverse'
 
 export type RunResult = {
   overlay: Map<string, TileState>
@@ -30,7 +30,11 @@ export function runToCompletion(
   indexById: ReadonlyMap<string, number>,
   maxTicks = 1_000_000,
   onProgress?: (ticks: number, liveCount: number) => void,
+  // The board numbering find-lowest/highest-tile searches by (absent = normal / generation order). A
+  // run-local bookmark cache is created here so a headless export search caches across ticks too.
+  numbering?: Numbering,
 ): RunResult {
+  const findLowestCache: FindLowestCache = new Map()
   // One mutable working overlay, seeded from the hand-painted base. TileState values are never mutated
   // in place (always replaced), so the caller's baseOverlay is untouched.
   const overlay = new Map<string, TileState>(baseOverlay)
@@ -50,7 +54,7 @@ export function runToCompletion(
   let step = 0
   let ticks = 0
   while (walkers.length > 0 && ticks < maxTicks) {
-    const res = stepTraversersInto({ tiling, overlay, traversers: walkers, step, defs, indexById }, overlay)
+    const res = stepTraversersInto({ tiling, overlay, traversers: walkers, step, defs, indexById, numbering, findLowestCache }, overlay)
     walkers = res.traversers
     step = res.step
     ticks += 1

@@ -23,8 +23,8 @@ const WORDS: ReadonlyArray<string> = [
   // traverser DSL — actions + statement keywords
   'move', 'morph', 'put', 'increase', 'update', 'by',
   'directive', 'if', 'then', 'always', 'forbid', 'allow', 'reset', 'directives',
-  // find-tile search + its `fN` result reference
-  'find-tile', 'f',
+  // find-tile / find-lowest-tile / find-highest-tile search + its `fN` result reference
+  'find-tile', 'find-lowest-tile', 'find-highest-tile', 'f',
   // movement values
   'relative', 'absolute',
   // list reducers (`[a, b]:sum` … `:xor`)

@@ -7,7 +7,7 @@
 // so an imported image works even if the viewer hasn't authored those definitions. The engine + DSL
 // are deterministic, so the recipe alone re-runs to the same image — no baked overlay needed.
 
-import type { Vec2, Tiling, ShapeType } from '../tiling'
+import type { Vec2, Tiling, ShapeType, NumberingScheme } from '../tiling'
 import { nodeById, edgeNormalAngle } from '../tiling'
 import type { TileState } from '../canvas'
 import type { Movement, Traverser } from '../traverse'
@@ -24,7 +24,7 @@ import { boundsCenter, tileOffset } from './remap'
 //     this version, and refuses one that's NEWER than this build (with reason 'too-new' → "update the app").
 //   APP_VERSION — a human-readable stamp of the build that made the image, for display + bug tracing
 //     only; never branched on. Bump freely.
-export const RECIPE_SCHEMA_VERSION = 7
+export const RECIPE_SCHEMA_VERSION = 8
 export const APP_VERSION = '0.1.0'
 export const RECIPE_KEYWORD = 'exploroboros:recipe'
 
@@ -74,6 +74,9 @@ export type Recipe = {
   // The Initial-state DSL document (the `auto-place` lines) — seeds traversers + registries + visited by
   // grid-relative rules, resolved against the export grid on reopen. Empty string = none. (schema v3)
   initialState: string
+  // The board numbering scheme (schema v8) — what find-lowest/highest-tile searches by, so an image that
+  // uses those constructs reproduces the same tiles. 'normal' = generation order (no effect if unused).
+  numberingScheme: NumberingScheme
 }
 
 export type RecipeInput = {
@@ -90,6 +93,7 @@ export type RecipeInput = {
   traversers: ReadonlyArray<StoredTraverser>
   coloringRules: ReadonlyArray<ColoringRule>
   initialState: string
+  numberingScheme: NumberingScheme
   output: RecipeOutput
 }
 
@@ -137,6 +141,7 @@ export function buildRecipe(input: RecipeInput): Recipe {
     traversers: input.traversers.map((t) => ({ ...t })),
     coloringRules: input.coloringRules.map((r) => ({ ...r })),
     initialState: input.initialState,
+    numberingScheme: input.numberingScheme,
   }
 }
 
@@ -207,6 +212,13 @@ const MIGRATIONS: ReadonlyArray<Migration> = [
     from: 6,
     migrate: (r) => r,
   },
+  // v7 → v8: a board numbering scheme was added (what find-lowest/highest-tile searches by). Old images
+  // predate those constructs, so 'normal' (generation order) reproduces them unchanged. The bump also
+  // stamps any image that USES find-lowest/highest so an older build refuses it cleanly ("update the app").
+  {
+    from: 7,
+    migrate: (r) => ({ ...r, numberingScheme: 'normal' }),
+  },
 ]
 
 function migrateNamesV5(r: AnyRecipe): AnyRecipe {
@@ -270,6 +282,9 @@ function isCurrentShape(r: AnyRecipe): boolean {
   if (!Array.isArray(r.seeds) || !Array.isArray(r.paint)) return false
   if (!Array.isArray(r.predicates) || !Array.isArray(r.traversers) || !Array.isArray(r.coloringRules)) return false
   if (typeof r.initialState !== 'string') return false
+  // numberingScheme is guaranteed by migration/build; tolerate a hand-made recipe that omits it (defaults
+  // to 'normal' downstream) but reject a bogus value.
+  if (r.numberingScheme !== undefined && r.numberingScheme !== 'normal' && r.numberingScheme !== 'spiral') return false
   const out = r.output as RecipeOutput | undefined
   if (!out || typeof out.width !== 'number' || typeof out.height !== 'number') return false
   for (const s of r.seeds) if (!isVec2((s as RecipeSeed).offset)) return false

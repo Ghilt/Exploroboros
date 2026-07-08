@@ -599,6 +599,23 @@ function parseLine(line: Line, settings: Settings | null, statements: Stmt[], ct
     statements.push({ kind: 'find-tile', find })
     return
   }
+  if (w === 'find-lowest-tile' || w === 'find-highest-tile') {
+    // A GLOBAL search with NO `{ }` body: the rest of the line is the goal predicate. Shares the `fN`
+    // source-position numbering with find-tile, so a later `f0` can reference either kind.
+    const dir = w === 'find-lowest-tile' ? ('low' as const) : ('high' as const)
+    line.pos += 1
+    const from = line.pos
+    const to = line.toks.length
+    if (to <= from) {
+      throw new ParseFail(`expected a condition after "${w}", e.g. ${w} visited == 0`, line.endSpan())
+    }
+    const index = ctx.findCount
+    ctx.findCount += 1
+    const pred = parseGuardRange(line, from, to)
+    line.pos = to
+    statements.push({ kind: 'find-extreme', find: { index, dir, pred } })
+    return
+  }
   if (w === 'if') {
     statements.push(parseIf(line, ctx))
     line.expectEnd()
@@ -652,6 +669,11 @@ function stmtFoundRefs(s: Stmt, out: number[]): void {
       break
     case 'find-tile':
       findFoundRefs(s.find, out)
+      break
+    case 'find-extreme':
+      // Its predicate is walker-free/absolute (no `@fN` survives compile), but collect any `@fN` written
+      // here so an out-of-range one is caught with the clear bounds message rather than the compile check.
+      guardFoundRefs(s.find.pred, out)
       break
     case 'reset':
       break

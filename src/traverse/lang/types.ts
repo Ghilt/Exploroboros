@@ -89,7 +89,18 @@ export type Reset = { kind: 'reset' }
 export type IfBlock = { kind: 'if-block'; guard: Guard; body: ReadonlyArray<Stmt>; elseBody?: ReadonlyArray<Stmt> }
 // A standalone find-tile search that only records its result as `fN`; a later statement uses it (`move f0`).
 export type FindStmt = { kind: 'find-tile'; find: FindTile }
-export type Stmt = Rule | Directive | Reset | IfBlock | FindStmt
+// A `find-lowest-tile <pred>` / `find-highest-tile <pred>` search: a GLOBAL scan (no `{ }` body, unlike
+// find-tile's BFS) returning the LOWEST- (or HIGHEST-) NUMBERED tile whose `pred` holds, per the board
+// numbering scheme in force (src/tiling/numbering — normal = generation order, spiral = out from the
+// centre). So the numbering choice IS the search order: spiral + find-lowest = the nearest-centre match.
+// The predicate is WALKER-FREE — tile attributes + absolute `@`-paths only (enforced at compile) — so the
+// answer is a pure function of (tile, overlay); the engine caches it and advances a per-query bookmark
+// instead of rescanning every tick (see findLowest.ts). Shares find-tile's source-position `fN` numbering;
+// the result is stored + referenced as `fN` identically (`f0`, `f0@e2`, `exists@f0`).
+export type FindDir = 'low' | 'high'
+export type FindExtreme = { index: number; dir: FindDir; pred: Guard }
+export type FindExtremeStmt = { kind: 'find-extreme'; find: FindExtreme }
+export type Stmt = Rule | Directive | Reset | IfBlock | FindStmt | FindExtremeStmt
 
 export type Settings = {
   maxSplit: number

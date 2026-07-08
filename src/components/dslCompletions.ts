@@ -48,6 +48,8 @@ export const TRAVERSER_STARTERS: ReadonlyArray<DslCompletion> = [
   { value: 'if', kind: 'keyword', hint: 'guard an action, or { … } block' },
   { value: 'move', kind: 'keyword', hint: 'step along an edge' },
   { value: 'find-tile', kind: 'keyword', hint: 'search for a tile → fN' },
+  { value: 'find-lowest-tile', kind: 'keyword', hint: 'lowest-numbered matching tile → fN' },
+  { value: 'find-highest-tile', kind: 'keyword', hint: 'highest-numbered matching tile → fN' },
   { value: 'put', kind: 'keyword', hint: 'set a registry' },
   { value: 'increase', kind: 'keyword', hint: 'bump a registry' },
   { value: 'morph', kind: 'keyword', hint: 'switch definition' },

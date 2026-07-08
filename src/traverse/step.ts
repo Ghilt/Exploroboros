@@ -7,7 +7,7 @@
 import type { Tiling } from '../tiling'
 import { nodeById } from '../tiling'
 import { addVisits, applyRegistryWrites, EMPTY_TILE_STATE, type TileState, type RegWrite } from '../canvas'
-import { runProgram, type TileWrite, type WalkerState } from './lang'
+import { makeMatchAt, maintainFindExtreme, runProgram, type TileWrite, type WalkerState } from './lang'
 import type { Traverser, TraverseState, TickResult } from './types'
 import type { TickTrace, TraverserTrace } from './trace'
 
@@ -45,7 +45,9 @@ type TickCore = { next: Traverser[]; tileWrites: RegWrite[]; destinations: strin
 function computeTick(state: TraverseState, sink?: TickTrace): TickCore {
   const { tiling, overlay, traversers, step, defs, indexById } = state
   const nextStep = step + 1
-  const tileByIndex = tiling.nodes.map((n) => n.id)
+  // `@tile N` addresses by the user-facing numbering (the scheme order), NOT raw generation order —
+  // absent (some test paths) it falls back to generation order, which is exactly the 'normal' scheme.
+  const tileByIndex = state.numbering?.order ?? tiling.nodes.map((n) => n.id)
 
   const spawned: Traverser[] = []
   const tileWrites: RegWrite[] = []
@@ -69,7 +71,10 @@ function computeTick(state: TraverseState, sink?: TickTrace): TickCore {
       r: tr.r,
     }
     const trTrace = sink ? traceHeader(tiling, tr, false) : undefined
-    const res = runProgram({ tiling, overlay, indexById, tileByIndex, walker, program }, trTrace)
+    const res = runProgram(
+      { tiling, overlay, indexById, tileByIndex, walker, program, numbering: state.numbering, step, findLowestCache: state.findLowestCache },
+      trTrace,
+    )
     if (trTrace) {
       trTrace.branches = res.branches.map((b) => ({ tile: b.tile, heading: b.heading, morphDef: b.morphDef }))
       sink!.traversers.push(trTrace)
@@ -143,11 +148,32 @@ function traceHeader(tiling: Tiling, tr: Traverser, missingDef: boolean): Traver
   }
 }
 
+// After a tick's writes are applied, advance the find-lowest/highest bookmarks against the NEW overlay so
+// the next tick's search resumes instead of rescanning. A no-op unless the run supplied a numbering + a
+// cache (the ONLY correctness coupling between the immutable live tick and the in-place export tick — both
+// call this so they can't drift). `written` = the tiles this tick visited or registry-wrote.
+function maintainFindCache(state: TraverseState, newOverlay: ReadonlyMap<string, TileState>, core: TickCore): void {
+  const { numbering, findLowestCache } = state
+  if (!numbering || !findLowestCache) return
+  const written = new Set<string>(core.destinations)
+  for (const w of core.tileWrites) written.add(w.tile)
+  maintainFindExtreme(
+    state.tiling,
+    numbering.order,
+    numbering.posOf,
+    written,
+    findLowestCache,
+    core.nextStep,
+    makeMatchAt(state.tiling, newOverlay, state.indexById, numbering.order),
+  )
+}
+
 // Advance one tick, returning a FRESH overlay (the immutable form the live React run uses).
 export function stepTraversers(state: TraverseState): TickResult {
   const core = computeTick(state)
   let nextOverlay = applyRegistryWrites(state.overlay, core.tileWrites)
   nextOverlay = addVisits(nextOverlay, core.destinations, core.nextStep)
+  maintainFindCache(state, nextOverlay, core)
   return { overlay: nextOverlay, traversers: core.next, step: core.nextStep }
 }
 
@@ -166,6 +192,7 @@ export function stepTraversersTraced(state: TraverseState): TickResult & { trace
   const core = computeTick(state, trace)
   let nextOverlay = applyRegistryWrites(state.overlay, core.tileWrites)
   nextOverlay = addVisits(nextOverlay, core.destinations, core.nextStep)
+  maintainFindCache(state, nextOverlay, core)
   return { overlay: nextOverlay, traversers: core.next, step: core.nextStep, trace }
 }
 
@@ -188,5 +215,6 @@ export function stepTraversersInto(
     const prev = overlay.get(id) ?? EMPTY_TILE_STATE
     overlay.set(id, { ...prev, visits: [...prev.visits, core.nextStep] })
   }
+  maintainFindCache(state, overlay, core)
   return { traversers: core.next, step: core.nextStep }
 }

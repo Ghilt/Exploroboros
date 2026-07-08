@@ -4,6 +4,10 @@
 export type { Traverser, TraverseState, TickResult } from './types'
 export { stepTraversers, stepTraversersTraced, stepTraversersInto, rotateHeading, renameSeedDefs } from './step'
 
+// The find-lowest/highest-tile bookmark cache + numbering bundle (built with src/tiling's numberingFor)
+// that a run threads into TraverseState so searches don't rescan every tick.
+export type { FindLowestCache, Numbering } from './lang'
+
 // The per-tick decision trace (the debug log's data).
 export type { TickTrace, TraverserTrace, StmtTrace, CandidateTrace, GuardEval, ReadTile, RejectReason, CoalesceTrace, DropTrace } from './trace'
 

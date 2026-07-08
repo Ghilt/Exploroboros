@@ -79,6 +79,8 @@ describe('statement-start keyword lists', () => {
       'directive',
       'reset directives',
       'find-tile',
+      'find-lowest-tile',
+      'find-highest-tile',
       'heading',
       'max-split',
       'max-steps',

@@ -1,6 +1,6 @@
 import './ExportMenu.css'
 import { useEffect, useRef, useState } from 'react'
-import type { Tiling } from '../tiling'
+import type { Tiling, NumberingScheme } from '../tiling'
 import type { TileState } from '../canvas'
 import type { Traverser } from '../traverse'
 import type { ColoringRule } from '../colorizer'
@@ -42,11 +42,13 @@ type Props = {
   // The Initial-state DSL document (auto-place lines) — embedded in the recipe and re-resolved against
   // the export grid so grid-relative seeding lands on the big grid too.
   initialState: string
+  // The board numbering scheme in force — embedded so find-lowest/highest-tile reproduces its search.
+  numberingScheme: NumberingScheme
   // Kick off a background export job (the dialog closes immediately; the job shows in the strip).
   onStartExport: (params: ExportParams) => void
 }
 
-export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, predicates, traversers, coloringRules, initialState, onStartExport }: Props) {
+export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, predicates, traversers, coloringRules, initialState, numberingScheme, onStartExport }: Props) {
   const [open, setOpen] = useState(false)
   const [pxPerTile, setPxPerTile] = useState(DEFAULT_PX_PER_TILE)
   const [width, setWidth] = useState(DEFAULT_RES)
@@ -171,6 +173,7 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
       traversers,
       coloringRules,
       initialState,
+      numberingScheme,
       output: { width, height, edges, background: BG_COLOR[background] },
     })
     onStartExport({ recipe, palette: PALETTE, caps: mobile ? MOBILE_CAPS : DESKTOP_CAPS })

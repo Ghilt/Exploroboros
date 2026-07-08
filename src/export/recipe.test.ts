@@ -31,6 +31,7 @@ function input(): RecipeInput {
     traversers: [{ id: 't1', name: 'spiral', text: 'move turn r1' }],
     coloringRules: [rule],
     initialState: 'auto-place line {t1, 0, 0, 0}',
+    numberingScheme: 'normal',
     output: { width: 3200, height: 3200, edges: false, background: null },
   }
 }
@@ -182,5 +183,28 @@ describe('migrateRecipe (the upgrade chain that keeps old images readable)', () 
     if (!res.ok) return
     expect(res.recipe.schemaVersion).toBe(RECIPE_SCHEMA_VERSION)
     expect(res.migratedFrom).toBe(6)
+  })
+
+  it('the v7→v8 migration adds numberingScheme=normal (old images predate find-lowest/highest)', () => {
+    const out = migrateRecipe({ schemaVersion: 7, tilingId: 'square' }, 8)
+    expect(out).toMatchObject({ schemaVersion: 8, numberingScheme: 'normal', tilingId: 'square' })
+  })
+
+  it('parseRecipe migrates a v7 recipe with no numberingScheme, defaulting it to normal', () => {
+    const full = buildRecipe(input()) as Record<string, unknown>
+    delete full.numberingScheme // a pre-v8 image never carried it
+    full.schemaVersion = 7
+    const res = parseRecipe(JSON.stringify(full))
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    expect(res.recipe.schemaVersion).toBe(RECIPE_SCHEMA_VERSION)
+    expect(res.recipe.numberingScheme).toBe('normal')
+    expect(res.migratedFrom).toBe(7)
+  })
+
+  it('round-trips a spiral recipe through parseRecipe', () => {
+    const res = parseRecipe(JSON.stringify({ ...buildRecipe(input()), numberingScheme: 'spiral' }))
+    expect(res.ok).toBe(true)
+    if (res.ok) expect(res.recipe.numberingScheme).toBe('spiral')
   })
 })

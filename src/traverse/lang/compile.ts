@@ -5,9 +5,9 @@
 // guard or a nested predref. Pure — the name->text map is the user's predicate library, passed in by
 // the store.
 
-import { parsePredicate, resolvePredRefs, type Result } from '../../dsl'
+import { parsePredicate, predIsAbsolute, resolvePredRefs, type Result } from '../../dsl'
 import { parseProgram } from './parse'
-import type { Action, EdgeTarget, FindMove, FindTile, Guard, Program, Stmt } from './types'
+import type { Action, EdgeTarget, FindExtreme, FindMove, FindTile, Guard, Program, Stmt } from './types'
 
 function resolveGuard(guard: Guard, names: ReadonlyMap<string, string>): Result<Guard> {
   if (guard.pred.kind === 'named') {
@@ -43,6 +43,25 @@ function resolveFind(find: FindTile, names: ReadonlyMap<string, string>): Result
     } else body.push(m)
   }
   return { ok: true, value: { index: find.index, pred: pred.value, maxSplit: find.maxSplit, body } }
+}
+
+// find-lowest/highest-tile: resolve its named predicate to inline, then ENFORCE that it's walker-free —
+// a pure function of (tile, overlay). The global scan has no walker, and the per-query bookmark cache
+// only stays correct + shareable if the answer can't depend on a walker's heading/steps/registers or a
+// relative/target/found path. A violation is a compile error so it surfaces in the editor.
+function resolveFindExtreme(find: FindExtreme, names: ReadonlyMap<string, string>): Result<FindExtreme> {
+  const pred = resolveGuard(find.pred, names)
+  if (!pred.ok) return pred
+  if (pred.value.pred.kind === 'inline' && !predIsAbsolute(pred.value.pred.pred)) {
+    return {
+      ok: false,
+      error: {
+        message: `find-${find.dir === 'low' ? 'lowest' : 'highest'}-tile searches every tile, so its condition can only read the tile itself and absolute neighbours (visited, [A], visited@e0, tile-type == …) — not the walker's heading/steps/P/Q/R or relative directions (straight, r1, @target)`,
+        span: { start: 0, end: 0 },
+      },
+    }
+  }
+  return { ok: true, value: { ...find, pred: pred.value } }
 }
 
 // A move/morph target may hold an INLINE find-tile as a chain base — resolve its guards in place.
@@ -100,6 +119,10 @@ function resolveStmt(s: Stmt, names: ReadonlyMap<string, string>): Result<Stmt> 
     case 'find-tile': {
       const r = resolveFind(s.find, names)
       return r.ok ? { ok: true, value: { kind: 'find-tile', find: r.value } } : r
+    }
+    case 'find-extreme': {
+      const r = resolveFindExtreme(s.find, names)
+      return r.ok ? { ok: true, value: { kind: 'find-extreme', find: r.value } } : r
     }
   }
 }
