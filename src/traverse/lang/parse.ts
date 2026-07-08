@@ -648,6 +648,7 @@ function stmtFoundRefs(s: Stmt, out: number[]): void {
     case 'if-block':
       guardFoundRefs(s.guard, out)
       s.body.forEach((b) => stmtFoundRefs(b, out))
+      s.elseBody?.forEach((b) => stmtFoundRefs(b, out))
       break
     case 'find-tile':
       findFoundRefs(s.find, out)

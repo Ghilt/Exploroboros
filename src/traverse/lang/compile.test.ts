@@ -79,6 +79,40 @@ describe('compileProgram — named-predicate resolution', () => {
     expect(inner.guard?.pred).toMatchObject({ kind: 'inline', pred: { kind: 'compare', op: '>' } })
   })
 
+  it('preserves the else branch of an if-block through compilation', () => {
+    const c = compileProgram('if visited == 0 {\n  move e0\n} else {\n  move e1\n}', new Map())
+    if (!c.ok) throw new Error(c.error.message)
+    const block = c.value.statements[0]
+    if (block.kind !== 'if-block') throw new Error('expected an if-block')
+    expect(block.elseBody?.map((s) => s.kind)).toEqual(['rule'])
+  })
+
+  it('resolves named predicates inside else and else-if branches', () => {
+    const names = new Map([
+      ['isGoal', 'visited == 0'],
+      ['isCrowded', 'visited-neighbors > 2'],
+    ])
+    // if A == 1 {…} else if isGoal {…} else { if isCrowded then move e2 } — the named refs live only in
+    // the else-if guard and the final else's inner rule, so this fails unless resolveNames reaches them.
+    const c = compileProgram('if A == 1 {\n  move e0\n} else if isGoal {\n  move e1\n} else {\n  if isCrowded then move e2\n}', names)
+    if (!c.ok) throw new Error(c.error.message)
+    const outer = c.value.statements[0]
+    if (outer.kind !== 'if-block' || !outer.elseBody) throw new Error('expected an if-block with an else')
+    const elseIf = outer.elseBody[0]
+    if (elseIf.kind !== 'if-block' || !elseIf.elseBody) throw new Error('expected a nested else-if block with an else')
+    expect(elseIf.guard.pred).toMatchObject({ kind: 'inline', pred: { kind: 'compare', op: '==' } }) // isGoal resolved
+    const finalElse = elseIf.elseBody[0]
+    if (finalElse.kind !== 'rule') throw new Error('expected a rule in the final else')
+    expect(finalElse.guard?.pred).toMatchObject({ kind: 'inline', pred: { kind: 'compare', op: '>' } }) // isCrowded resolved
+  })
+
+  it('fails to compile an unknown reference inside an else branch', () => {
+    // Proves resolution truly reaches the else branch: a bad ref there must error, not be silently dropped.
+    const c = compileProgram('if visited > 0 {\n  move e0\n} else {\n  if ghost then move e1\n}', new Map())
+    expect(c.ok).toBe(false)
+    if (!c.ok) expect(c.error.message).toMatch(/unknown predicate "ghost"/)
+  })
+
   it('resolves a named predicate in a find-tile goal + body guard', () => {
     const names = new Map([['isGoal', 'visited == 0'], ['open', 'visited-neighbors < 3']])
     const c = compileProgram('find-tile isGoal {\n  if open then move nearest-unvisited\n}\nmove f0', names)

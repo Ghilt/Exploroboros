@@ -289,6 +289,14 @@ describe('traverser DSL parser', () => {
     if (!r.ok) expect(r.error.message).toContain('f2')
   })
 
+  it('rejects a dangling fN referenced only inside an else branch', () => {
+    // The fN validation must descend into else branches too — not just the if-body — or a bad ref there
+    // slips through parse and silently becomes a no-op at runtime.
+    const r = parseProgram('if visited > 0 {\n  move straight\n} else {\n  move f0\n}')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.message).toContain('f0')
+  })
+
   it('rejects fN as a non-first hop (e0@f1)', () => {
     expect(parseProgram('find-tile A == 5 { move straight }\nmove e0@f0').ok).toBe(false)
   })

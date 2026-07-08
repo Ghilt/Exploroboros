@@ -88,13 +88,14 @@ function resolveStmt(s: Stmt, names: ReadonlyMap<string, string>): Result<Stmt> 
     case 'if-block': {
       const g = resolveGuard(s.guard, names)
       if (!g.ok) return g
-      const body: Stmt[] = []
-      for (const b of s.body) {
-        const r = resolveStmt(b, names)
-        if (!r.ok) return r
-        body.push(r.value)
+      const body = resolveStmtList(s.body, names)
+      if (!body.ok) return body
+      if (s.elseBody === undefined) {
+        return { ok: true, value: { kind: 'if-block', guard: g.value, body: body.value } }
       }
-      return { ok: true, value: { kind: 'if-block', guard: g.value, body } }
+      const elseBody = resolveStmtList(s.elseBody, names)
+      if (!elseBody.ok) return elseBody
+      return { ok: true, value: { kind: 'if-block', guard: g.value, body: body.value, elseBody: elseBody.value } }
     }
     case 'find-tile': {
       const r = resolveFind(s.find, names)
@@ -103,14 +104,21 @@ function resolveStmt(s: Stmt, names: ReadonlyMap<string, string>): Result<Stmt> 
   }
 }
 
-export function resolveNames(prog: Program, names: ReadonlyMap<string, string>): Result<Program> {
-  const statements: Stmt[] = []
-  for (const s of prog.statements) {
+// Resolve every statement in a list (a program's top level, or an if-block's body / else branch). Kept
+// as one helper so a nested branch can never be forgotten — every statement holder routes through here.
+function resolveStmtList(stmts: ReadonlyArray<Stmt>, names: ReadonlyMap<string, string>): Result<Stmt[]> {
+  const out: Stmt[] = []
+  for (const s of stmts) {
     const r = resolveStmt(s, names)
     if (!r.ok) return r
-    statements.push(r.value)
+    out.push(r.value)
   }
-  return { ok: true, value: { settings: prog.settings, statements } }
+  return { ok: true, value: out }
+}
+
+export function resolveNames(prog: Program, names: ReadonlyMap<string, string>): Result<Program> {
+  const statements = resolveStmtList(prog.statements, names)
+  return statements.ok ? { ok: true, value: { settings: prog.settings, statements: statements.value } } : statements
 }
 
 // Parse + resolve in one step — what the store uses to turn definition text into a Program.
