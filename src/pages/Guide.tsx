@@ -122,8 +122,10 @@ move straight                  # a bare action — always runs`}</pre>
             </tr>
             <tr>
               <td><code>max-steps</code></td>
-              <td><code>50000</code></td>
-              <td>Lifetime cap in ticks; the walker is dropped after this many.</td>
+              <td><code>1000000</code></td>
+              <td>Lifetime cap in ticks; the walker is dropped after this many. The high default means the
+              run's safety limit stops first, so a fill pattern isn't cut short on a big export — lower it
+              to make a walker stop early on purpose.</td>
             </tr>
           </tbody>
         </table>

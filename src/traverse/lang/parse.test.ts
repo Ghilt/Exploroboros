@@ -17,7 +17,7 @@ describe('traverser DSL parser', () => {
 
   it('defaults the settings when omitted', () => {
     const p = ok('move straight')
-    expect(p.settings).toEqual({ maxSplit: 1, movement: 'relative', maxSteps: 50000 })
+    expect(p.settings).toEqual({ maxSplit: 1, movement: 'relative', maxSteps: 1_000_000 })
   })
 
   it('parses a bare move and a guarded move', () => {

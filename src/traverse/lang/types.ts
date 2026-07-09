@@ -117,5 +117,12 @@ export type Program = {
 export const DEFAULT_SETTINGS: Settings = {
   maxSplit: 1,
   movement: 'relative',
-  maxSteps: 50000,
+  // A walker's per-lifetime step cap. Kept in step with the run's `maxTicks` backstop
+  // (runToCompletion, 1_000_000) so it's NEVER the first limit to bind: a single walker gains one step
+  // per tick, so with the two equal the run's tick cap always stops first — and a hit there IS surfaced
+  // (the export "!" badge), whereas a maxSteps drop is silent. A LOWER default silently truncated big
+  // fill patterns: e.g. a `find-lowest-tile` walker visits one tile per step, so an old 50000 cap froze
+  // it at ~50000 tiles (a ~224×224 centred blob) no matter how large the export grid. Set `max-steps`
+  // explicitly in a program to make a walker stop early on purpose.
+  maxSteps: 1_000_000,
 }
