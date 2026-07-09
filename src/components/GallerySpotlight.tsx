@@ -4,8 +4,40 @@ import { createPortal } from 'react-dom'
 import { ApiError, fetchRecipe } from '../gallery/api'
 import { getTiling } from '../data/tilings'
 import { setPendingRecipe } from '../state/pendingRecipe'
-import { hrefFor } from '../router/useHashRoute'
+import { gallerySpotlightHref, hrefFor } from '../router/useHashRoute'
 import type { CreationItem } from '../gallery/types'
+
+// The classic "share" glyph — three nodes joined by two links (Material/Feather share-2), in the app's
+// stroked line-icon idiom so it sits with the chevrons/brand mark.
+function ShareIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+    </svg>
+  )
+}
+
+// The absolute, shareable URL for this creation's spotlight (#/gallery/<id> on the current origin).
+function spotlightUrl(id: string): string {
+  const url = new URL(window.location.href)
+  url.hash = gallerySpotlightHref(id)
+  return url.toString()
+}
 
 // The maximized "spotlight" view of one creation: the large image, its message, which tiling it's on,
 // an upvote button, and "Import to canvas" (fetches the recipe lazily, then hands off exactly like the
@@ -21,6 +53,8 @@ export function GallerySpotlight({ item, voted, onUpvote, onClose }: Props) {
   const titleId = useId()
   const [importing, setImporting] = useState(false)
   const [importErr, setImportErr] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [shareErr, setShareErr] = useState<string | null>(null)
 
   const tilingName = getTiling(item.tilingId)?.name ?? item.tilingId
 
@@ -36,6 +70,30 @@ export function GallerySpotlight({ item, voted, onUpvote, onClose }: Props) {
       document.body.style.overflow = prevOverflow
     }
   }, [onClose])
+
+  // Share this exact spotlight. Touch devices get the native share sheet (the expected gesture);
+  // desktop copies the link with inline "Copied!" feedback — predictable, no OS sheet.
+  const share = async () => {
+    const url = spotlightUrl(item.id)
+    setShareErr(null)
+    const coarse = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches
+    if (coarse && typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({ title: item.name, url })
+        return
+      } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') return // user dismissed the sheet
+        // any other failure → fall through to copy
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1800)
+    } catch {
+      setShareErr('Could not copy the link — copy it from the address bar.')
+    }
+  }
 
   const importToCanvas = async () => {
     setImporting(true)
@@ -85,10 +143,23 @@ export function GallerySpotlight({ item, voted, onUpvote, onClose }: Props) {
             >
               <span aria-hidden="true">▲</span> {item.upvotes}
             </button>
+            <button
+              type="button"
+              className="btn spot-share"
+              onClick={share}
+              title="Copy a direct link to this creation"
+            >
+              <ShareIcon /> {copied ? 'Copied!' : 'Share'}
+            </button>
             <button type="button" className="btn btn-primary" onClick={importToCanvas} disabled={importing}>
               {importing ? 'Opening…' : 'Import to canvas'}
             </button>
           </div>
+          {shareErr && (
+            <p className="spot-error" role="alert">
+              {shareErr}
+            </p>
+          )}
           {importErr && (
             <p className="spot-error" role="alert">
               {importErr}

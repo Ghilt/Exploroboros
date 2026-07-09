@@ -1,23 +1,51 @@
 import './Gallery.css'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useGalleryFeed } from '../gallery/useGalleryFeed'
 import { useVotedStore } from '../gallery/useVotedStore'
-import { upvoteCreation } from '../gallery/api'
+import { ApiError, fetchCreation, upvoteCreation } from '../gallery/api'
 import { GalleryCard } from '../components/GalleryCard'
 import { GallerySpotlight } from '../components/GallerySpotlight'
 import { SegmentedControl } from '../components/SegmentedControl'
 import { TILINGS } from '../data/tilings'
+import { gallerySpotlightHref, hrefFor, spotlightIdFromHash } from '../router/useHashRoute'
 import type { CreationItem } from '../gallery/types'
 
+function errMsg(e: unknown): string {
+  if (e instanceof ApiError && e.status === 404) return 'That creation could not be found — it may have been removed.'
+  if (e instanceof ApiError || e instanceof Error) return e.message
+  return 'Could not load this creation'
+}
+
+// The spotlighted creation id lives in the URL hash (#/gallery/<id>), so a direct link opens that image
+// and the browser Back button closes it. Reading it via useSyncExternalStore keeps the whole page in
+// sync with hashchange (deep link, Back/Forward, the Share button) with no extra state to reconcile.
+function useSpotlightId(): string | null {
+  return useSyncExternalStore(
+    (cb) => {
+      window.addEventListener('hashchange', cb)
+      return () => window.removeEventListener('hashchange', cb)
+    },
+    () => spotlightIdFromHash(window.location.hash),
+    () => null,
+  )
+}
+
 // The community gallery — a live, server-backed page: search / sort / filter-by-tiling, infinite scroll,
-// upvotes, and a spotlight view (message + tiling + "Import to canvas"). Uploads land here via the
-// canvas Export → "Share to the gallery" flow.
+// upvotes, and a spotlight view (message + tiling + Share + "Import to canvas"). Uploads land here via
+// the canvas Export → "Share to the gallery" flow.
 export function Gallery() {
   const feed = useGalleryFeed()
   const { loadMore } = feed
   const { hasVoted, markVoted } = useVotedStore()
-  const [spotlightId, setSpotlightId] = useState<string | null>(null)
+  const spotlightId = useSpotlightId()
   const sentinelRef = useRef<HTMLDivElement>(null)
+
+  const openSpotlight = useCallback((id: string) => {
+    window.location.hash = gallerySpotlightHref(id)
+  }, [])
+  const closeSpotlight = useCallback(() => {
+    window.location.hash = hrefFor('gallery')
+  }, [])
 
   // Infinite scroll: load the next page as the sentinel nears the viewport.
   useEffect(() => {
@@ -33,20 +61,47 @@ export function Gallery() {
     return () => io.disconnect()
   }, [loadMore])
 
-  // Upvote once per browser: optimistic bump, reconcile to the server count, revert the count on failure.
+  // Upvote once per browser: optimistic bump, reconcile to the server count, revert on failure. Keeps
+  // both the feed copy and a directly-fetched spotlight copy in sync.
   const upvote = async (item: CreationItem) => {
     if (hasVoted(item.id)) return
     markVoted(item.id)
-    feed.applyUpvote(item.id, item.upvotes + 1)
+    const setCount = (n: number) => {
+      feed.applyUpvote(item.id, n)
+      setFetched((f) => (f && f.id === item.id ? { ...f, upvotes: n } : f))
+    }
+    setCount(item.upvotes + 1)
     try {
       const res = await upvoteCreation(item.id)
-      feed.applyUpvote(item.id, res.upvotes)
+      setCount(res.upvotes)
     } catch {
-      feed.applyUpvote(item.id, item.upvotes)
+      setCount(item.upvotes)
     }
   }
 
-  const spotlight = spotlightId ? (feed.items.find((i) => i.id === spotlightId) ?? null) : null
+  // Resolve the spotlight item: prefer the feed copy (its upvote count stays live); otherwise fetch just
+  // that one creation — a shared link can point past the loaded page, or land before the feed loads.
+  const feedItem = spotlightId ? feed.items.find((i) => i.id === spotlightId) ?? null : null
+  const [fetched, setFetched] = useState<CreationItem | null>(null)
+  const [spotErr, setSpotErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!spotlightId || feedItem) {
+      setSpotErr(null)
+      return
+    }
+    if (fetched?.id === spotlightId) return
+    let alive = true
+    setSpotErr(null)
+    fetchCreation(spotlightId)
+      .then((it) => alive && setFetched(it))
+      .catch((e) => alive && setSpotErr(errMsg(e)))
+    return () => {
+      alive = false
+    }
+  }, [spotlightId, feedItem, fetched])
+
+  const spotlight = feedItem ?? (fetched && fetched.id === spotlightId ? fetched : null)
 
   return (
     <div className="gallery-page">
@@ -109,7 +164,7 @@ export function Gallery() {
               item={it}
               voted={hasVoted(it.id)}
               onUpvote={() => upvote(it)}
-              onOpen={() => setSpotlightId(it.id)}
+              onOpen={() => openSpotlight(it.id)}
             />
           ))}
         </div>
@@ -135,8 +190,31 @@ export function Gallery() {
           item={spotlight}
           voted={hasVoted(spotlight.id)}
           onUpvote={() => upvote(spotlight)}
-          onClose={() => setSpotlightId(null)}
+          onClose={closeSpotlight}
         />
+      )}
+
+      {/* A deep link is resolving (feed miss) or failed — a small modal covers the fetch/error. */}
+      {spotlightId && !spotlight && (
+        <div
+          className="spot-modal"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) closeSpotlight()
+          }}
+        >
+          <div className="spot-dialog spot-dialog--status" role="dialog" aria-modal="true">
+            <button type="button" className="spot-close" onClick={closeSpotlight} title="Close" aria-label="Close">
+              ×
+            </button>
+            {spotErr ? (
+              <p className="spot-status spot-status--error" role="alert">
+                {spotErr}
+              </p>
+            ) : (
+              <p className="spot-status">Loading…</p>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )

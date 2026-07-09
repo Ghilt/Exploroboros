@@ -1,10 +1,43 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { RECIPE_SCHEMA_VERSION } from '../export'
-import { fetchRecipe } from './api'
+import { fetchCreation, fetchRecipe } from './api'
+import type { CreationItem } from './types'
 
 function fakeResponse(body: unknown, ok = true): Response {
   return { ok, json: async () => body } as Response
 }
+
+describe('fetchCreation', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('returns the single creation item on success', async () => {
+    const item: CreationItem = {
+      id: 'x',
+      name: 'Spiral',
+      message: 'hi',
+      tilingId: 'square',
+      imageUrl: '/api/img/x.webp',
+      width: 512,
+      height: 512,
+      upvotes: 3,
+      createdAt: 1,
+    }
+    const fetchSpy = vi.fn().mockResolvedValue(fakeResponse({ item }))
+    vi.stubGlobal('fetch', fetchSpy)
+    await expect(fetchCreation('x')).resolves.toEqual(item)
+    expect(fetchSpy).toHaveBeenCalledWith('/api/creations/x')
+  })
+
+  it('throws an ApiError carrying the status/code when the creation is missing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: false, status: 404, json: async () => ({ error: 'not_found' }) } as Response),
+    )
+    await expect(fetchCreation('nope')).rejects.toMatchObject({ status: 404, code: 'not_found' })
+  })
+})
 
 describe('fetchRecipe', () => {
   afterEach(() => {

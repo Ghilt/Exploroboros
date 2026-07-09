@@ -109,10 +109,42 @@
   cursor: default;
 }
 
+.spot-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--surface-2, var(--bg));
+  border: 1px solid var(--line);
+  color: var(--fg);
+}
+.spot-share:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.spot-share svg {
+  flex: none;
+}
+
 .spot-error {
   margin: 0;
   font-size: 0.83rem;
   color: var(--accent-strong, #c0392b);
+}
+
+/* A deep link resolving (feed miss) or failing — a compact single-column dialog, not the 2-col image view. */
+.spot-dialog--status {
+  display: block;
+  width: min(24rem, 100%);
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+.spot-status {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+.spot-status--error {
+  color: var(--fg);
 }
 
 .spot-close {

@@ -69,6 +69,15 @@ export async function upvoteCreation(id: string): Promise<{ upvotes: number }> {
   return (await res.json()) as { upvotes: number }
 }
 
+// One creation's list-shaped item — used to open a spotlight from a direct #/gallery/:id link when the
+// creation isn't on the current feed page (or the feed hasn't loaded yet).
+export async function fetchCreation(id: string): Promise<CreationItem> {
+  const res = await fetch(`${API}/creations/${encodeURIComponent(id)}`)
+  if (!res.ok) return fail(res)
+  const j = (await res.json()) as { item: CreationItem }
+  return j.item
+}
+
 export async function fetchRecipe(id: string): Promise<Recipe> {
   const res = await fetch(`${API}/creations/${encodeURIComponent(id)}/recipe`)
   if (!res.ok) return fail(res)
