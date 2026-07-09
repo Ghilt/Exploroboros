@@ -1,8 +1,8 @@
 import './DebugPane.css'
 import { HelpButton } from './HelpButton'
-import { walkerGroups, statementGroups, candidateGroups } from '../debug/highlights'
+import { walkerGroups, statementGroups, candidateGroups, writeTargetGroups } from '../debug/highlights'
 import type { HighlightGroups } from './TilingCanvas'
-import type { CandidateTrace, ReadTile, StmtTrace, TickTrace, TraverserTrace } from '../traverse'
+import type { CandidateTrace, ReadTile, StmtTrace, TickTrace, TraverserTrace, WriteTargetTrace } from '../traverse'
 
 // The per-tick decision log (debug mode). Reads the engine's TickTrace and lays it out as walker →
 // statement → candidate rows; hovering any row reports the tiles it's about (via the pure mappers in
@@ -35,6 +35,7 @@ export function DebugPane({ history, viewedStep, onViewStep, tileNumber, onHover
         <span className="dbg-leg"><i className="dbg-dot dbg-dot--current" />current</span>
         <span className="dbg-leg"><i className="dbg-dot dbg-dot--decorator" />reads</span>
         <span className="dbg-leg"><i className="dbg-dot dbg-dot--chosen" />moved</span>
+        <span className="dbg-leg"><i className="dbg-dot dbg-dot--write" />writes</span>
         <span className="dbg-leg"><i className="dbg-dot dbg-dot--rejected" />rejected</span>
       </div>
 
@@ -56,9 +57,15 @@ export function DebugPane({ history, viewedStep, onViewStep, tileNumber, onHover
             each tile a guard <span className="dbg-key dbg-key--decorator">reads</span> via an
             <code> @</code>-path (<code>visited@e1</code>, <code>tile-type@target</code>), where it
             <span className="dbg-key dbg-key--chosen"> moved</span>, and any
-            <span className="dbg-key dbg-key--rejected"> rejected</span> candidate. Click a row to pin
-            the highlight. So if <code>if tile-type@e0 == wedge …</code> won’t fire, you can see
-            <em> @e0</em> is pointing at the wrong tile.
+            <span className="dbg-key dbg-key--rejected"> rejected</span> candidate. The highlight
+            <strong> pulses</strong> so it’s easy to spot; click a row to pin it.
+          </p>
+          <p>
+            A <code>put</code> / <code>increase</code> lists every tile it
+            <span className="dbg-key dbg-key--write"> wrote</span> to — hover the row for the whole
+            spread, or one target (e.g. <code>B@f1@e3@e3@e2</code>) to pinpoint that single tile. A
+            target that shows <em>off-grid</em> resolved to no tile, so that write did nothing — the tell
+            for a stray or mistyped <code> @</code>-path.
           </p>
         </HelpButton>
       </header>
@@ -222,6 +229,33 @@ function StmtRow({
     )
   }
 
+  if (s.kind === 'write' && s.targets.length > 0) {
+    return (
+      <div className="dbg-stmt-group">
+        {head}
+        <ul className="dbg-cands">
+          {s.targets.map((t, k) => {
+            const tk = `${rowKey}.t${k}`
+            const g = writeTargetGroups(w, t)
+            const offGrid = t.scope === 'tile' && !t.id
+            return (
+              <li
+                key={k}
+                className={cx('dbg-cand', offGrid && 'is-reject', pinnedKey === tk && 'is-pinned')}
+                onMouseEnter={() => onHover(g)}
+                onMouseLeave={() => onHover(null)}
+                onClick={() => onPinToggle(tk, g)}
+              >
+                <code className="dbg-chain">{t.text}</code>
+                <span className="dbg-dest">{writeTargetDest(t, num)}</span>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+    )
+  }
+
   if (s.kind === 'if-block') {
     const branch = s.result ? s.body : s.elseBody ?? []
     return (
@@ -260,9 +294,22 @@ function Verdict({ s }: { s: StmtTrace }) {
       )
     case 'find-tile':
       return <span className={cx('dbg-chip', s.foundTile ? 'dbg-chip--fire' : 'dbg-chip--skip')}>{s.foundTile ? 'found' : 'not found'}</span>
+    case 'write': {
+      // "no target" = every element resolved off-grid (a stray/typo'd `@`-path) so the write did nothing.
+      const hit = s.targets.some((t) => t.scope === 'walker' || t.id)
+      return <span className={cx('dbg-chip', !hit && 'dbg-chip--skip')}>{hit ? 'wrote' : 'no target'}</span>
+    }
     default:
       return <span className="dbg-chip">{s.kind === 'reset' ? 'reset' : 'done'}</span>
   }
+}
+
+// The resolved destination of one write target, for its sub-row: a tile number, an off-grid no-op (the
+// stray/typo'd-target tell — the write silently did nothing), or a walker register (P/Q/R, not a tile).
+function writeTargetDest(t: WriteTargetTrace, num: (id: string | null | undefined) => string): string {
+  if (t.scope === 'walker') return '→ walker register'
+  if (!t.id) return '→ off-grid (no write)'
+  return `→ ${num(t.id)}${t.tileType ? ` ${t.tileType}` : ''}`
 }
 
 function rejectText(c: CandidateTrace): string {

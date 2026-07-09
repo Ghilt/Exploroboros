@@ -114,10 +114,29 @@ describe('tick trace', () => {
     expect(traced.traversers[0].tile).toBe('sq:2,4')
   })
 
-  it('records writes (put / increase) as statement traces', () => {
+  it('records writes (put / increase) as statement traces with resolved targets', () => {
     const ss = stmts(state('put A = 5\nincrease P by 3'))
     expect(ss.map((s) => s.kind)).toEqual(['write', 'write'])
     expect(ss.map((s) => s.source)).toEqual(['put A = 5', 'increase P by 3'])
+    const put = ss[0]
+    const inc = ss[1]
+    if (put.kind !== 'write' || inc.kind !== 'write') throw new Error('expected writes')
+    // `put A = 5` with no @-path targets the walker's current tile.
+    expect(put.targets).toEqual([{ text: 'A', id: 'sq:2,2', tileType: 'square', scope: 'tile' }])
+    // `increase P` is a walker register — no tile to point at.
+    expect(inc.targets).toEqual([{ text: 'P', id: null, tileType: null, scope: 'walker' }])
+  })
+
+  it('a multi-target write records each element; an off-grid @-path resolves to no tile', () => {
+    // From an interior tile, five hops in one absolute direction leaves the 5×5 grid, so that element
+    // silently writes nothing (id null) — the tell the log surfaces for a stray/typo'd target.
+    const ss = stmts(state('put [A, A@e0@e0@e0@e0@e0] = 1'))
+    expect(ss).toHaveLength(1)
+    const w = ss[0]
+    if (w.kind !== 'write') throw new Error('expected write')
+    expect(w.targets.map((t) => t.text)).toEqual(['A', 'A@e0@e0@e0@e0@e0'])
+    expect(w.targets[0].id).toBe('sq:2,2') // current tile
+    expect(w.targets[1].id).toBeNull() // walked off the grid
   })
 
   it('coalesces two identical branches and reports the merge', () => {

@@ -100,7 +100,7 @@ const NO_SELECTION: ReadonlyArray<string> = []
 //  - candidate: a destination still under consideration
 //  - chosen:    a destination that survived (a move/split target)
 //  - rejected:  a candidate that was rejected
-export type HighlightRole = 'current' | 'decorator' | 'candidate' | 'chosen' | 'rejected'
+export type HighlightRole = 'current' | 'decorator' | 'candidate' | 'chosen' | 'rejected' | 'write'
 export type HighlightGroups = ReadonlyArray<{ role: HighlightRole; ids: ReadonlyArray<string> }>
 
 type Props = {
@@ -182,6 +182,8 @@ export function TilingCanvas({
   // release. Canvas-local visual feedback only — never touches the overlay.
   const paintFlashRef = useRef<{ ids: Set<string>; alpha: number } | null>(null)
   const fadeRafRef = useRef(0)
+  // Pulse phase (0..1) for the debug highlight overlay, driven by a rAF while a log row is hovered.
+  const pulseRef = useRef(1)
   const dragModeRef = useRef(dragMode)
   dragModeRef.current = dragMode
   // Current selection, mirrored so a Shift-drag can add to it (read at gesture time).
@@ -326,6 +328,27 @@ export function TilingCanvas({
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
   }, [])
+
+  // While a debug log row is hovered/pinned (highlightGroups non-empty), run a gentle sine pulse so the
+  // outline breathes and is easy to pick out on a dense grid. Redraws only the (cheap) UI layer each
+  // frame, and stops — resetting to full strength — the moment nothing is highlighted, so it costs
+  // nothing at rest. `highlightGroups` gets a new identity on every hover, which re-arms the loop.
+  const hasHighlight = !!highlightGroups && highlightGroups.length > 0
+  useEffect(() => {
+    if (!hasHighlight) {
+      pulseRef.current = 1
+      return
+    }
+    let raf = 0
+    const PERIOD = 1150 // ms per breath — slow enough to read as a pulse, not a flicker
+    const loop = (now: number) => {
+      pulseRef.current = 0.5 + 0.5 * Math.sin((now * 2 * Math.PI) / PERIOD)
+      uiLayerRef.current?.batchDraw()
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [hasHighlight])
 
   // Pointer interaction (no modes): tap a tile to inspect it, drag to paint the visited overlay,
   // two-finger drag (touch) or middle-mouse drag (desktop) to pan, pinch / wheel to zoom. Attached
@@ -615,7 +638,7 @@ export function TilingCanvas({
           <Layer ref={uiLayerRef} listening={false}>
             <Shape
               listening={false}
-              sceneFunc={(ctx) => drawHighlights(ctx, tiling, viewRef.current, paletteRef.current, highlightGroups)}
+              sceneFunc={(ctx) => drawHighlights(ctx, tiling, viewRef.current, paletteRef.current, highlightGroups, pulseRef.current)}
             />
             <Shape
               listening={false}
@@ -937,8 +960,8 @@ function drawPaintFlash(
 
 // Per-role stroke style for the debug highlight overlay. Reuses the brand accents (no new colours):
 // orange = current/chosen (the focus), purple-dashed = a decoration pointer, magenta = a candidate,
-// faded red-dashed = a rejected candidate. Kept distinct by colour + dash + weight so they read in
-// both themes.
+// faded red-dashed = a rejected candidate, magenta-filled = a written tile. Kept distinct by colour +
+// dash + weight so they read in both themes.
 type HiStyle = { stroke: string; lineWidth: number; dash?: number[]; fillAlpha?: number; alpha?: number }
 function roleStyle(role: HighlightRole, pal: Palette): HiStyle {
   switch (role) {
@@ -952,26 +975,34 @@ function roleStyle(role: HighlightRole, pal: Palette): HiStyle {
       return { stroke: pal.accent, lineWidth: 3.5, fillAlpha: 0.16 }
     case 'rejected':
       return { stroke: pal.accentStrong, lineWidth: 1.5, dash: [3, 3], alpha: 0.65 }
+    case 'write':
+      return { stroke: pal.accent2, lineWidth: 3, fillAlpha: 0.16 }
   }
 }
 
 // The debug decision-log highlight: outline each group's tiles in its role colour. A hover lights a
 // handful of tiles, so no viewport culling (mirrors drawPaintFlash). Undefined/empty = nothing drawn.
+// `pulse` (0..1, driven by a rAF while a hover is active) gently breathes the outline's opacity + weight
+// so it's easy to spot on a busy grid; 1 = full strength (a static, non-hovered draw).
 function drawHighlights(
   ctx: Konva.Context,
   tiling: Tiling,
   view: View,
   pal: Palette,
   groups: HighlightGroups | undefined,
+  pulse = 1,
 ): void {
   if (!groups || groups.length === 0) return
+  const alphaK = 0.6 + 0.4 * pulse // opacity swings 60%..100% of the role's base
+  const widthK = 1 + 0.35 * pulse // line weight swings 1x..1.35x
   for (const { role, ids } of groups) {
     if (ids.length === 0) continue
     const s = roleStyle(role, pal)
+    const base = s.alpha ?? 1
     ctx.save()
-    if (s.alpha !== undefined) ctx.setAttr('globalAlpha', s.alpha)
+    ctx.setAttr('globalAlpha', base * alphaK)
     ctx.setAttr('strokeStyle', s.stroke)
-    ctx.setAttr('lineWidth', s.lineWidth)
+    ctx.setAttr('lineWidth', s.lineWidth * widthK)
     ctx.setAttr('lineJoin', 'round')
     if (s.dash) ctx.setLineDash(s.dash)
     for (const id of ids) {
@@ -980,7 +1011,7 @@ function drawHighlights(
       traceTile(ctx, node.vertices, view)
       if (s.fillAlpha) {
         ctx.save()
-        ctx.setAttr('globalAlpha', (s.alpha ?? 1) * s.fillAlpha)
+        ctx.setAttr('globalAlpha', base * alphaK * s.fillAlpha)
         ctx.setAttr('fillStyle', s.stroke)
         ctx.fill()
         ctx.restore()

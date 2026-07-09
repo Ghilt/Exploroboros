@@ -3,7 +3,7 @@
 // row calls one of these to light up the tiles that row is about (the current tile, the tile a
 // decoration read, the candidate destinations, chosen vs rejected).
 
-import type { CandidateTrace, GuardEval, StmtTrace, TraverserTrace } from '../traverse'
+import type { CandidateTrace, GuardEval, StmtTrace, TraverserTrace, WriteTargetTrace } from '../traverse'
 import type { HighlightGroups, HighlightRole } from '../components/TilingCanvas'
 
 // Drop empties + de-dupe ids; preserves the given role order (current first → chosen last).
@@ -55,8 +55,25 @@ export function statementGroups(w: TraverserTrace, s: StmtTrace): HighlightGroup
       { role: 'chosen', ids: [s.foundTile] },
     ])
   }
-  // directive / write / update / reset — nothing to point at but the current tile.
+  if (s.kind === 'write') {
+    // Light up every tile this put/increase wrote to — so a multi-target list shows its whole spread,
+    // and a target that resolved off-grid (a typo'd/stray `@`-path) simply doesn't light up.
+    return build([
+      { role: 'current', ids: [w.tile] },
+      { role: 'write', ids: s.targets.map((t) => t.id) },
+    ])
+  }
+  // directive / update / reset — nothing to point at but the current tile.
   return build([{ role: 'current', ids: [w.tile] }])
+}
+
+// Hovering ONE target of a write (`B@f1@e3@e3@e2`): pin the focus on just that tile so you can pick a
+// single element out of a long `put […]` list. A walker register / off-grid target lights nothing.
+export function writeTargetGroups(w: TraverserTrace, t: WriteTargetTrace): HighlightGroups {
+  return build([
+    { role: 'current', ids: [w.tile] },
+    { role: 'chosen', ids: [t.id] },
+  ])
 }
 
 // Hovering a single candidate row of a move.

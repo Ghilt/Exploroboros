@@ -46,15 +46,28 @@ export type CandidateTrace = {
   reject?: RejectReason
 }
 
+// One resolved target of a `put`/`increase` — the element the walker actually wrote (or tried to).
+// `text` is the per-element label (`B@f1@e3@e3@e2`, `C@f0`, `P`); `id` is the tile it landed on, or
+// null for a walker register (P/Q/R — not a tile) or an `@`-path that went off-grid (a silent no-op —
+// the very thing that makes a stray/typo'd target hard to spot). `scope` tells those two apart. Lets
+// the log show, and the canvas highlight, exactly which tile each element of a multi-target list hit.
+export type WriteTargetTrace = {
+  text: string
+  id: string | null
+  tileType: string | null
+  scope: 'tile' | 'walker'
+}
+
 // One statement's contribution, discriminated by what it did. `source` is the canonical statement
 // text (the row label). A move/morph that was reached carries its candidates; a non-target guard that
-// failed up front is a `gate-skip` (the action never ran); directives/writes/updates just record text.
+// failed up front is a `gate-skip` (the action never ran); a write carries its resolved targets;
+// directives/updates just record text.
 export type StmtTrace =
   | { kind: 'reset'; source: string }
   | { kind: 'directive'; source: string; allow: boolean }
   | { kind: 'gate-skip'; source: string; guard: GuardEval }
   | { kind: 'move'; source: string; morphDef?: string; candidates: CandidateTrace[] }
-  | { kind: 'write'; source: string }
+  | { kind: 'write'; source: string; targets: WriteTargetTrace[] }
   | { kind: 'update'; source: string }
   // A grouped `if <pred> { … } [else { … }]`: its guard verdict, whether the `if` ran, the nested `body`
   // traces (present only when it ran), and `elseBody` traces (present only when there's an else and it ran).

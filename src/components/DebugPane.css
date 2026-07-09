@@ -30,6 +30,7 @@
 .dbg-dot--current { background: var(--accent); }
 .dbg-dot--decorator { background: var(--accent-3); }
 .dbg-dot--chosen { background: var(--accent); opacity: 0.6; outline: 2px solid var(--accent); outline-offset: -2px; }
+.dbg-dot--write { background: var(--accent-2); }
 .dbg-dot--rejected { background: var(--accent-strong); opacity: 0.55; }
 
 /* inline coloured keyword in the help dialog */
@@ -37,6 +38,7 @@
 .dbg-key--current { color: var(--accent); }
 .dbg-key--decorator { color: var(--accent-3); }
 .dbg-key--chosen { color: var(--accent-strong); }
+.dbg-key--write { color: var(--accent-2); }
 .dbg-key--rejected { color: var(--accent-strong); opacity: 0.85; }
 
 /* History header. */

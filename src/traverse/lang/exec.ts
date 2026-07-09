@@ -16,9 +16,9 @@ import type { TileState } from '../../canvas'
 import { resolveChain, type Hop } from './edges'
 import { bfsFind } from './find'
 import { findExtreme, type FindLowestCache, type MatchAt, type Numbering } from './findLowest'
-import { serializeChain, serializeGuard, serializeStmt } from './serialize'
+import { serializeChain, serializeGuard, serializeStmt, serializeWriteTarget } from './serialize'
 import type { Action, ChainBase, DExpr, EdgeRef, EdgeTarget, FindTile, Guard, Movement, Program, Stmt, WriteTarget } from './types'
-import type { CandidateTrace, GuardEval, ReadTile, RejectReason, StmtTrace, TraverserTrace } from '../trace'
+import type { CandidateTrace, GuardEval, ReadTile, RejectReason, StmtTrace, TraverserTrace, WriteTargetTrace } from '../trace'
 
 export type WalkerState = {
   tile: string
@@ -364,18 +364,20 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
   // Apply a put/increase to its target. A tile registry resolves its `@`-path to a tile (the CURRENT
   // tile when path-less; an off-grid path is a no-op, mirroring how an off-grid READ falls back to a
   // default); a walker register mutates the walker's own P/Q/R in place for the rest of the tick.
-  const applyWrite = (target: WriteTarget, op: 'set' | 'add', value: number) => {
+  const applyWrite = (target: WriteTarget, op: 'set' | 'add', value: number, rec?: WriteTargetTrace[]) => {
     if (target.kind === 'walker-reg') {
       if (target.reg === 'P') self.p = op === 'set' ? value : self.p + value
       else if (target.reg === 'Q') self.q = op === 'set' ? value : self.q + value
       else self.r = op === 'set' ? value : self.r + value
+      rec?.push({ text: serializeWriteTarget(target), id: null, tileType: null, scope: 'walker' })
       return
     }
     const node = resolvePathFrom(walker.tile, self.heading, null, target.path ?? [])
     if (node) tileWrites.push({ tile: node.id, reg: target.reg, op, value })
+    rec?.push({ text: serializeWriteTarget(target), id: node?.id ?? null, tileType: node?.shape ?? null, scope: 'tile' })
   }
 
-  const applyAction = (a: Action, ownGuard?: Guard, record?: CandidateTrace[]) => {
+  const applyAction = (a: Action, ownGuard?: Guard, record?: CandidateTrace[], writeRec?: WriteTargetTrace[]) => {
     switch (a.kind) {
       case 'move':
         addMoves(a.target, ownGuard, undefined, record)
@@ -385,12 +387,12 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
         return
       case 'put': {
         const value = evalDExpr(a.value)
-        for (const t of a.target) applyWrite(t, 'set', value)
+        for (const t of a.target) applyWrite(t, 'set', value, writeRec)
         return
       }
       case 'increase': {
         const by = evalDExpr(a.by)
-        for (const t of a.target) applyWrite(t, 'add', by)
+        for (const t of a.target) applyWrite(t, 'add', by, writeRec)
         return
       }
       case 'update':
@@ -491,8 +493,14 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
             continue
           }
         }
-        applyAction(stmt.action)
-        into?.push({ kind: stmt.action.kind === 'update' ? 'update' : 'write', source: serializeStmt(stmt) })
+        const isWrite = stmt.action.kind === 'put' || stmt.action.kind === 'increase'
+        const writeRec: WriteTargetTrace[] | undefined = into && isWrite ? [] : undefined
+        applyAction(stmt.action, undefined, undefined, writeRec)
+        into?.push(
+          stmt.action.kind === 'update'
+            ? { kind: 'update', source: serializeStmt(stmt) }
+            : { kind: 'write', source: serializeStmt(stmt), targets: writeRec ?? [] },
+        )
       }
     }
   }

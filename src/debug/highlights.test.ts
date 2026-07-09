@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { walkerGroups, statementGroups, candidateGroups } from './highlights'
-import type { TraverserTrace, StmtTrace, CandidateTrace } from '../traverse'
+import { walkerGroups, statementGroups, candidateGroups, writeTargetGroups } from './highlights'
+import type { TraverserTrace, StmtTrace, CandidateTrace, WriteTargetTrace } from '../traverse'
 import type { HighlightRole } from '../components/TilingCanvas'
 
 const idsFor = (groups: ReturnType<typeof walkerGroups>, role: HighlightRole) =>
@@ -79,6 +79,31 @@ describe('debug highlight mapping', () => {
     expect(idsFor(candidateGroups(header(), reject), 'rejected')).toEqual(['sq:1,2'])
     const ok: CandidateTrace = { chainText: 'straight', dest: 'sq:2,3', destType: 'square', heading: 0, survived: true }
     expect(idsFor(candidateGroups(header(), ok), 'chosen')).toEqual(['sq:2,3'])
+  })
+
+  it('a write statement highlights the current tile + every tile it wrote to (off-grid skipped)', () => {
+    const s: StmtTrace = {
+      kind: 'write',
+      source: 'put [A, B@e0, C@e9] = 1',
+      targets: [
+        { text: 'A', id: 'sq:2,2', tileType: 'square', scope: 'tile' },
+        { text: 'B@e0', id: 'sq:3,2', tileType: 'square', scope: 'tile' },
+        { text: 'C@e9', id: null, tileType: null, scope: 'tile' }, // off-grid -> not lit
+      ],
+    }
+    const g = statementGroups(header(), s)
+    expect(idsFor(g, 'current')).toEqual(['sq:2,2'])
+    expect([...idsFor(g, 'write')].sort()).toEqual(['sq:2,2', 'sq:3,2'])
+  })
+
+  it('a single write-target row pinpoints just that tile; an off-grid / walker target lights none', () => {
+    const w = header()
+    const hit: WriteTargetTrace = { text: 'B@e0', id: 'sq:3,2', tileType: 'square', scope: 'tile' }
+    expect(idsFor(writeTargetGroups(w, hit), 'chosen')).toEqual(['sq:3,2'])
+    const off: WriteTargetTrace = { text: 'C@e9', id: null, tileType: null, scope: 'tile' }
+    expect(writeTargetGroups(w, off).some((grp) => grp.role === 'chosen')).toBe(false)
+    const walkerReg: WriteTargetTrace = { text: 'P', id: null, tileType: null, scope: 'walker' }
+    expect(writeTargetGroups(w, walkerReg).some((grp) => grp.role === 'chosen')).toBe(false)
   })
 
   it('a candidate rejected by an @-edge guard marks the read tile (≠ destination) as decorator', () => {

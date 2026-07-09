@@ -59,13 +59,14 @@ function isLiteralOne(d: DExpr): boolean {
   return d.expr.kind === 'number' && d.expr.value === 1
 }
 
-// A put/increase target list back to text: a single tile registry bare (`A` / `A@e1`, the canonical
-// form now that `[…]` means a list), several as `[A, B]`, or a bare `P`/`Q`/`R` walker register.
-function writeReg(t: WriteTarget): string {
+// One put/increase target back to text: a tile registry bare (`A` / `A@e1`, the canonical form now
+// that `[…]` means a list) or a bare `P`/`Q`/`R` walker register. Exported so the trace can label each
+// resolved element of a multi-target list.
+export function serializeWriteTarget(t: WriteTarget): string {
   return t.kind === 'walker-reg' ? t.reg : `${t.reg.toUpperCase()}${serializePath(t.path)}`
 }
 function writeTargets(ts: ReadonlyArray<WriteTarget>): string {
-  return ts.length === 1 ? writeReg(ts[0]) : `[${ts.map(writeReg).join(', ')}]`
+  return ts.length === 1 ? serializeWriteTarget(ts[0]) : `[${ts.map(serializeWriteTarget).join(', ')}]`
 }
 
 function action(a: Action, indent: string): string {

@@ -9,7 +9,7 @@ export { stepTraversers, stepTraversersTraced, stepTraversersInto, rotateHeading
 export type { FindLowestCache, Numbering } from './lang'
 
 // The per-tick decision trace (the debug log's data).
-export type { TickTrace, TraverserTrace, StmtTrace, CandidateTrace, GuardEval, ReadTile, RejectReason, CoalesceTrace, DropTrace } from './trace'
+export type { TickTrace, TraverserTrace, StmtTrace, CandidateTrace, GuardEval, ReadTile, RejectReason, CoalesceTrace, DropTrace, WriteTargetTrace } from './trace'
 
 // The traverser-program DSL (parse / serialize / compile / run + AST types).
 export type { Program, Settings, Movement, Stmt, Action } from './lang'
