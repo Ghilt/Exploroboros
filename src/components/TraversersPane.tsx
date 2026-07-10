@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { compileProgram } from '../traverse'
 import { reservedNameError } from '../dsl'
 import type { TraverserStore, StoredTraverser } from '../state/traverserStore'
-import { PROTOTYPE_PORTS } from '../data/prototypePorts'
+import { PROTOTYPE_PORTS, pickRandomPort } from '../data/prototypePorts'
 import { HelpButton } from './HelpButton'
 import { TrashButton } from './TrashButton'
 import { DslTextarea } from './DslTextarea'
@@ -185,12 +185,13 @@ export function TraversersPane({
             Custom predicates
           </button>
         )}
-        {/* Debug: add hardcoded traverser definitions ported from the prototype (currently just gasket). */}
+        {/* Debug: add ONE random ready-made fractal traverser from the palette (weighted toward the
+            best-looking ones). Click again to shuffle. See src/data/prototypePorts.ts. */}
         <button
           type="button"
           className="trav-ports-btn"
-          title={`Debug — add prototype-ported traversers: ${PROTOTYPE_PORTS.map((p) => p.name).join(', ')}`}
-          onClick={() => store.addPresets(PROTOTYPE_PORTS)}
+          title={`Add one random fractal traverser (${PROTOTYPE_PORTS.length} in the palette). Click again to shuffle; place it on a tile and press Play.`}
+          onClick={() => store.addPresets([pickRandomPort()])}
         >
           Load prototype ports
         </button>
