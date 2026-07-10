@@ -1,5 +1,5 @@
 import './GallerySpotlight.css'
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ApiError, fetchRecipe } from '../gallery/api'
 import { getTiling } from '../data/tilings'
@@ -39,6 +39,14 @@ function spotlightUrl(id: string): string {
   return url.toString()
 }
 
+const MIN_ZOOM = 1
+const MAX_ZOOM = 5
+const ZOOM_SPEED = 0.0018
+
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, n))
+}
+
 // The maximized "spotlight" view of one creation: the large image, its message, which tiling it's on,
 // an upvote button, and "Import to canvas" (fetches the recipe lazily, then hands off exactly like the
 // old static gallery: setPendingRecipe → navigate to the canvas). Reuses the app's modal recipe.
@@ -55,6 +63,9 @@ export function GallerySpotlight({ item, voted, onUpvote, onClose }: Props) {
   const [importErr, setImportErr] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [shareErr, setShareErr] = useState<string | null>(null)
+  const [zoom, setZoom] = useState(1)
+  const [zoomOrigin, setZoomOrigin] = useState({ x: 50, y: 50 })
+  const imageWrapRef = useRef<HTMLDivElement>(null)
 
   const tilingName = getTiling(item.tilingId)?.name ?? item.tilingId
 
@@ -70,6 +81,30 @@ export function GallerySpotlight({ item, voted, onUpvote, onClose }: Props) {
       document.body.style.overflow = prevOverflow
     }
   }, [onClose])
+
+  // Reset the zoom whenever the spotlighted creation changes (e.g. Back/Forward to another id).
+  useEffect(() => {
+    setZoom(1)
+    setZoomOrigin({ x: 50, y: 50 })
+  }, [item.id])
+
+  // Scroll-wheel zoom on the image, centered on the cursor. A native (non-React) listener is needed
+  // because React marks onWheel passive by default, so preventDefault() there can't stop page scroll.
+  useEffect(() => {
+    const el = imageWrapRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const rect = el.getBoundingClientRect()
+      setZoomOrigin({
+        x: clamp(((e.clientX - rect.left) / rect.width) * 100, 0, 100),
+        y: clamp(((e.clientY - rect.top) / rect.height) * 100, 0, 100),
+      })
+      setZoom((z) => clamp(z - e.deltaY * ZOOM_SPEED, MIN_ZOOM, MAX_ZOOM))
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
 
   // Share this exact spotlight. Touch devices get the native share sheet (the expected gesture);
   // desktop copies the link with inline "Copied!" feedback — predictable, no OS sheet.
@@ -120,8 +155,12 @@ export function GallerySpotlight({ item, voted, onUpvote, onClose }: Props) {
           ×
         </button>
 
-        <div className="spot-image">
-          <img src={item.imageUrl} alt={item.name} />
+        <div className={`spot-image${zoom > 1 ? ' is-zoomed' : ''}`} ref={imageWrapRef}>
+          <img
+            src={item.imageUrl}
+            alt={item.name}
+            style={{ transform: `scale(${zoom})`, transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%` }}
+          />
         </div>
 
         <div className="spot-info">
@@ -143,14 +182,22 @@ export function GallerySpotlight({ item, voted, onUpvote, onClose }: Props) {
             >
               <span aria-hidden="true">▲</span> {item.upvotes}
             </button>
-            <button
-              type="button"
-              className="btn spot-share"
-              onClick={share}
-              title="Copy a direct link to this creation"
-            >
-              <ShareIcon /> {copied ? 'Copied!' : 'Share'}
-            </button>
+            <span className="spot-share-wrap">
+              <button
+                type="button"
+                className="btn spot-share"
+                onClick={share}
+                title="Copy a direct link to this creation"
+                aria-label="Share"
+              >
+                <ShareIcon />
+              </button>
+              {copied && (
+                <span className="spot-share-tip" role="status">
+                  Copied!
+                </span>
+              )}
+            </span>
             <button type="button" className="btn btn-primary" onClick={importToCanvas} disabled={importing}>
               {importing ? 'Opening…' : 'Import to canvas'}
             </button>
