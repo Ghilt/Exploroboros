@@ -5,10 +5,12 @@
 }
 
 /* Desktop: break out of the reading-width column and fill the available height so the workspace
-   is always fully visible without the page scrolling (see .app-canvas in App.css). */
+   is always fully visible without the page scrolling (see .app-canvas in App.css). No rem-based cap
+   here on purpose — with both side panes open (34rem each) the canvas itself gets squeezed to a
+   sliver unless the workspace can actually claim the full window width. */
 @media (min-width: 64rem) {
   .canvas-page {
-    width: min(94rem, calc(100vw - 4rem));
+    width: calc(100vw - 2rem);
     margin-left: 50%;
     transform: translateX(-50%);
     height: 100%;
