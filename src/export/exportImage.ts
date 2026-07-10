@@ -13,16 +13,26 @@ import type { ExportRequest, ExportMessage, ExportStage } from './exportTypes'
 
 const THUMB_LONG_EDGE = 320
 
+// The one common, NON-bug export failure: the worker's code couldn't load/start. Its bundle is a
+// separate, content-hashed chunk fetched lazily on the first export, so a redeploy that renamed it (a new
+// content hash) leaves an already-open tab requesting a now-404 URL — the export "just breaks" until a
+// reload. So we surface an ACTIONABLE message rather than a cryptic one, and (unlike a real compute/render
+// bug) skip the developer debug log — reloading is the fix, not filing a report.
+export const WORKER_UNAVAILABLE_MESSAGE =
+  'Could not start the export helper. Exploroboros was most likely updated since you opened this page — reload it (Ctrl+Shift+R, or Cmd+Shift+R on a Mac) and export again.'
+
 // Fields carried by a failed export so the caller can build a rich debug log: which path ran
 // (off-thread worker vs main-thread fallback), which stage failed, the underlying error's name/stack
 // (the wrapper's own stack points here, not at the real cause), and — for a bare worker `onerror`
-// crash with no structured payload — whatever the ErrorEvent gave us.
+// crash with no structured payload — whatever the ErrorEvent gave us. `workerUnavailable` flags the
+// load/start failure above so the UI shows the reload hint + skips the debug log.
 export type ExportFailureInit = {
   path: 'worker' | 'main-thread'
   stage?: ExportStage
   causeName?: string
   causeStack?: string
   workerEvent?: { message?: string; filename?: string; lineno?: number; colno?: number }
+  workerUnavailable?: boolean
 }
 
 // A non-abort export failure. Duck-typed by the debug log (toErrorInfo reads path/stage/cause off it),
@@ -33,6 +43,7 @@ export class ExportFailure extends Error {
   readonly causeName?: string
   readonly causeStack?: string
   readonly workerEvent?: ExportFailureInit['workerEvent']
+  readonly workerUnavailable?: boolean
   constructor(message: string, init: ExportFailureInit) {
     super(message)
     this.name = 'ExportFailure'
@@ -41,7 +52,14 @@ export class ExportFailure extends Error {
     this.causeName = init.causeName
     this.causeStack = init.causeStack
     this.workerEvent = init.workerEvent
+    this.workerUnavailable = init.workerUnavailable
   }
+}
+
+// True when the export failed because the WORKER couldn't load/start (stale chunk after a redeploy, or a
+// CSP blocking it) — a reload fixes it, so the UI shows the hint instead of a debug log.
+export function isWorkerUnavailable(e: unknown): boolean {
+  return e instanceof ExportFailure && e.workerUnavailable === true
 }
 
 export type ExportParams = {
@@ -104,21 +122,26 @@ export async function generateExport(params: ExportParams, signal?: AbortSignal)
 // killed instantly), and rejects with an AbortError.
 function viaWorker(params: ExportParams, signal?: AbortSignal): Promise<RawOutcome> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL('./exportWorker.ts', import.meta.url), { type: 'module' })
+    if (signal?.aborted) {
+      reject(abortError())
+      return
+    }
+    let worker: Worker
+    try {
+      worker = new Worker(new URL('./exportWorker.ts', import.meta.url), { type: 'module' })
+    } catch (e) {
+      // Couldn't even construct the worker (e.g. a CSP that blocks worker-src) — same user-facing cause
+      // as a failed load: the helper can't start. Surface the actionable reload message.
+      reject(new ExportFailure(WORKER_UNAVAILABLE_MESSAGE, { path: 'worker', workerUnavailable: true, causeName: e instanceof Error ? e.name : undefined, causeStack: e instanceof Error ? e.stack : undefined }))
+      return
+    }
     const cleanup = () => signal?.removeEventListener('abort', onAbort)
     const onAbort = () => {
       worker.terminate()
       cleanup()
       reject(abortError())
     }
-    if (signal) {
-      if (signal.aborted) {
-        worker.terminate()
-        reject(abortError())
-        return
-      }
-      signal.addEventListener('abort', onAbort)
-    }
+    signal?.addEventListener('abort', onAbort)
     worker.onmessage = (e: MessageEvent<ExportMessage>) => {
       const m = e.data
       if (m.type === 'progress') {
@@ -133,14 +156,19 @@ function viaWorker(params: ExportParams, signal?: AbortSignal): Promise<RawOutco
         reject(new ExportFailure(m.message, { path: 'worker', stage: m.stage, causeName: m.name, causeStack: m.stack }))
       }
     }
-    // A bare worker crash (module load failure, out-of-memory kill, an uncaught async throw) — no
-    // structured payload, so message is often empty. Capture whatever the ErrorEvent carries for the log.
+    // A BARE worker crash — empty/opaque ErrorEvent, no structured payload. The dominant cause is the
+    // helper's code CHUNK failing to load: it's a separate content-hashed file fetched lazily on the first
+    // export, so a redeploy that renamed it 404s an already-open tab. (A genuine compute/render throw comes
+    // back as a STRUCTURED 'error' message above — the worker's whole body is try/caught and the async
+    // encode is .catch'd — so it does not land here.) Surface the actionable reload message (a reload
+    // fetches the current app + its matching helper chunk); deliberately NOT a silent main-thread fallback.
     worker.onerror = (e) => {
       cleanup()
       worker.terminate()
       reject(
-        new ExportFailure(e.message || 'export worker failed', {
+        new ExportFailure(WORKER_UNAVAILABLE_MESSAGE, {
           path: 'worker',
+          workerUnavailable: true,
           workerEvent: { message: e.message, filename: e.filename, lineno: e.lineno, colno: e.colno },
         }),
       )

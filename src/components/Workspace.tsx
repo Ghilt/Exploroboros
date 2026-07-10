@@ -46,7 +46,7 @@ import { useColoringStore } from '../state/coloringStore'
 import { useInitialStateStore, makeInitialState } from '../state/initialStateStore'
 import { colorize } from '../colorizer'
 import { downloadBlob, exportFilename } from '../export/download'
-import { generateExport, isAbortError, type ExportParams } from '../export/exportImage'
+import { generateExport, isAbortError, isWorkerUnavailable, type ExportParams } from '../export/exportImage'
 import { downloadExportDebugLog } from '../export/debugLog'
 import { remapSeeds, remapPaint, parseRecipe, decodeRecipeFromPng, APP_VERSION, type Recipe } from '../export'
 import { takePendingRecipe } from '../state/pendingRecipe'
@@ -413,8 +413,15 @@ export function Workspace() {
         setExports((list) => list.filter((x) => x.id !== id)) // a cancelled or failed job drops out
         if (isAbortError(e)) return // a user cancel is not a failure — no log, no toast
         const msg = e instanceof Error ? e.message : String(e)
-        // Hand the user a downloadable, self-contained debug log (recipe + error + stage + environment
-        // + diagnostics) they can pass to a developer. Guarded so the failure handler can't itself throw.
+        // The worker's code chunk failed to load/start (typically a stale chunk after a redeploy) — a
+        // reload fixes it, so show the actionable hint and skip the debug log (this isn't a code bug).
+        if (isWorkerUnavailable(e)) {
+          setDropNote(msg)
+          window.setTimeout(() => setDropNote(null), 13000) // a beat longer — it's an instruction to act on
+          return
+        }
+        // Otherwise hand the user a downloadable, self-contained debug log (recipe + error + stage +
+        // environment + diagnostics) they can pass to a developer. Guarded so the handler can't itself throw.
         let logFile: string | null = null
         try {
           logFile = downloadExportDebugLog({ error: e, recipe: params.recipe, caps: params.caps, progress: lastProgress })
