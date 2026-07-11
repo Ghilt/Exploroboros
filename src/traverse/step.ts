@@ -45,7 +45,7 @@ type TickCore = { next: Traverser[]; tileWrites: RegWrite[]; destinations: strin
 function computeTick(state: TraverseState, sink?: TickTrace): TickCore {
   const { tiling, overlay, traversers, step, defs, indexById } = state
   const nextStep = step + 1
-  // `@tile N` addresses by the user-facing numbering (the scheme order), NOT raw generation order —
+  // `.tile N` addresses by the user-facing numbering (the scheme order), NOT raw generation order —
   // absent (a test path that supplies no scheme) it falls back to generation order.
   const tileByIndex = state.numbering?.order ?? tiling.nodes.map((n) => n.id)
 

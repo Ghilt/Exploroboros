@@ -22,7 +22,7 @@ export type TraverserAttrs = {
 
 // Everything an attribute needs to compute its value for one tile. `traverser` is set only by the
 // traverser DSL (undefined in the coloring/predicate path); its attributes then read as 0 there.
-// `nodeForPath` resolves an attribute's `@`-path (edge hops / target / tile N) to another tile's node.
+// `nodeForPath` resolves an attribute's `.`-path (edge hops / target / tile N) to another tile's node.
 // The traverser DSL supplies a FULL resolver (it has a walker's heading/movement/destination); the
 // colorizer supplies a WALKER-FREE one that handles only absolute paths (edge hops / tile N). When no
 // resolver is supplied, or a path can't resolve (a relative hop with no walker, a boundary, a missing

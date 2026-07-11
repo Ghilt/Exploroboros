@@ -44,21 +44,21 @@ export type AttrName =
 
 // Where an attribute is read from. Tile attributes read the tile under evaluation; `traverser`
 // attributes read the walker in the EvalContext (the traverser DSL). A tile attribute can also read a
-// NEIGHBOUR tile by carrying an `@`-path (see TilePath) — the evaluator resolves the path to another
+// NEIGHBOUR tile by carrying an `.`-path (see TilePath) — the evaluator resolves the path to another
 // tile and reads the attribute there; traverser attributes never take a path (they read the walker).
 export type AttrScope = 'tile' | 'traverser'
 
 // An attribute's edge-hop PATH: how to walk from the current tile to the tile the attribute is read
-// from. `visited@e1` reads across edge 1; `visited@r1@e5` turns weak-right then crosses edge 5;
-// `visited@target` reads the move's candidate destination. Empty/absent path = the current tile.
+// from. `visited.e1` reads across edge 1; `visited.r1.e5` turns weak-right then crosses edge 5;
+// `visited.target` reads the move's candidate destination. Empty/absent path = the current tile.
 // Segments mirror the move EdgeRef vocabulary (edge/turn/straight/unvisited), plus two TERMINAL forms
 // that name a tile directly and cannot be followed by more hops: `target` (the move destination,
 // resolved per candidate) and `tile N` (the tile with absolute number N). The traverser layer resolves
 // these against a walker (heading/movement/dest); in a walker-free context (coloring) a path resolves
 // to nothing and the attribute falls back to its default.
-// `found N` (`@fN`) names a tile a `find-tile` search located this tick — it's a BASE hop: it must come
+// `found N` (`.fN`) names a tile a `find-tile` search located this tick — it's a BASE hop: it must come
 // FIRST in a path (it establishes the starting tile + heading) and may be followed by chainable edge
-// hops (`tile-type@f1`, `visited@f1@e0`), but never appear after another hop (`@e0@f1` is illegal). It
+// hops (`tile-type.f1`, `visited.f1.e0`), but never appear after another hop (`.e0.f1` is illegal). It
 // only resolves in the traverser layer (which owns the per-tick found list); walker-free contexts
 // (coloring) resolve it to nothing → default.
 export type PathSeg =
@@ -79,7 +79,7 @@ export type AttrRef = {
   scope: AttrScope
   index?: number // coordinate[n] / step[n]
   fallback?: number // `default N` — used when the attribute has no value for the tile
-  path?: TilePath // `@e1`, `@r1@e5`, `@target` — read the attribute on another tile (absent = current)
+  path?: TilePath // `.e1`, `.r1.e5`, `.target` — read the attribute on another tile (absent = current)
 }
 export type Neg = { kind: 'neg'; operand: Expr } // unary minus
 export type Bin = { kind: 'bin'; op: ArithOp; left: Expr; right: Expr }
@@ -89,8 +89,8 @@ export type Group = { kind: 'group'; inner: Expr } // ( expr )
 // the comparison to EACH element then combine. Default (no `:modifier`) is `sum`.
 export type Reducer = 'sum' | 'avg' | 'min' | 'max' | 'all' | 'any' | 'none' | 'xor'
 
-// A tile registry A/B/C as a VALUE, with an optional `@`-path to read it on another tile. Usable bare
-// (`A`, `A@e1`) OR as a list element (`[A]`, `[A, B]`, `[visited@e1, A@e3]`) — since `[…]` now clearly
+// A tile registry A/B/C as a VALUE, with an optional `.`-path to read it on another tile. Usable bare
+// (`A`, `A.e1`) OR as a list element (`[A]`, `[A, B]`, `[visited.e1, A.e3]`) — since `[…]` now clearly
 // means "a list", a lone registry needn't be bracketed. `[A]` is just a one-element list of this term,
 // so bare and bracketed forms round-trip to their own text. Case-insensitive on input; stored lowercase.
 export type RegLetter = 'a' | 'b' | 'c'
@@ -105,10 +105,10 @@ export type Expr = NumberLit | AttrRef | Neg | Bin | Group | RegTerm | ListReduc
 // ---- boolean predicates ----
 export type Compare = { kind: 'compare'; op: CompareOp; left: Expr; right: Expr }
 // A boolean-reduced numeric list: the comparison is applied to EACH element, then combined by the
-// reducer — all = AND, any = OR, none = NOR, xor = exactly one. `[visited@e1, A@e3]:all == 1`.
+// reducer — all = AND, any = OR, none = NOR, xor = exactly one. `[visited.e1, A.e3]:all == 1`.
 export type ListNumCompare = { kind: 'listcmp'; reducer: 'all' | 'any' | 'none' | 'xor'; elems: ReadonlyArray<Expr>; op: CompareOp; right: Expr }
-// The shape flavour: each element is a tile-type read (its `@`-path, or undefined = the current tile),
-// compared to a shape name with == / !=. `[tile-type@r1, tile-type@r2]:xor == octagon`.
+// The shape flavour: each element is a tile-type read (its `.`-path, or undefined = the current tile),
+// compared to a shape name with == / !=. `[tile-type.r1, tile-type.r2]:xor == octagon`.
 export type ListShapeCompare = { kind: 'shapecmp'; reducer: 'all' | 'any' | 'none' | 'xor'; paths: ReadonlyArray<TilePath | undefined>; op: '==' | '!='; shape: string }
 // Tile type (shape class) is categorical, so it is its own leaf: `tile-type == wedge`. The shape name
 // is a free identifier (not validated at parse time) so a predicate stays portable across tilings; on
@@ -122,8 +122,8 @@ export type PredGroup = { kind: 'pgroup'; inner: Pred } // ( predicate )
 // enough — no quoting. The parser has no registry, so it can't validate the name eagerly;
 // resolvePredRefs inlines it (or errors on an unknown/cyclic name) before eval ever sees one.
 export type PredRef = { kind: 'predref'; name: string }
-// Does an `@`-path resolve to a real tile? `exists@f0` is true iff a find-tile search located a tile;
-// `exists@e0` is true iff there's a neighbour across edge 0 (false at a boundary) — the general test
+// Does an `.`-path resolve to a real tile? `exists.f0` is true iff a find-tile search located a tile;
+// `exists.e0` is true iff there's a neighbour across edge 0 (false at a boundary) — the general test
 // behind any "off-grid" fallback, since a resolved tile's OWN attribute values (0, false, …) are
 // otherwise indistinguishable from "this path didn't resolve at all". A path is required — the current
 // tile always exists, so a bare `exists` would be trivially true and is rejected as a likely mistake.

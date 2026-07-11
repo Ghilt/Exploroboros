@@ -1,5 +1,5 @@
 // Recursive-descent parser for the traverser-program DSL. Statement-per-line: each line is a setting,
-// a rule (`[if <guard> [@ <edge>] then] <action>`), a directive, or `reset directives`. Guards and
+// a rule (`[if <guard> then] <action>`), a directive, or `reset directives`. Guards and
 // formula values are sliced out as raw substrings and delegated to src/dsl's parsePredicate/parseExpr
 // (their error spans offset back into the full source), so there is ONE expression/predicate language.
 // Errors come back as a Result with a message + span, never thrown across the boundary.
@@ -132,7 +132,7 @@ function parseEdgeRef(line: Line): EdgeRef {
 
 // A move-chain BASE, if one is present: an inline `find-tile … {…}` run here, or a found-tile ref `fN`.
 // Consumes the base tokens if present; otherwise leaves the cursor untouched (the chain hops from the
-// walker's current tile). `fN` can only ever be a base (an edge ref is never `fN`), so `e0@f1` fails
+// walker's current tile). `fN` can only ever be a base (an edge ref is never `fN`), so `e0.f1` fails
 // naturally in parseEdgeRef.
 function parseChainBase(line: Line, ctx: ParseCtx): ChainBase | undefined {
   if (line.isWord('find-tile')) return { kind: 'find', find: parseFindTile(line, ctx) }
@@ -147,13 +147,13 @@ function parseChainBase(line: Line, ctx: ParseCtx): ChainBase | undefined {
   return undefined
 }
 
-// One move chain: an optional base tile, then edge hops joined by `@` (`e0@e4`, `straight@r1`, `f1@e0`).
+// One move chain: an optional base tile, then edge hops joined by `.` (`e0.e4`, `straight.r1`, `f1.e0`).
 // A base-less chain needs at least one edge (`move e0`); a based chain may be bare (`move f0`).
 function parseMoveChain(line: Line, ctx: ParseCtx): Chain {
   const base = parseChainBase(line, ctx)
   const refs: EdgeRef[] = []
   if (!base) refs.push(parseEdgeRef(line))
-  while (line.isSym('@')) {
+  while (line.isSym('.')) {
     line.pos += 1
     refs.push(parseEdgeRef(line))
   }
@@ -188,13 +188,13 @@ function expandRange(line: Line, first: EdgeRef): Chain[] {
   return chains
 }
 
-// One item inside a move `[…]`: a based chain (`f1@e0`), a range (`e1..e3`) expanding to several
-// single-hop chains, or an edge chain (`straight`, `e0@e4`). Appends the resulting chain(s) to `out`.
+// One item inside a move `[…]`: a based chain (`f1.e0`), a range (`e1..e3`) expanding to several
+// single-hop chains, or an edge chain (`straight`, `e0.e4`). Appends the resulting chain(s) to `out`.
 function parseEdgeItem(line: Line, out: Chain[], ctx: ParseCtx): void {
   const base = parseChainBase(line, ctx)
   if (base) {
     const refs: EdgeRef[] = []
-    while (line.isSym('@')) {
+    while (line.isSym('.')) {
       line.pos += 1
       refs.push(parseEdgeRef(line))
     }
@@ -208,7 +208,7 @@ function parseEdgeItem(line: Line, out: Chain[], ctx: ParseCtx): void {
     return
   }
   const refs: EdgeRef[] = [first]
-  while (line.isSym('@')) {
+  while (line.isSym('.')) {
     line.pos += 1
     refs.push(parseEdgeRef(line))
   }
@@ -238,8 +238,8 @@ function parseEdgeTarget(line: Line, ctx: ParseCtx): EdgeTarget {
 // A guard over tokens [from, to): a single-word named reference, or an inline predicate delegated whole
 // to src/dsl. A COMPOUND guard that references saved predicates by name (`isCrowded and hasC`) is not a
 // single token, so it delegates to src/dsl, which parses the bare names as predrefs; compile-time
-// resolveNames then inlines both the single-word and the embedded references. Any `@`-paths
-// (`visited@e1`, `visited@target`) live INSIDE the predicate and are parsed by src/dsl.
+// resolveNames then inlines both the single-word and the embedded references. Any `.`-paths
+// (`visited.e1`, `visited.target`) live INSIDE the predicate and are parsed by src/dsl.
 function parseGuardRange(line: Line, from: number, to: number): Guard {
   if (to - from === 1 && line.toks[from].kind === 'word') {
     return { pred: { kind: 'named', name: line.toks[from].text } }
@@ -247,7 +247,7 @@ function parseGuardRange(line: Line, from: number, to: number): Guard {
   return { pred: { kind: 'inline', pred: delegate(line, from, to, 'pred') } }
 }
 
-// A numeric value `<expr>` from the cursor to end of line (any `@`-paths inside are parsed by src/dsl).
+// A numeric value `<expr>` from the cursor to end of line (any `.`-paths inside are parsed by src/dsl).
 function parseDExprToEnd(line: Line): DExpr {
   const from = line.pos
   const to = line.toks.length
@@ -257,9 +257,9 @@ function parseDExprToEnd(line: Line): DExpr {
 }
 
 // The write target(s) of a put/increase (mirrors how registries are read in a formula):
-//  - `A` / `A@e1` — a single tile registry, bare, with an optional `@`-path to write a neighbour.
-//  - `[A]` / `[A@e1]` / `[A, B]` — the same in brackets; `[A, B]` writes BOTH (each gets the same value).
-//    The whole bracket is delegated to src/dsl (parseExpr → a list) so the `@`-path grammar is shared; a
+//  - `A` / `A.e1` — a single tile registry, bare, with an optional `.`-path to write a neighbour.
+//  - `[A]` / `[A.e1]` / `[A, B]` — the same in brackets; `[A, B]` writes BOTH (each gets the same value).
+//    The whole bracket is delegated to src/dsl (parseExpr → a list) so the `.`-path grammar is shared; a
 //    reducer or a non-registry element errors.
 //  - `P` / `Q` / `R` — the walker's own register, bare (single; no path — walker state isn't per-tile).
 function parseWriteTargets(line: Line): WriteTarget[] {
@@ -291,17 +291,17 @@ function parseWriteTargets(line: Line): WriteTarget[] {
   const up = t.text.toUpperCase()
   if (WALKER_REGS.has(up)) return [{ kind: 'walker-reg', reg: up as 'P' | 'Q' | 'R' }]
   if (up === 'A' || up === 'B' || up === 'C') {
-    // A bare tile registry, with an optional `@`-path to write a neighbour. Consume the `A@…` run and
+    // A bare tile registry, with an optional `.`-path to write a neighbour. Consume the `A.…` run and
     // delegate it to src/dsl so the path grammar stays shared, then read back the single regterm.
     const from = line.pos - 1
-    while (line.isSym('@')) {
+    while (line.isSym('.')) {
       line.pos += 1
-      const seg = line.word('expected an edge after "@", e.g. A@e1')
-      if (seg.text === 'tile') line.next() // `@tile N` also takes a number
+      const seg = line.word('expected an edge after ".", e.g. A.e1')
+      if (seg.text === 'tile') line.next() // `.tile N` also takes a number
     }
     const expr = delegate<Expr>(line, from, line.pos, 'expr')
     if (expr.kind !== 'regterm') {
-      throw new ParseFail('write target must be a registry A/B/C (optionally with an @path)', { start: t.start, end: t.end })
+      throw new ParseFail('write target must be a registry A/B/C (optionally with a .path)', { start: t.start, end: t.end })
     }
     return [expr.path ? { kind: 'tile-reg', reg: expr.reg, path: expr.path } : { kind: 'tile-reg', reg: expr.reg }]
   }
@@ -561,7 +561,7 @@ function parseLine(line: Line, settings: Settings | null, statements: Stmt[], ct
   }
   if (w === 'directive') {
     // Grammar: `directive if <guard> always forbid|allow move`. The guard reads the current tile by
-    // default; `@ target` in it redirects to the move's destination (see exec.ts).
+    // default; `.target` in it redirects to the move's destination (see exec.ts).
     line.pos += 1
     line.expectWord('if')
     let alwaysIdx = -1
@@ -626,7 +626,7 @@ function parseLine(line: Line, settings: Settings | null, statements: Stmt[], ct
   statements.push({ kind: 'rule', action })
 }
 
-// After parsing, gather every `fN` the program references (move bases + inline `@fN` paths in guards /
+// After parsing, gather every `fN` the program references (move bases + inline `.fN` paths in guards /
 // values / write targets) so parseProgram can reject a reference to a find-tile that doesn't exist.
 function pathFoundInto(path: ReadonlyArray<{ kind: string; index?: number }> | undefined, out: number[]): void {
   if (path) for (const s of path) if (s.kind === 'found' && s.index !== undefined) out.push(s.index)
@@ -671,7 +671,7 @@ function stmtFoundRefs(s: Stmt, out: number[]): void {
       findFoundRefs(s.find, out)
       break
     case 'find-extreme':
-      // Its predicate is walker-free/absolute (no `@fN` survives compile), but collect any `@fN` written
+      // Its predicate is walker-free/absolute (no `.fN` survives compile), but collect any `.fN` written
       // here so an out-of-range one is caught with the clear bounds message rather than the compile check.
       guardFoundRefs(s.find.pred, out)
       break

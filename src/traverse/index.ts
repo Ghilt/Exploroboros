@@ -15,8 +15,8 @@ export type { TickTrace, TraverserTrace, StmtTrace, CandidateTrace, GuardEval, R
 export type { Program, Settings, Movement, Stmt, Action } from './lang'
 export { parseProgram, serializeProgram, compileProgram, DEFAULT_SETTINGS } from './lang'
 
-// Walker-free `@`-path resolver (absolute edge chains + `tile N`) — the colorizer uses this so
-// predicates like `[A@e0] > 0` can read a neighbouring tile without a walker.
+// Walker-free `.`-path resolver (absolute edge chains + `tile N`) — the colorizer uses this so
+// predicates like `[A.e0] > 0` can read a neighbouring tile without a walker.
 export { resolveAbsolutePath } from './lang'
 
 // Downloadable whole-run trace log (the analysis artifact): runs the setup to completion traced.

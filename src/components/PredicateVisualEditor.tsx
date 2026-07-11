@@ -61,7 +61,7 @@ const OP_SYMBOL: Record<string, string> = {
 }
 const SHAPE_SYMBOL: Record<string, string> = { '==': 'is', '!=': 'is not' }
 
-// Swap an attribute for another, keeping a sensible index/default — and the @-path (which tile it reads).
+// Swap an attribute for another, keeping a sensible index/default — and the .-path (which tile it reads).
 function swapAttr(attr: AttrRef, name: AttrName): AttrRef {
   const spec = attrSpec(name)
   const next: AttrRef = { kind: 'attr', name, scope: attr.scope }
@@ -254,7 +254,7 @@ export function PredicateVisualEditor({ text, onChange }: { text: string; onChan
       case 'listcmp':
       case 'shapecmp':
       case 'exists':
-        // A boolean-reduced list comparison, or an exists@path test. Shown as a static chip; edit it in
+        // A boolean-reduced list comparison, or an exists.path test. Shown as a static chip; edit it in
         // Text mode.
         return <span className="pv-static pv-reg">{serialize(p)}</span>
     }

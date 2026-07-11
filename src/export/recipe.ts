@@ -24,7 +24,7 @@ import { boundsCenter, tileOffset } from './remap'
 //     this version, and refuses one that's NEWER than this build (with reason 'too-new' → "update the app").
 //   APP_VERSION — a human-readable stamp of the build that made the image, for display + bug tracing
 //     only; never branched on. Bump freely.
-export const RECIPE_SCHEMA_VERSION = 9
+export const RECIPE_SCHEMA_VERSION = 10
 export const APP_VERSION = '0.1.0'
 export const RECIPE_KEYWORD = 'exploroboros:recipe'
 
@@ -75,7 +75,7 @@ export type Recipe = {
   // grid-relative rules, resolved against the export grid on reopen. Empty string = none. (schema v3)
   initialState: string
   // The board numbering scheme (schema v8; values revised in v9) — the user-facing tile number, so an
-  // image that uses `tile-number` / `@tile N` / find-lowest/highest reproduces the same tiles.
+  // image that uses `tile-number` / `.tile N` / find-lowest/highest reproduces the same tiles.
   // 'left-to-right' | 'spiral' | 'radial' (see src/tiling/numbering.ts).
   numberingScheme: NumberingScheme
 }
@@ -204,7 +204,7 @@ const MIGRATIONS: ReadonlyArray<Migration> = [
     from: 5,
     migrate: (r) => r,
   },
-  // v6 → v7: the traverser DSL grew `@`-chained moves, bare `A`/`B`/`C` registries, `if { … }` blocks,
+  // v6 → v7: the traverser DSL grew `.`-chained moves, bare `A`/`B`/`C` registries, `if { … }` blocks,
   // and `find-tile` search (`fN`). These are ADDITIVE / relaxing, so a v6 recipe's programs still parse
   // and reproduce unchanged — the bump exists only so a recipe that USES the new syntax is stamped v7,
   // and an older build (which can't understand it) refuses it cleanly ("update the app") instead of
@@ -228,7 +228,46 @@ const MIGRATIONS: ReadonlyArray<Migration> = [
     from: 8,
     migrate: (r) => ({ ...r, numberingScheme: r.numberingScheme === 'spiral' ? 'radial' : 'left-to-right' }),
   },
+  // v9 → v10: the DSL path separator changed from `@` to `.` (`visited@e1` → `visited.e1`, `move e0@e4`
+  // → `move e0.e4`, `@tile N` → `.tile N`, `exists@f0` → `exists.f0`). `@` was ONLY ever the path
+  // operator in DSL text (names can't contain it; the creation's title/message live in separate D1
+  // columns, not the recipe), so a blind per-field `@`→`.` rewrite of the DSL-bearing text is exact.
+  // Everything else is preserved; idempotent (a v10 recipe has no `@` left).
+  {
+    from: 9,
+    migrate: rewritePathsV10,
+  },
 ]
+
+// The DSL-text rewrite for v9 → v10 (see the migration entry above). Also used by tools/migrate-paths.mjs
+// to rewrite the live gallery's stored recipes — keep the two in sync.
+function rewritePathsV10(r: AnyRecipe): AnyRecipe {
+  const swap = (s: unknown) => (typeof s === 'string' ? s.replace(/@/g, '.') : s)
+  const traversers = Array.isArray(r.traversers)
+    ? r.traversers.map((t) => {
+        const tr = t as { text?: unknown }
+        return typeof tr.text === 'string' ? { ...tr, text: swap(tr.text) } : t
+      })
+    : r.traversers
+  const predicates = Array.isArray(r.predicates)
+    ? r.predicates.map((p) => {
+        const pr = p as { text?: unknown }
+        return typeof pr.text === 'string' ? { ...pr, text: swap(pr.text) } : p
+      })
+    : r.predicates
+  const coloringRules = Array.isArray(r.coloringRules)
+    ? r.coloringRules.map((rule) => {
+        const rr = rule as { predicate?: { kind?: unknown; text?: unknown } }
+        const pr = rr.predicate
+        // Only an INLINE predicate carries DSL text; a `ref` predicate names a stored predicate by id.
+        return pr && pr.kind === 'inline' && typeof pr.text === 'string'
+          ? { ...rr, predicate: { ...pr, text: swap(pr.text) } }
+          : rule
+      })
+    : r.coloringRules
+  const initialState = typeof r.initialState === 'string' ? swap(r.initialState) : r.initialState
+  return { ...r, traversers, predicates, coloringRules, initialState }
+}
 
 function migrateNamesV5(r: AnyRecipe): AnyRecipe {
   const rename = new Map<string, string>() // old traverser name -> sanitized

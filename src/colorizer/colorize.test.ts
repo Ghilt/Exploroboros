@@ -37,7 +37,7 @@ describe('colorize — rule stacking', () => {
   it('a translucent later rule blends over the earlier one', () => {
     const overlay = addVisit(new Map(), 'sq:0,0')
     const out = run([inline('visited > 0', flat('#ff0000')), inline('visited > 0', flat('#0000ff'), 0.5)], overlay)
-    // red under blue@50% -> purple
+    // red under blue.50% -> purple
     expect(out.get('sq:0,0')).toBe('rgba(128, 0, 128, 1)')
   })
 
@@ -107,35 +107,35 @@ describe('colorize — ramps', () => {
   })
 })
 
-describe('colorize — absolute @-paths read a neighbouring tile (walker-free)', () => {
+describe('colorize — absolute .-paths read a neighbouring tile (walker-free)', () => {
   const reg = (a: number): TileState => ({ visits: [], a, b: 0, c: 0 })
 
-  it('[A@e1] > 0 colours the tile whose edge-1 (east) neighbour has registry A set', () => {
+  it('[A.e1] > 0 colours the tile whose edge-1 (east) neighbour has registry A set', () => {
     // On the 3x3 grid, sq:1,2 is east (edge 1) of sq:1,1. Give it A = 1.
     const overlay: Overlay = new Map([['sq:1,2', reg(1)]])
-    const out = run([inline('[A@e1] > 0', flat('#00ff00'))], overlay)
+    const out = run([inline('[A.e1] > 0', flat('#00ff00'))], overlay)
     expect(out.get('sq:1,1')).toBe('rgba(0, 255, 0, 1)') // east neighbour has A > 0
     expect(out.has('sq:1,2')).toBe(false) // its own east neighbour is off-grid -> A defaults to 0
   })
 
-  it('reads a numeric attribute across an edge too (visited@e1)', () => {
+  it('reads a numeric attribute across an edge too (visited.e1)', () => {
     const overlay = addVisit(new Map(), 'sq:1,2') // east neighbour visited
-    expect(run([inline('visited@e1 > 0', flat('#0000ff'))], overlay).get('sq:1,1')).toBe('rgba(0, 0, 255, 1)')
+    expect(run([inline('visited.e1 > 0', flat('#0000ff'))], overlay).get('sq:1,1')).toBe('rgba(0, 0, 255, 1)')
   })
 
-  it('a list reducer works in a coloring predicate (absolute @-paths)', () => {
+  it('a list reducer works in a coloring predicate (absolute .-paths)', () => {
     const overlay = addVisit(new Map(), 'sq:1,2') // only the east (edge 1) neighbour is visited; north (e0) not
     // any of the two neighbours visited → colour; exactly one (xor) is also true here
-    expect(run([inline('[visited@e0, visited@e1]:any == 1', flat('#00ff00'))], overlay).get('sq:1,1')).toBe('rgba(0, 255, 0, 1)')
-    expect(run([inline('[visited@e0, visited@e1]:xor == 1', flat('#ff0000'))], overlay).get('sq:1,1')).toBe('rgba(255, 0, 0, 1)')
+    expect(run([inline('[visited.e0, visited.e1]:any == 1', flat('#00ff00'))], overlay).get('sq:1,1')).toBe('rgba(0, 255, 0, 1)')
+    expect(run([inline('[visited.e0, visited.e1]:xor == 1', flat('#ff0000'))], overlay).get('sq:1,1')).toBe('rgba(255, 0, 0, 1)')
     // both visited required → false (north unvisited)
-    expect(run([inline('[visited@e0, visited@e1]:all == 1', flat('#0000ff'))], overlay).size).toBe(0)
+    expect(run([inline('[visited.e0, visited.e1]:all == 1', flat('#0000ff'))], overlay).size).toBe(0)
   })
 
-  it('relative @-paths still fall back (no walker) — the predicate parses but colours nothing', () => {
+  it('relative .-paths still fall back (no walker) — the predicate parses but colours nothing', () => {
     const overlay = addVisit(new Map(), 'sq:1,2')
-    expect(parsePredicate('visited@straight > 0').ok).toBe(true) // valid syntax...
-    expect(run([inline('visited@straight > 0', flat('#00ff00'))], overlay).size).toBe(0) // ...but unresolvable here
+    expect(parsePredicate('visited.straight > 0').ok).toBe(true) // valid syntax...
+    expect(run([inline('visited.straight > 0', flat('#00ff00'))], overlay).size).toBe(0) // ...but unresolvable here
   })
 })
 
@@ -155,7 +155,7 @@ describe('colorize — predicate resolution', () => {
   })
 })
 
-describe('colorize — the numbering scheme drives tile-number + @tile (never raw generation order)', () => {
+describe('colorize — the numbering scheme drives tile-number + .tile (never raw generation order)', () => {
   // The user-facing number the caller passes in `indexById`; here the SPIRAL scheme (centre = 0).
   const spiralIndex = () => {
     const m = new Map<string, number>()
@@ -172,11 +172,11 @@ describe('colorize — the numbering scheme drives tile-number + @tile (never ra
     expect(out.has(sq.nodes[0].id)).toBe(false)
   })
 
-  it('@tile N addresses by the scheme numbering', () => {
-    // @tile 0 = the spiral centre. Visit it → `visited@tile 0 == 0` is false for every tile → nothing painted.
+  it('.tile N addresses by the scheme numbering', () => {
+    // .tile 0 = the spiral centre. Visit it → `visited.tile 0 == 0` is false for every tile → nothing painted.
     const visitedCentre = addVisit(new Map(), centre)
-    expect(colorize([inline('visited@tile 0 == 0', flat('#00ff00'))], NO_TEXT, NO_TEXT, sq, visitedCentre, spiralIndex()).size).toBe(0)
+    expect(colorize([inline('visited.tile 0 == 0', flat('#00ff00'))], NO_TEXT, NO_TEXT, sq, visitedCentre, spiralIndex()).size).toBe(0)
     // Leave it unvisited → true everywhere → every tile painted.
-    expect(colorize([inline('visited@tile 0 == 0', flat('#00ff00'))], NO_TEXT, NO_TEXT, sq, new Map(), spiralIndex()).size).toBe(sq.nodes.length)
+    expect(colorize([inline('visited.tile 0 == 0', flat('#00ff00'))], NO_TEXT, NO_TEXT, sq, new Map(), spiralIndex()).size).toBe(sq.nodes.length)
   })
 })

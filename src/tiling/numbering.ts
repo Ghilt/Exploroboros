@@ -19,7 +19,7 @@
 //                   not one flowing path) — kept as its own option.
 //
 // The scheme is the ONE user-facing tile number everywhere (stats label, Inspect, the `tile-number` DSL
-// attribute, `@tile N`, and what `find-lowest/highest-tile` search by). Pure & isomorphic (no React/DOM);
+// attribute, `.tile N`, and what `find-lowest/highest-tile` search by). Pure & isomorphic (no React/DOM);
 // memoized per Tiling in a WeakMap like orientation.ts. Do NOT import from src/export — the bounds-centre
 // math is inlined to keep the tiling engine dependency-free.
 

@@ -2,7 +2,7 @@
 // writes — against WHATEVER tiling is passed (the small preview grid OR the big export grid), so a rule
 // scales with the grid. Pure & isomorphic. Guard predicates run at seed time (before any walk, so there
 // is no walker): they read the CURRENT tile's attributes (tile-type / orientation / coordinate /
-// hand-painted visited); walker-relative `@`-paths have nothing to resolve and fall back to defaults.
+// hand-painted visited); walker-relative `.`-paths have nothing to resolve and fall back to defaults.
 
 import type { Tiling } from '../tiling'
 import type { TileState } from '../canvas'

@@ -8,22 +8,22 @@ function pred(src: string) {
 }
 
 describe('predReadsTarget', () => {
-  it('is true when any leaf reads @target', () => {
-    expect(predReadsTarget(pred('visited@target == 0'))).toBe(true)
-    expect(predReadsTarget(pred('visited == 0 and visited-neighbors@target == 1'))).toBe(true)
-    expect(predReadsTarget(pred('tile-type@target == wedge'))).toBe(true)
-    expect(predReadsTarget(pred('[A@target] > 0'))).toBe(true)
-    expect(predReadsTarget(pred('not (visited@target == 0)'))).toBe(true)
+  it('is true when any leaf reads .target', () => {
+    expect(predReadsTarget(pred('visited.target == 0'))).toBe(true)
+    expect(predReadsTarget(pred('visited == 0 and visited-neighbors.target == 1'))).toBe(true)
+    expect(predReadsTarget(pred('tile-type.target == wedge'))).toBe(true)
+    expect(predReadsTarget(pred('[A.target] > 0'))).toBe(true)
+    expect(predReadsTarget(pred('not (visited.target == 0)'))).toBe(true)
   })
 
   it('is false for current-tile and fixed-edge paths', () => {
     expect(predReadsTarget(pred('visited == 0'))).toBe(false)
-    expect(predReadsTarget(pred('visited@e1 == 0'))).toBe(false)
-    expect(predReadsTarget(pred('visited@r1@e5 == 1 and tile-type@e0 == wedge'))).toBe(false)
+    expect(predReadsTarget(pred('visited.e1 == 0'))).toBe(false)
+    expect(predReadsTarget(pred('visited.r1.e5 == 1 and tile-type.e0 == wedge'))).toBe(false)
   })
 
   it('is false for a named-predicate reference (resolved before this ever sees it)', () => {
     expect(predReadsTarget(pred('isCrowded'))).toBe(false)
-    expect(predReadsTarget(pred('isCrowded and visited@target == 0'))).toBe(true)
+    expect(predReadsTarget(pred('isCrowded and visited.target == 0'))).toBe(true)
   })
 })

@@ -18,14 +18,14 @@ function edgeRef(r: EdgeRef): string {
   }
 }
 
-// One move chain as text: the edge hops joined by `@` (`e0@e4`, `straight@r1`), optionally rooted at a
-// base tile — a found ref (`f0`, `f1@e0`) or an inline `find-tile … { … }`. `indent` is the current
+// One move chain as text: the edge hops joined by `.` (`e0.e4`, `straight.r1`), optionally rooted at a
+// base tile — a found ref (`f0`, `f1.e0`) or an inline `find-tile … { … }`. `indent` is the current
 // line's leading whitespace, so an inline find-tile's multi-line body lines up under it.
 export function serializeChain(c: Chain, indent = ''): string {
-  const refs = c.refs.map(edgeRef).join('@')
+  const refs = c.refs.map(edgeRef).join('.')
   if (!c.base) return refs
   const base = c.base.kind === 'found' ? `f${c.base.index}` : findTileText(c.base.find, indent)
-  return refs ? `${base}@${refs}` : base
+  return refs ? `${base}.${refs}` : base
 }
 
 function target(t: EdgeTarget, indent: string): string {
@@ -59,7 +59,7 @@ function isLiteralOne(d: DExpr): boolean {
   return d.expr.kind === 'number' && d.expr.value === 1
 }
 
-// One put/increase target back to text: a tile registry bare (`A` / `A@e1`, the canonical form now
+// One put/increase target back to text: a tile registry bare (`A` / `A.e1`, the canonical form now
 // that `[…]` means a list) or a bare `P`/`Q`/`R` walker register. Exported so the trace can label each
 // resolved element of a multi-target list.
 export function serializeWriteTarget(t: WriteTarget): string {

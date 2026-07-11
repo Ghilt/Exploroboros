@@ -7,8 +7,8 @@
 // recurring edge-numbering bugs (CLAUDE.md §9). If any of it becomes chiral/mis-numbered, this breaks.
 //
 // IMPORTANT (the actual finding): only a FULL fan is symmetric. Absolute edge numbers are
-// clockwise-from-north = HANDED, so a *selective* absolute route (e.g. a triangle's `eK@eK`) is
-// intentionally chiral and NOT expected to be symmetric — the mirror of `e1@e1` is `e2@e5`, not `e2@e2`.
+// clockwise-from-north = HANDED, so a *selective* absolute route (e.g. a triangle's `eK.eK`) is
+// intentionally chiral and NOT expected to be symmetric — the mirror of `e1.e1` is `e2.e5`, not `e2.e2`.
 import { describe, it, expect } from 'vitest'
 import { buildTiling } from '../canvas'
 import type { TileState } from '../canvas'

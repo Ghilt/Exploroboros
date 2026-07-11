@@ -31,8 +31,8 @@ describe('traverser DSL parser', () => {
     }
   })
 
-  it('parses split sets and @-chains', () => {
-    const p = ok('move [r1, l1]\nmove straight@r2@e3')
+  it('parses split sets and .-chains', () => {
+    const p = ok('move [r1, l1]\nmove straight.r2.e3')
     expect(p.statements[0]).toEqual({
       kind: 'rule',
       action: { kind: 'move', target: [{ refs: [{ kind: 'turn', dir: 'r', n: 1 }] }, { refs: [{ kind: 'turn', dir: 'l', n: 1 }] }] },
@@ -46,7 +46,7 @@ describe('traverser DSL parser', () => {
     })
   })
 
-  it('rejects the old -> chain separator (use @)', () => {
+  it('rejects the old -> chain separator (use .)', () => {
     expect(parseProgram('move straight -> r2').ok).toBe(false)
   })
 
@@ -72,12 +72,12 @@ describe('traverser DSL parser', () => {
     })
   })
 
-  it('parses an attribute @-path inside a guard (delegated to the predicate DSL)', () => {
-    const p = ok('if visited@r1 > 0 then move l1')
+  it('parses an attribute .-path inside a guard (delegated to the predicate DSL)', () => {
+    const p = ok('if visited.r1 > 0 then move l1')
     const r = p.statements[0]
     if (r.kind !== 'rule' || r.guard?.pred.kind !== 'inline') throw new Error('expected an inline rule guard')
     const pred = r.guard.pred.pred
-    if (pred.kind !== 'compare' || pred.left.kind !== 'attr') throw new Error('expected a "visited@r1" comparison')
+    if (pred.kind !== 'compare' || pred.left.kind !== 'attr') throw new Error('expected a "visited.r1" comparison')
     expect(pred.left.name).toBe('visited')
     expect(pred.left.path).toEqual([{ kind: 'turn', dir: 'r', n: 1 }])
   })
@@ -100,8 +100,8 @@ describe('traverser DSL parser', () => {
     expect(p.statements[2]).toMatchObject({ action: { kind: 'increase', target: [{ kind: 'walker-reg', reg: 'Q' }] } })
   })
 
-  it('parses an @-path on a tile-registry write (put/increase a neighbour)', () => {
-    const p = ok('put [B@e1] = 1\nincrease [C@r1@e5] by 2')
+  it('parses a .-path on a tile-registry write (put/increase a neighbour)', () => {
+    const p = ok('put [B.e1] = 1\nincrease [C.r1.e5] by 2')
     expect(p.statements[0]).toMatchObject({
       action: { kind: 'put', target: [{ kind: 'tile-reg', reg: 'b', path: [{ kind: 'edge', index: 1 }] }] },
     })
@@ -119,8 +119,8 @@ describe('traverser DSL parser', () => {
     })
   })
 
-  it('parses a bare tile-registry write (put A / increase A / put A@e1)', () => {
-    const p = ok('put A = visited + 1\nincrease A\nput A@e1 = 1')
+  it('parses a bare tile-registry write (put A / increase A / put A.e1)', () => {
+    const p = ok('put A = visited + 1\nincrease A\nput A.e1 = 1')
     expect(p.statements[0]).toMatchObject({ kind: 'rule', action: { kind: 'put', target: [{ kind: 'tile-reg', reg: 'a' }] } })
     expect(p.statements[1]).toMatchObject({ action: { kind: 'increase', target: [{ kind: 'tile-reg', reg: 'a' }] } })
     expect(p.statements[2]).toMatchObject({
@@ -147,6 +147,19 @@ describe('traverser DSL parser', () => {
     })
   })
 
+  it('distinguishes a . chain hop from a .. range (both share the . character)', () => {
+    // `e0.e4` is ONE target hopping two edges; `[e0..e2]` is a range expanding to THREE targets. The
+    // lexer matches the two-char `..` before a lone `.`, so a hop and a range never collide.
+    expect(ok('move e0.e4').statements[0]).toEqual({
+      kind: 'rule',
+      action: { kind: 'move', target: [{ refs: [{ kind: 'edge', index: 0 }, { kind: 'edge', index: 4 }] }] },
+    })
+    expect(ok('move [e0..e2]').statements[0]).toEqual({
+      kind: 'rule',
+      action: { kind: 'move', target: [0, 1, 2].map((index) => ({ refs: [{ kind: 'edge', index }] })) },
+    })
+  })
+
   it('rejects a reducer on a move target (modifiers are for conditions / put values)', () => {
     expect(parseProgram('move [e1, e2]:all').ok).toBe(false)
   })
@@ -161,8 +174,8 @@ describe('traverser DSL parser', () => {
     expect(p.statements[3]).toEqual({ kind: 'reset' })
   })
 
-  it('parses a directive with a @target attribute path (gate the destination)', () => {
-    const p = ok('directive if visited@target > 0 always forbid move')
+  it('parses a directive with a .target attribute path (gate the destination)', () => {
+    const p = ok('directive if visited.target > 0 always forbid move')
     const d = p.statements[0]
     expect(d.kind).toBe('directive')
     if (d.kind === 'directive') {
@@ -172,8 +185,8 @@ describe('traverser DSL parser', () => {
     }
   })
 
-  it('parses a @target guard on a move rule', () => {
-    const p = ok('if visited@target > 0 then move [r1, l1]')
+  it('parses a .target guard on a move rule', () => {
+    const p = ok('if visited.target > 0 then move [r1, l1]')
     const r = p.statements[0]
     if (r.kind !== 'rule') throw new Error('expected rule')
     if (r.guard?.pred.kind === 'inline') expect(predReadsTarget(r.guard.pred.pred)).toBe(true)
@@ -255,7 +268,7 @@ describe('traverser DSL parser', () => {
   })
 
   it('parses a found base with a trailing chain and a split of them', () => {
-    const p = ok('find-tile A == 5 { move straight }\nmove [f0@e0, f0@straight]')
+    const p = ok('find-tile A == 5 { move straight }\nmove [f0.e0, f0.straight]')
     const mv = p.statements[1]
     if (mv.kind !== 'rule' || mv.action.kind !== 'move') throw new Error('expected a move')
     expect(mv.action.target).toEqual([
@@ -270,8 +283,8 @@ describe('traverser DSL parser', () => {
     expect((p.statements[1] as { kind: 'find-tile'; find: { index: number } }).find.index).toBe(1)
   })
 
-  it('reads a found tile in a guard (tile-type@f0)', () => {
-    const p = ok('find-tile A == 5 { move straight }\nif tile-type@f0 == wedge then move f0')
+  it('reads a found tile in a guard (tile-type.f0)', () => {
+    const p = ok('find-tile A == 5 { move straight }\nif tile-type.f0 == wedge then move f0')
     const r = p.statements[1]
     if (r.kind !== 'rule' || r.guard?.pred.kind !== 'inline') throw new Error('expected an inline guard')
     expect(r.guard.pred.pred).toMatchObject({ kind: 'shape', shape: 'wedge', path: [{ kind: 'found', index: 0 }] })
@@ -297,8 +310,8 @@ describe('traverser DSL parser', () => {
     if (!r.ok) expect(r.error.message).toContain('f0')
   })
 
-  it('rejects fN as a non-first hop (e0@f1)', () => {
-    expect(parseProgram('find-tile A == 5 { move straight }\nmove e0@f0').ok).toBe(false)
+  it('rejects fN as a non-first hop (e0.f1)', () => {
+    expect(parseProgram('find-tile A == 5 { move straight }\nmove e0.f0').ok).toBe(false)
   })
 
   it('rejects a non-move statement inside a find-tile body', () => {

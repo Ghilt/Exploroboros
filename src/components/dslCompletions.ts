@@ -34,7 +34,7 @@ export function buildDslCompletions(opts: {
   // Tile registries A/B/C are first-class values now (bare, or in a list `[A]`) — offer them everywhere.
   for (const reg of ['A', 'B', 'C']) push({ value: reg, kind: 'attribute', hint: 'tile registry' })
   push({ value: 'not', kind: 'keyword', hint: 'negate' })
-  push({ value: 'exists', kind: 'keyword', hint: '@path resolves to a tile' })
+  push({ value: 'exists', kind: 'keyword', hint: '.path resolves to a tile' })
   if (opts.includeTraverser) {
     for (const a of ATTRIBUTES) if (a.scopes.includes('traverser') && !a.alias) push({ value: a.name, kind: 'walker' })
   }

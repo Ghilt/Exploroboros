@@ -99,8 +99,8 @@ export function TraversersPane({
           <p>
             <strong>Registries:</strong> <code>put [A] = [A] + 1</code>, <code>increase P</code>. A/B/C live on
             the tile (always in brackets — <code>[A]</code>, or <code>[A, B]</code> to sum when reading); P/Q/R
-            travel with the walker (bare). Read or write another tile with a <code>@</code>-path:{' '}
-            <code>if visited@r1 &gt; 0 then put [B@e1] = 1</code>. Write several at once with{' '}
+            travel with the walker (bare). Read or write another tile with a <code>.</code>-path:{' '}
+            <code>if visited.r1 &gt; 0 then put [B.e1] = 1</code>. Write several at once with{' '}
             <code>put [A, B] = …</code>. Reference a saved predicate by name. Also:{' '}
             <code>morph &lt;name&gt; …</code>, <code>update max-split 2</code>, and{' '}
             <code>directive if &lt;predicate&gt; always forbid move</code> / <code>reset directives</code>{' '}
@@ -110,7 +110,7 @@ export function TraversersPane({
             <strong>Lists</strong> — <code>[…]</code> in a condition reduces its items to one value:{' '}
             <code>[A, B]</code> (sum, the default), <code>:avg</code> / <code>:min</code> / <code>:max</code>, or
             apply the comparison to each with <code>:all</code> / <code>:any</code> / <code>:none</code> /{' '}
-            <code>:xor</code> — <code>if [visited@e1, visited@e2]:xor == 1 then …</code>.
+            <code>:xor</code> — <code>if [visited.e1, visited.e2]:xor == 1 then …</code>.
           </p>
           <p>
             Each tick reads the board <strong>as it was at the start of the tick</strong> (a walker doesn’t
@@ -295,7 +295,7 @@ if <predicate> { … } else { … }  a block (else optional; else if chains)
 
 move straight | r1 | l2 | e3 | nearest-unvisited
 move [r1, l1]                    split — capped by max-split
-move e0@e4                       two hops in one tick (@ chains)
+move e0.e4                       two hops in one tick (dot chains)
 put A = A + 1                    write a tile registry (A/B/C, bare)
 increase P                       bump a walker register (P/Q/R)
 directive if <predicate> always forbid move
@@ -312,12 +312,12 @@ find-highest-tile [A] > 0        highest-numbered match → f2`}</pre>
               <li>
                 <strong>predicate</strong> — a tile test (<code>visited-neighbors == 1</code>), a saved
                 predicate by name, or a mix with <code>and</code>/<code>or</code>/<code>not</code>. Read a
-                neighbour with an <code>@</code>-path: <code>visited@r1</code>.
+                neighbour with a <code>.</code>-path: <code>visited.r1</code>.
               </li>
               <li>
                 <strong>edges</strong> — <code>straight</code>, <code>r1</code>/<code>l1</code> (turn),{' '}
                 <code>e3</code> (numbered edge), <code>nearest-unvisited</code>. Chain hops with{' '}
-                <code>@</code>: <code>e0@e4</code>.
+                <code>.</code>: <code>e0.e4</code>.
               </li>
               <li>
                 <strong>registries</strong> — <code>A</code>/<code>B</code>/<code>C</code> sit on the tile
@@ -328,8 +328,8 @@ find-highest-tile [A] > 0        highest-numbered match → f2`}</pre>
                 <strong>find-tile</strong> — a breadth-first search; its <code>move</code> lines spread it
                 tile to tile (capped by <code>max-split</code>, default 1 = a single path — raise it to fan
                 out), and the first tile matching the predicate becomes <code>f0</code> (then <code>f1</code>
-                …). Use it as a move target or read it: <code>tile-type@f0</code>. Test whether it found
-                anything with <code>exists@f0</code> — a plain read (e.g. <code>visited@f0</code>) can't tell
+                …). Use it as a move target or read it: <code>tile-type.f0</code>. Test whether it found
+                anything with <code>exists.f0</code> — a plain read (e.g. <code>visited.f0</code>) can't tell
                 "not found" from "found, value 0".
               </li>
               <li>
@@ -337,7 +337,7 @@ find-highest-tile [A] > 0        highest-numbered match → f2`}</pre>
                 the WHOLE plane for the lowest- (or highest-) <em>numbered</em> matching tile → <code>fN</code>.
                 The number follows the board numbering (canvas settings), so with <strong>spiral</strong>{' '}
                 “lowest” is the nearest the centre. The condition reads only the tile itself + absolute{' '}
-                <code>@e</code>-paths (no walker heading / <code>@target</code>).
+                <code>.e</code>-paths (no walker heading / <code>.target</code>).
               </li>
               <li>
                 <strong>header</strong> (top, any order) — <code>max-split</code>, <code>heading</code>{' '}

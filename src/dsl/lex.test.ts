@@ -66,11 +66,26 @@ describe('lex', () => {
     expect(r.error.span).toEqual({ start: 8, end: 9 })
   })
 
-  it('lexes @ as an at token; an edge like e1 is one identifier (parse.ts splits it)', () => {
-    const r = lex('visited@e1')
+  it('lexes . as a dot token; an edge like e1 is one identifier (parse.ts splits it)', () => {
+    const r = lex('visited.e1')
     if (!r.ok) throw new Error('expected ok')
-    expect(r.value.map((t: Token) => t.kind)).toEqual(['ident', 'at', 'ident', 'eof'])
-    expect(texts('visited@e1')).toEqual(['visited', '@', 'e1'])
+    expect(r.value.map((t: Token) => t.kind)).toEqual(['ident', 'dot', 'ident', 'eof'])
+    expect(texts('visited.e1')).toEqual(['visited', '.', 'e1'])
+  })
+
+  it('a . followed by a digit is a number, not a path hop (so decimals survive the . separator)', () => {
+    // The path separator shares the `.` character with decimals; the number branch wins only when a
+    // digit follows, so `.5`/`3.5` stay numbers while `.e1` is a dot hop.
+    expect(kinds('.5')).toEqual(['number', 'eof'])
+    expect(texts('visited > 3.5')).toEqual(['visited', '>', '3.5'])
+    expect(kinds('visited.e1')).toEqual(['ident', 'dot', 'ident', 'eof'])
+  })
+
+  it('rejects @ — it is no longer a DSL character (the path separator is now .)', () => {
+    const r = lex('visited@e1')
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.error.span).toEqual({ start: 7, end: 8 })
   })
 
   it('fails on a lone "!"', () => {

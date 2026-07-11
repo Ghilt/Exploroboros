@@ -67,7 +67,7 @@ export function findExtreme(
 
 // MAINTAIN: after a tick's writes are applied, bring every live query's bookmark up to date for the NEW
 // overlay (via `matchAt`, which must close over that overlay). Only WRITTEN tiles can change a match; a
-// 'neighbor' predicate also depends on writes to a tile's neighbours; a 'global' one (multi-hop / @tile N)
+// 'neighbor' predicate also depends on writes to a tile's neighbours; a 'global' one (multi-hop / .tile N)
 // can't be bounded, so its bookmark is reset for a full rescan. `nextStep` re-stamps every bookmark.
 export function maintainFindExtreme(
   tiling: Tiling,

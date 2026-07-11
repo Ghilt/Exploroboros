@@ -159,7 +159,7 @@ export function Workspace() {
   // Tile display: edged outline / no outline / outline + printed stats (number + visited + counters).
   const [displayMode, setDisplayMode] = useState<DisplayMode>('edges')
   // Board numbering scheme: the number drawn on tiles (stats mode) + shown in Inspect, the `tile-number`
-  // attribute, `@tile N`, and what find-lowest/highest-tile search by. 'left-to-right' = reading order;
+  // attribute, `.tile N`, and what find-lowest/highest-tile search by. 'left-to-right' = reading order;
   // 'spiral' = a true winding spiral from the centre; 'radial' = concentric rings. Saved in the recipe.
   const [numberingScheme, setNumberingScheme] = useState<NumberingScheme>('left-to-right')
   // The run-owned bookmark cache for find-lowest/highest-tile, re-attached to each live tick so the
@@ -215,7 +215,7 @@ export function Workspace() {
 
   // The chosen numbering (order + O(1) position lookup) — the ONE tile number the user ever sees or
   // references: the number DRAWN on tiles + shown in Inspect, what find-lowest/highest-tile searches by,
-  // the `tile-number` DSL attribute, and `@tile N` addressing. Memoized per (tiling, scheme). The raw
+  // the `tile-number` DSL attribute, and `.tile N` addressing. Memoized per (tiling, scheme). The raw
   // generation order is purely an internal tile-id detail and is never surfaced as a number.
   const numbering = useMemo(() => numberingFor(tiling, numberingScheme), [tiling, numberingScheme])
 

@@ -1,6 +1,6 @@
 // Tokenizer for the traverser-program DSL. Statement-oriented: it keeps NEWLINEs (statements are one
 // per line) and tracks absolute source offsets so error spans point back into the textarea. It only
-// needs to find the STRUCTURAL pieces (keywords, `[ ] , @ -> =`, words, numbers); the operators that
+// needs to find the STRUCTURAL pieces (keywords, `[ ] , . =`, words, numbers); the operators that
 // appear inside a guard/formula are lumped into `sym` tokens — those regions are sliced out as raw
 // substrings and handed to src/dsl's parser, so this lexer never has to understand `==`, `+`, etc.
 
@@ -13,15 +13,17 @@ const isDigit = (c: string) => c >= '0' && c <= '9'
 const isAlpha = (c: string) => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 
 // Multi-char symbols matched before their single-char prefixes. `..` is the edge range in a move target
-// (`e1..3`, `r1..r4`); the number lexer leaves it alone (a `.` not followed by a digit isn't consumed).
-// Move chains use `@` as the hop separator (`e0@e4`, `straight@straight`), matching how attribute
-// `@`-paths chain — so there is no multi-char `->` any more.
+// (`e1..3`, `r1..r4`); it's matched here (two chars) BEFORE the single `.`, and the number lexer leaves a
+// lone `.` alone (a `.` not followed by a digit isn't consumed) — so a range `e1..e3` stays one `..` token
+// while a hop `e0.e4` splits into `e0 . e4`. Move chains use `.` as the hop separator (`e0.e4`,
+// `straight.straight`), matching how attribute `.`-paths chain — so there is no multi-char `->` any more.
 const MULTI = ['==', '!=', '<=', '>=', '..']
 // `{` `}` aren't used by the traverser statement grammar itself — they're here because the
 // Initial-state DSL (src/initstate) reuses this generic tokenizer, and its `auto-place … {…}` spec
 // needs braces. Harmless in a traverser program (they'd just fail in the parser). `:` is a list reducer
 // inside a guard/put value — sliced out with that region and re-lexed by src/dsl, so it's just a passthrough sym here.
-const SINGLE = '(){}[],@:=<>+-*/%!'
+// `.` is the path-hop separator (`e0.e4`, `visited.e1`); the two-char `..` above wins over it.
+const SINGLE = '(){}[],.:=<>+-*/%!'
 
 function fail(message: string, span: Span): Result<Tok[]> {
   return { ok: false, error: { message, span } }

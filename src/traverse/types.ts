@@ -30,7 +30,7 @@ export type Traverser = {
 
 // Everything a tick reads. The overlay is frozen for the whole tick (read all, then write all), so
 // no walker sees another's move within the same tick. `defs` maps a definition name to its compiled
-// program; `indexById` gives `tile-number` and `@ tile N`.
+// program; `indexById` gives `tile-number` and `. tile N`.
 export type TraverseState = {
   tiling: Tiling
   overlay: ReadonlyMap<string, TileState>

@@ -18,8 +18,8 @@ function pred(text: string): Pred {
 // Real predicates (so predPathReach classifies them for real); the synthetic matchAt ignores the pred and
 // answers from a mutable set, letting each test drive exactly which tiles match, when.
 const SELF = pred('visited == 0') // reach 'self'
-const NEIGHBOR = pred('[A@e0] == 0') // reach 'neighbor' (one absolute edge hop)
-const GLOBAL = pred('[A@e0@e0] == 0') // reach 'global' (multi-hop)
+const NEIGHBOR = pred('[A.e0] == 0') // reach 'neighbor' (one absolute edge hop)
+const GLOBAL = pred('[A.e0.e0] == 0') // reach 'global' (multi-hop)
 const matchAtOf = (set: ReadonlySet<string>): MatchAt => (_p, id) => set.has(id)
 
 describe('findExtreme — read', () => {

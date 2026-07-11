@@ -1,4 +1,4 @@
-// Does a predicate / expression read the move DESTINATION anywhere? A leaf whose `@`-path includes a
+// Does a predicate / expression read the move DESTINATION anywhere? A leaf whose `.`-path includes a
 // `target` segment reads the candidate destination (resolved per branch). The traverser DSL uses this
 // to decide a move/directive guard is evaluated PER candidate move rather than once up front against the
 // current tile. Pure — no traverse/walker import; it only walks the src/dsl AST.
@@ -51,7 +51,7 @@ export function predReadsTarget(pred: Pred): boolean {
   }
 }
 
-// Collect the `found` (`@fN`) indices a predicate / expression reads, so the traverser compiler can
+// Collect the `found` (`.fN`) indices a predicate / expression reads, so the traverser compiler can
 // reject a reference to a find-tile that doesn't exist (`move f2` with only two `find-tile` blocks).
 // Same shallow AST walk as predReadsTarget; a `found` seg can only ever be a path's first hop.
 function pathFoundIndices(path: TilePath | undefined, out: number[]): void {
@@ -118,8 +118,8 @@ export function predFoundIndices(pred: Pred, out: number[] = []): number[] {
 
 // ---- walker-free (absolute) predicate analysis, for find-lowest/highest-tile (src/traverse/lang) ----
 // find-lowest/highest scans EVERY tile with no walker, so its condition must be a pure function of the
-// tile + overlay: tile attributes and ABSOLUTE `@`-paths only (edge chains `@e0@e1`, or a terminal
-// `@tile N`). Anything needing a walker — a traverser-scope attribute (steps/splits/heading/P/Q/R) or a
+// tile + overlay: tile attributes and ABSOLUTE `.`-paths only (edge chains `.e0.e1`, or a terminal
+// `.tile N`). Anything needing a walker — a traverser-scope attribute (steps/splits/heading/P/Q/R) or a
 // relative/target/found path segment — is rejected at compile so the answer stays cacheable + shareable.
 
 function pathIsAbsolute(path: TilePath | undefined): boolean {
@@ -172,7 +172,7 @@ export function predIsAbsolute(pred: Pred): boolean {
 
 // How far a (walker-free, absolute) predicate reads — drives the find-lowest cache's incremental
 // maintenance. 'self' reads only the tile; 'neighbor' reads at most one absolute edge hop away; 'global'
-// reads a multi-hop chain or a fixed `@tile N` (a write anywhere can flip the answer, so that query must
+// reads a multi-hop chain or a fixed `.tile N` (a write anywhere can flip the answer, so that query must
 // rescan). Assumes an absolute predicate; any non-edge seg is treated as 'global' to stay safe.
 export type PathReach = 'self' | 'neighbor' | 'global'
 const REACH_RANK: Record<PathReach, number> = { self: 0, neighbor: 1, global: 2 }

@@ -79,18 +79,18 @@ function segToEdgeRef(seg: PathSeg): EdgeRef | null {
   }
 }
 
-// Walker-FREE resolution of an `@`-path from a starting tile — for the coloring / predicate context,
+// Walker-FREE resolution of an `.`-path from a starting tile — for the coloring / predicate context,
 // which has no walker (so no heading/movement/destination). Only heading-INDEPENDENT segments resolve:
 // a chain of absolute `edge N` hops (`edge k` always lands on local edge k regardless of heading), or a
 // single terminal `tile N`. Any relative segment (`straight` / `r`/`l` turns / `nearest-unvisited`) or
-// `@target` needs a walker, so the whole path resolves to null — the reading attribute then falls back to
+// `.target` needs a walker, so the whole path resolves to null — the reading attribute then falls back to
 // its default, exactly as when no resolver is supplied at all. Used by the colorizer's `nodeForPath`.
 export function resolveAbsolutePath(
   tiling: Tiling,
   overlay: ReadonlyMap<string, TileState>,
   startId: string,
   path: TilePath,
-  // The user-facing numbering order for `@tile N` (absent = generation order, a test-only fallback).
+  // The user-facing numbering order for `.tile N` (absent = generation order, a test-only fallback).
   order?: ReadonlyArray<string>,
 ): TileNode | null {
   if (path.length === 0) return nodeById(tiling, startId) ?? null
@@ -111,7 +111,7 @@ export function resolveAbsolutePath(
 }
 
 // Build a walker-FREE predicate evaluator: does `pred` hold at tile `id`, read against `overlay`? Only
-// absolute `@`-paths resolve (edge chains / `tile N`, via resolveAbsolutePath) — the same reads the
+// absolute `.`-paths resolve (edge chains / `tile N`, via resolveAbsolutePath) — the same reads the
 // colorizer allows and exactly what find-lowest/highest-tile is restricted to at compile — so the search
 // and its cache maintenance always agree. A missing tile is false. The find-lowest search (below) closes
 // this over the FROZEN overlay; the cache maintenance (step.ts) closes it over the post-write overlay.
@@ -173,11 +173,11 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
     q: self.q,
     r: self.r,
   })
-  // Resolve an attribute's `@`-path to another tile's node (or null at a boundary / missing tile),
+  // Resolve an attribute's `.`-path to another tile's node (or null at a boundary / missing tile),
   // starting from an arbitrary ROOT tile + heading (the walker's own for a normal guard; a frontier tile
-  // during a find-tile search). No path -> the root tile. `@target` -> the move destination under
-  // consideration (`dest`), or the root tile outside a move context. `@tile N` -> the absolute tile.
-  // `@fN` -> the tile a find-tile located this tick, from which any trailing edge hops chain (an absolute
+  // during a find-tile search). No path -> the root tile. `.target` -> the move destination under
+  // consideration (`dest`), or the root tile outside a move context. `.tile N` -> the absolute tile.
+  // `.fN` -> the tile a find-tile located this tick, from which any trailing edge hops chain (an absolute
   // anchor — the root doesn't affect it). Otherwise chain the edge hops from the root tile/heading.
   const resolvePathFrom = (rootTile: string, rootHeading: number, dest: string | null, path: TilePath): TileNode | null => {
     if (path.length === 0) return nodeById(tiling, rootTile) ?? null
@@ -236,7 +236,7 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
   }
   const ctxFor = (dest: string | null, record?: ReadTile[]): EvalContext | null => ctxAt(walker.tile, self.heading, dest, record)
 
-  // A guard's boolean, rooted at the walker's current tile (attributes redirect themselves via `@`-paths).
+  // A guard's boolean, rooted at the walker's current tile (attributes redirect themselves via `.`-paths).
   const evalGuard = (guard: Guard, dest: string | null): boolean => {
     if (guard.pred.kind === 'named') return false // resolved at compile; defensive
     const ctx = ctxFor(dest)
@@ -263,7 +263,7 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
 
   // Evaluate a (compiled, inline) guard rooted at a given tile+heading — used by a find-tile search for
   // its goal predicate and its body-move guards, at each frontier tile. `dest` = the tile itself, so a
-  // stray `@target` reads that tile rather than nothing.
+  // stray `.target` reads that tile rather than nothing.
   const evalGuardAt = (rootTile: string, rootHeading: number, guard: Guard): boolean => {
     if (guard.pred.kind === 'named') return false
     const ctx = ctxAt(rootTile, rootHeading, rootTile)
@@ -307,7 +307,7 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
   // directive whose guard matches BLOCKS (forbid is strongest); else any active `allow` directive whose
   // guard matches ALLOWS, overriding the move's own guard; else the move's own guard (if any) decides;
   // else allow. So directives, when they match, overpower the move's own guard — an `allow` with nothing
-  // to override is a no-op. Each guard reads the current tile unless it carries `@target` (→ `dest`).
+  // to override is a no-op. Each guard reads the current tile unless it carries `.target` (→ `dest`).
   const moveAllowed = (dest: string, ownGuard?: Guard): boolean => {
     for (const d of directives) if (!d.allow && evalGuard(d.guard, dest)) return false
     for (const d of directives) if (d.allow && evalGuard(d.guard, dest)) return true
@@ -361,7 +361,7 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
     }
   }
 
-  // Apply a put/increase to its target. A tile registry resolves its `@`-path to a tile (the CURRENT
+  // Apply a put/increase to its target. A tile registry resolves its `.`-path to a tile (the CURRENT
   // tile when path-less; an off-grid path is a no-op, mirroring how an off-grid READ falls back to a
   // default); a walker register mutates the walker's own P/Q/R in place for the rest of the tick.
   const applyWrite = (target: WriteTarget, op: 'set' | 'add', value: number, rec?: WriteTargetTrace[]) => {
@@ -443,7 +443,7 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
       if (stmt.kind === 'find-extreme') {
         // A GLOBAL scan for the lowest/highest-numbered matching tile. The predicate is walker-free
         // (compile-enforced), so the found tile is arrived at by no crossing — give it heading 0 (north):
-        // absolute `f0@eN` is unaffected, and relative hops (`f0@straight`) read from north.
+        // absolute `f0.eN` is unaffected, and relative hops (`f0.straight`) read from north.
         const gp = stmt.find.pred.pred
         const pred = gp.kind === 'inline' ? gp.pred : null
         const order = input.numbering?.order ?? tileByIndex
@@ -459,7 +459,7 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
       const isMove = stmt.action.kind === 'move' || stmt.action.kind === 'morph'
       if (isMove) {
         // The move's own guard is decided PER CANDIDATE inside moveAllowed, so an active `allow` directive
-        // can override it (forbid > allow > own guard). Fast path: a guard that neither reads `@target` nor
+        // can override it (forbid > allow > own guard). Fast path: a guard that neither reads `.target` nor
         // could be overridden by an active `allow` is constant across candidates — decide it once, skipping
         // the whole rule if false (or dropping it, so nothing re-checks it per candidate, if true).
         const inline = g && g.pred.kind === 'inline' ? g.pred.pred : null

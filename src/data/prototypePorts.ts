@@ -24,7 +24,7 @@
 //
 // THE DESIGN PRINCIPLES behind the beautiful ones (from the prototype's hard-won lessons, CLAUDE.md §5):
 //   • The Rule-90 / XOR gate — grow ONLY where exactly one neighbour is visited
-//     (`visited-neighbors@target == 1`) — is the mechanism that makes truly self-similar, Sierpinski-like
+//     (`visited-neighbors.target == 1`) — is the mechanism that makes truly self-similar, Sierpinski-like
 //     output. It's the backbone of the "gasket" family.
 //   • Gap constraint: a walk needs a gap-making rule or it's a dud. Over-restrict → dies in a few ticks;
 //     no constraint → floods into a boring blob. The sweet spot is a LOOSE gate (`unique <= 1`) PLUS
@@ -47,13 +47,13 @@ const def = (name: string, beauty: number, lines: string[]): PrototypePort => ({
 
 // ---- shared building blocks (kept named so the intent of each program reads clearly) ----
 // A GATE is a `forbid` of the negation: "only move onto tiles where PRED" ⇒ "forbid the target when NOT
-// PRED" (an `allow` only OVERRIDES a forbid, so it can't gate on its own — see exec.ts). `@target` makes
+// PRED" (an `allow` only OVERRIDES a forbid, so it can't gate on its own — see exec.ts). `.target` makes
 // the guard read the move's DESTINATION rather than the current tile.
-const ONLY_UNVISITED = 'directive if visited@target > 0 always forbid move' // grow only into fresh tiles
-const BIRTH_XOR1 = 'directive if visited-neighbors@target != 1 always forbid move' // Rule-90: exactly one visited neighbour
-const BIRTH_TOTAL13 = 'directive if visited-neighbors@target != 1 and visited-neighbors@target != 3 always forbid move'
-const BIRTH_LOOSE = 'directive if visited-neighbors@target > 1 always forbid move' // the loose gap gate: at most one
-const THREAD_EDGE1 = 'directive if visited-edges@target != 1 always forbid move' // thread single-edge adjacencies (mazes)
+const ONLY_UNVISITED = 'directive if visited.target > 0 always forbid move' // grow only into fresh tiles
+const BIRTH_XOR1 = 'directive if visited-neighbors.target != 1 always forbid move' // Rule-90: exactly one visited neighbour
+const BIRTH_TOTAL13 = 'directive if visited-neighbors.target != 1 and visited-neighbors.target != 3 always forbid move'
+const BIRTH_LOOSE = 'directive if visited-neighbors.target > 1 always forbid move' // the loose gap gate: at most one
+const THREAD_EDGE1 = 'directive if visited-edges.target != 1 always forbid move' // thread single-edge adjacencies (mazes)
 
 // Relative move fans (heading-relative, so the seed's aim rotates the whole pattern).
 const FAN3 = ['move straight', 'move r1', 'move l1']
@@ -92,13 +92,13 @@ const SNOWFLAKE = def('snowflake', 2, ['max-split = 6', ONLY_UNVISITED, THREAD_E
 // Seven-way loose fan → a bushy star burst.
 const STARBURST = def('starburst', 3, ['max-split = 7', ONLY_UNVISITED, BIRTH_LOOSE, ...FAN7])
 // Birth on EXACTLY TWO visited neighbours — an unusual CA rule that grows thin, filament-y structures.
-const PAIR_BIRTH = def('pair-birth', 1, ['max-split = 5', ONLY_UNVISITED, 'directive if visited-neighbors@target != 2 always forbid move', ...FAN5])
+const PAIR_BIRTH = def('pair-birth', 1, ['max-split = 5', ONLY_UNVISITED, 'directive if visited-neighbors.target != 2 always forbid move', ...FAN5])
 // Same XOR growth as `gasket`, but expressed with an ALLOW carve-out: forbid every target, then ALLOW
 // only the unvisited XOR-birth ones (allow OVERRIDES a forbid). A demo of the allow/forbid interplay.
 const XOR_ALLOW = def('xor-allow', 2, [
   'max-split = 3',
-  'directive if visited@target >= 0 always forbid move',
-  'directive if visited@target == 0 and visited-neighbors@target == 1 always allow move',
+  'directive if visited.target >= 0 always forbid move',
+  'directive if visited.target == 0 and visited-neighbors.target == 1 always allow move',
   ...FAN5,
 ])
 
@@ -200,16 +200,16 @@ const MEMORY = def('memory', 2, ['max-split = 2', ONLY_UNVISITED, 'if visited-ne
 const SURGE = def('surge', 1, ['max-split = 1', ONLY_UNVISITED, BIRTH_XOR1, 'if steps % 10 == 0 then update max-split 6', 'if steps % 10 == 4 then update max-split 1', ...FAN5])
 
 // ============================================================================================
-// GROUP H — chained-hop moves. Each move HOPS two tiles in one tick (`a@b`), re-aiming after the first
+// GROUP H — chained-hop moves. Each move HOPS two tiles in one tick (`a.b`), re-aiming after the first
 // hop, so the walk lands on a sparser sub-lattice — knight-move and skip patterns.
 // ============================================================================================
 
 // Two-hop XOR growth (straight-straight, r1-r1, l1-l1) → a gasket on a coarser lattice.
-const LEAPFROG = def('leapfrog', 2, ['max-split = 3', ONLY_UNVISITED, BIRTH_XOR1, 'move straight@straight', 'move r1@r1', 'move l1@l1'])
+const LEAPFROG = def('leapfrog', 2, ['max-split = 3', ONLY_UNVISITED, BIRTH_XOR1, 'move straight.straight', 'move r1.r1', 'move l1.l1'])
 // L-shaped (knight-ish) hops in four ways → a woven diagonal lattice.
-const KNIGHT = def('knight', 2, ['max-split = 4', ONLY_UNVISITED, 'move straight@r1', 'move straight@l1', 'move r1@straight', 'move l1@straight'])
+const KNIGHT = def('knight', 2, ['max-split = 4', ONLY_UNVISITED, 'move straight.r1', 'move straight.l1', 'move r1.straight', 'move l1.straight'])
 // Four L-hops as a single split, loosely gated → an interlaced weave.
-const WEAVE = def('weave', 2, ['max-split = 4', ONLY_UNVISITED, BIRTH_LOOSE, 'move [straight@r1, straight@l1, r1@straight, l1@straight]'])
+const WEAVE = def('weave', 2, ['max-split = 4', ONLY_UNVISITED, BIRTH_LOOSE, 'move [straight.r1, straight.l1, r1.straight, l1.straight]'])
 
 // ============================================================================================
 // GROUP I — directive PHASES. Two move phases in a single tick with different gates, separated by
@@ -219,7 +219,7 @@ const WEAVE = def('weave', 2, ['max-split = 4', ONLY_UNVISITED, BIRTH_LOOSE, 'mo
 // Phase 1: fork r1/l1 only into fresh tiles. Reset. Phase 2: push straight while it stays uncrowded.
 const TWO_PHASE = def('two-phase', 2, ['max-split = 2', ONLY_UNVISITED, 'if steps % 2 == 0 then move r1', 'if steps % 2 == 0 then move l1', 'reset directives', BIRTH_LOOSE, 'move straight'])
 // A gated turn then an UNGATED straight (which may revisit) → a self-crossing lattice.
-const GATE_FLIP = def('gate-flip', 2, ['max-split = 2', 'directive if visited@target > 0 always forbid move', 'move r2', 'reset directives', 'move straight'])
+const GATE_FLIP = def('gate-flip', 2, ['max-split = 2', 'directive if visited.target > 0 always forbid move', 'move r2', 'reset directives', 'move straight'])
 
 // ============================================================================================
 // GROUP J — list reducers. Steer by combining several neighbours with a list reducer (`:xor`, `:any`, …)
@@ -227,9 +227,9 @@ const GATE_FLIP = def('gate-flip', 2, ['max-split = 2', 'directive if visited@ta
 // ============================================================================================
 
 // Push straight only when EXACTLY ONE of the two side neighbours is visited (a directional XOR).
-const XOR_SIDE = def('xor-side', 1, ['max-split = 3', ONLY_UNVISITED, 'if [visited@r1, visited@l1]:xor == 1 then move straight', 'move r1', 'move l1'])
+const XOR_SIDE = def('xor-side', 1, ['max-split = 3', ONLY_UNVISITED, 'if [visited.r1, visited.l1]:xor == 1 then move straight', 'move r1', 'move l1'])
 // Prefer straight once ANY nearby tile ahead is visited → grows along its own frontier.
-const ANY_GROW = def('any-grow', 1, ['max-split = 2', ONLY_UNVISITED, 'if [visited@r1, visited@l1, visited@r2, visited@l2]:any > 0 then move straight', 'move r1', 'move l1'])
+const ANY_GROW = def('any-grow', 1, ['max-split = 2', ONLY_UNVISITED, 'if [visited.r1, visited.l1, visited.r2, visited.l2]:any > 0 then move straight', 'move r1', 'move l1'])
 
 // ============================================================================================
 // GROUP K — search-based (find-tile / find-lowest-tile). The walker JUMPS to a tile located by a search
@@ -243,7 +243,7 @@ const SPIRAL_FILL = def('spiral-fill', 1, ['find-lowest-tile visited == 0', 'mov
 const HIGH_FILL = def('high-fill', 1, ['find-highest-tile visited == 0', 'move f0'])
 // A wanderer that space-fills: step to an adjacent unvisited tile when it can; when boxed in, BFS-search
 // for the nearest unvisited tile (f0) and jump to it — so it never dies until the whole plane is full.
-// Shows off `find-tile`, `exists@f0`, and a found-tile move target together.
+// Shows off `find-tile`, `exists.f0`, and a found-tile move target together.
 const WANDERER = def('wanderer', 2, [
   'max-split = 1',
   'find-tile visited == 0 {',
@@ -251,7 +251,7 @@ const WANDERER = def('wanderer', 2, [
   'move [e0..e11]',
   '}',
   'move nearest-unvisited',
-  'if exists@f0 then move f0',
+  'if exists.f0 then move f0',
 ])
 
 // ============================================================================================
@@ -263,9 +263,9 @@ const WANDERER = def('wanderer', 2, [
 // ============================================================================================
 
 // Wider XOR neighbourhood (the tile behind + its two neighbours) → a woven diamond CA.
-const WAVE = def('wave', 1, ['if ([A@r2] + [A@r2@r1] + [A@r2@l1]) % 2 == 1 then put A = 1', 'move straight'])
+const WAVE = def('wave', 1, ['if ([A.r2] + [A.r2.r1] + [A.r2.l1]) % 2 == 1 then put A = 1', 'move straight'])
 // Pure Rule-90 (XOR of the two cells diagonally behind) → the classic Sierpinski triangle from a line seed.
-const PASCAL = def('pascal', 1, ['if ([A@r2@r1] + [A@r2@l1]) % 2 == 1 then put A = 1', 'move straight'])
+const PASCAL = def('pascal', 1, ['if ([A.r2.r1] + [A.r2.l1]) % 2 == 1 then put A = 1', 'move straight'])
 
 // The full palette (order is stable; the random button weights by `beauty`).
 export const PROTOTYPE_PORTS: ReadonlyArray<PrototypePort> = [

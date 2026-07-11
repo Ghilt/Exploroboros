@@ -50,8 +50,8 @@ describe('find-lowest/highest-tile — walker-free compile check', () => {
     for (const bad of [
       'find-lowest-tile steps > 0',
       'find-highest-tile heading == 0',
-      'find-lowest-tile visited@target == 0',
-      'find-lowest-tile visited@straight == 0',
+      'find-lowest-tile visited.target == 0',
+      'find-lowest-tile visited.straight == 0',
     ]) {
       expect(compileProgram(bad, NAMES).ok).toBe(false)
     }
@@ -60,9 +60,9 @@ describe('find-lowest/highest-tile — walker-free compile check', () => {
   it('accepts a tile-only or absolute-path condition', () => {
     for (const ok of [
       'find-lowest-tile visited == 0',
-      'find-lowest-tile [A@e0] == 0',
+      'find-lowest-tile [A.e0] == 0',
       'find-highest-tile tile-type == wedge',
-      'find-lowest-tile [visited@e0, visited@e1]:any == 0',
+      'find-lowest-tile [visited.e0, visited.e1]:any == 0',
     ]) {
       expect(compileProgram(ok, NAMES).ok).toBe(true)
     }
@@ -85,10 +85,10 @@ describe('find-lowest/highest-tile — execution', () => {
     expect(res.branches[0]?.tile).toBe(high)
   })
 
-  it('exists@f0 distinguishes a found tile from nothing found', () => {
+  it('exists.f0 distinguishes a found tile from nothing found', () => {
     const allVisited = addVisits(new Map<string, TileState>(), tileByIndex, 1)
-    expect(run('find-lowest-tile visited == 0\nif exists@f0 then increase P', 'sq:2,2', allVisited).next.p).toBe(0)
-    expect(run('find-lowest-tile visited == 0\nif exists@f0 then increase P', 'sq:2,2', overlay).next.p).toBe(1)
+    expect(run('find-lowest-tile visited == 0\nif exists.f0 then increase P', 'sq:2,2', allVisited).next.p).toBe(0)
+    expect(run('find-lowest-tile visited == 0\nif exists.f0 then increase P', 'sq:2,2', overlay).next.p).toBe(1)
   })
 
   it('a found tile with no match makes move f0 a no-op (off-grid base)', () => {

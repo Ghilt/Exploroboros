@@ -96,7 +96,7 @@ const NO_SELECTION: ReadonlyArray<string> = []
 // traverser's decision so each draws in a distinct colour. Plain data (no Konva) so the mapper that
 // builds it stays pure + testable. See src/debug/highlights.ts and drawHighlights below.
 //  - current:   the tile the walker is on now
-//  - decorator: the tile a guard's `@ edge`/`@ tile`/`@ target` decoration read (a pointer target)
+//  - decorator: the tile a guard's `. edge`/`. tile`/`. target` decoration read (a pointer target)
 //  - candidate: a destination still under consideration
 //  - chosen:    a destination that survived (a move/split target)
 //  - rejected:  a candidate that was rejected

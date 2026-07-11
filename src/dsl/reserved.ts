@@ -5,7 +5,7 @@
 // would be misread as that grammar element instead of the thing the user named.
 //
 // Drawn from the three parsers — keep in sync when a grammar grows:
-//   predicate DSL   src/dsl/parse.ts (and/or/not/of/tile/default, tile-type, @-path words) + every
+//   predicate DSL   src/dsl/parse.ts (and/or/not/of/tile/default, tile-type, .-path words) + every
 //                   attribute name in src/dsl/attributes.ts
 //   traverser DSL   src/traverse/lang/parse.ts (settings, actions, directive grammar, movement, edges, regs)
 //   initial state   src/initstate/parse.ts (auto-place, line, blob, visited, if)
@@ -16,7 +16,7 @@ import { malformedNameError } from './names'
 const WORDS: ReadonlyArray<string> = [
   // predicate DSL keywords + the shape test
   'and', 'or', 'not', 'of', 'tile', 'default', 'tile-type', 'exists',
-  // @-path / edge words shared by the predicate paths and traverser moves
+  // .-path / edge words shared by the predicate paths and traverser moves
   'straight', 's', 'nearest-unvisited', 'target', 'e', 'r', 'l',
   // traverser DSL — settings
   'max-split', 'heading', 'movement', 'max-steps',

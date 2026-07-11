@@ -23,7 +23,7 @@ function pred(src: string, ctx: EvalContext): boolean {
   return evalPredicate(r.value, ctx)
 }
 
-// A ctx whose @-paths all resolve to `targetId` (or null when it's null) — the traverser layer supplies
+// A ctx whose .-paths all resolve to `targetId` (or null when it's null) — the traverser layer supplies
 // the real, walker-aware resolver; here a stub is enough to prove eval reads the attribute on the
 // resolved tile (and falls back when there's no tile).
 function ctxWithPath(tiling: Tiling, id: string, targetId: string | null, overlay: Overlay = new Map()): EvalContext {
@@ -182,36 +182,36 @@ describe('eval — visited-edges vs visited-neighbors (+ legacy aliases)', () =>
   })
 })
 
-describe('eval — attribute @-paths (via the nodeForPath hook)', () => {
+describe('eval — attribute .-paths (via the nodeForPath hook)', () => {
   it('reads a numeric attribute on the tile the path resolves to', () => {
     let ov: Overlay = new Map()
     ov = addVisit(ov, 'sq:2,2')
     ov = addVisit(ov, 'sq:2,2')
-    // visited@e1 → the stub points at sq:2,2 (2 visits); the current tile sq:0,0 has none
-    expect(num('visited@e1', ctxWithPath(sq, 'sq:0,0', 'sq:2,2', ov))).toBe(2)
+    // visited.e1 → the stub points at sq:2,2 (2 visits); the current tile sq:0,0 has none
+    expect(num('visited.e1', ctxWithPath(sq, 'sq:0,0', 'sq:2,2', ov))).toBe(2)
     expect(num('visited', ctxWithPath(sq, 'sq:0,0', 'sq:2,2', ov))).toBe(0) // no path = current tile
   })
 
   it('reads a registry on the resolved tile', () => {
     const ov = bumpRegistry(new Map(), 'sq:2,2', 'a', 5)
-    expect(num('[A@e1]', ctxWithPath(sq, 'sq:0,0', 'sq:2,2', ov))).toBe(5)
+    expect(num('[A.e1]', ctxWithPath(sq, 'sq:0,0', 'sq:2,2', ov))).toBe(5)
   })
 
   it('falls back to the default when the path resolves to nothing (boundary)', () => {
-    expect(num('visited@e1', ctxWithPath(sq, 'sq:0,0', null))).toBe(0)
-    expect(num('coordinate[0]@e1 default 7', ctxWithPath(sq, 'sq:0,0', null))).toBe(7)
+    expect(num('visited.e1', ctxWithPath(sq, 'sq:0,0', null))).toBe(0)
+    expect(num('coordinate[0].e1 default 7', ctxWithPath(sq, 'sq:0,0', null))).toBe(7)
   })
 
   it('falls back with no resolver (a walker-free / coloring context)', () => {
     // ctxFor supplies no nodeForPath, so any path resolves to nothing.
-    expect(num('visited@e1', ctxFor(sq, 'sq:0,0'))).toBe(0)
+    expect(num('visited.e1', ctxFor(sq, 'sq:0,0'))).toBe(0)
   })
 
   it('tests tile-type on the resolved tile; a missing tile matches nothing', () => {
-    expect(pred('tile-type@e1 == square', ctxWithPath(sq, 'sq:0,0', 'sq:2,2'))).toBe(true)
-    expect(pred('tile-type@e1 == triangle', ctxWithPath(sq, 'sq:0,0', 'sq:2,2'))).toBe(false)
-    expect(pred('tile-type@e1 == square', ctxWithPath(sq, 'sq:0,0', null))).toBe(false) // no tile -> false
-    expect(pred('tile-type@e1 != square', ctxWithPath(sq, 'sq:0,0', null))).toBe(false) // still false
+    expect(pred('tile-type.e1 == square', ctxWithPath(sq, 'sq:0,0', 'sq:2,2'))).toBe(true)
+    expect(pred('tile-type.e1 == triangle', ctxWithPath(sq, 'sq:0,0', 'sq:2,2'))).toBe(false)
+    expect(pred('tile-type.e1 == square', ctxWithPath(sq, 'sq:0,0', null))).toBe(false) // no tile -> false
+    expect(pred('tile-type.e1 != square', ctxWithPath(sq, 'sq:0,0', null))).toBe(false) // still false
   })
 })
 

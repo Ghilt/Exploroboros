@@ -38,7 +38,7 @@ function combineList(reducer: 'all' | 'any' | 'none' | 'xor', bools: ReadonlyArr
   }
 }
 
-// Resolve a leaf's optional `@`-path to the context it should be read against. No path → the current
+// Resolve a leaf's optional `.`-path to the context it should be read against. No path → the current
 // context. When the context supplies no resolver, or the path resolves to nothing (a relative hop in a
 // walker-free context, a boundary, a missing tile) → null; the caller then yields the attribute's
 // default / 0 / a false shape test.
@@ -64,7 +64,7 @@ export function evalNumber(expr: Expr, ctx: EvalContext): number {
       return v ?? expr.fallback ?? 0
     }
     case 'regterm': {
-      // A registry A/B/C as a value (a list element), optionally read across an `@`-path.
+      // A registry A/B/C as a value (a list element), optionally read across an `.`-path.
       const sub = ctxForLeaf(ctx, expr.path)
       if (!sub) return 0
       const spec = attrSpec(`registry-${expr.reg}`)

@@ -70,7 +70,7 @@ describe('tick trace', () => {
 
   it('records a forbid directive blocking a move (the destination is visited)', () => {
     const overlay = addVisits(new Map(), ['sq:2,3'], 0) // east (the straight destination) visited
-    const ss = stmts(state('directive if visited@target > 0 always forbid move\nmove straight', 'sq:2,2', overlay))
+    const ss = stmts(state('directive if visited.target > 0 always forbid move\nmove straight', 'sq:2,2', overlay))
     const move = ss.find((s) => s.kind === 'move')
     expect(move?.kind === 'move' && move.candidates).toHaveLength(1)
     if (move?.kind !== 'move') throw new Error('expected a move statement')
@@ -80,9 +80,9 @@ describe('tick trace', () => {
     expect(c.reject).toEqual({ by: 'directive', index: 0, allow: false, guard: expect.objectContaining({ result: true }) })
   })
 
-  it('records per-candidate @target rejects on a split', () => {
+  it('records per-candidate .target rejects on a split', () => {
     const overlay = addVisits(new Map(), ['sq:2,3', 'sq:3,2'], 0) // east + north visited; south not
-    const ss = stmts(state('max-split = 3\nif visited@target > 0 then move [straight, l1, r1]', 'sq:2,2', overlay))
+    const ss = stmts(state('max-split = 3\nif visited.target > 0 then move [straight, l1, r1]', 'sq:2,2', overlay))
     const move = ss.find((s) => s.kind === 'move')
     if (move?.kind !== 'move') throw new Error('expected a move statement')
     const byDest = Object.fromEntries(move.candidates.map((c) => [c.dest, c]))
@@ -93,23 +93,23 @@ describe('tick trace', () => {
   })
 
   it('a gate-skip reports the guard it failed and the tiles it read (the motivating case)', () => {
-    // `visited@straight` reads the east neighbour (unvisited) — guard false -> whole statement skipped,
-    // the move never attempted. Mirrors `tile-type@e0 == wedge` reading an octagon.
-    const ss = stmts(state('if visited@straight > 0 then move straight'))
+    // `visited.straight` reads the east neighbour (unvisited) — guard false -> whole statement skipped,
+    // the move never attempted. Mirrors `tile-type.e0 == wedge` reading an octagon.
+    const ss = stmts(state('if visited.straight > 0 then move straight'))
     expect(ss).toHaveLength(1)
     const g = ss[0]
     expect(g.kind).toBe('gate-skip')
     if (g.kind !== 'gate-skip') throw new Error('expected gate-skip')
     expect(g.guard.result).toBe(false)
-    // the guard read the straight (east) neighbour via its @-path
-    expect(g.guard.readTiles).toEqual([{ id: 'sq:2,3', role: 'read', tileType: 'square', text: '@straight' }])
+    // the guard read the straight (east) neighbour via its .-path
+    expect(g.guard.readTiles).toEqual([{ id: 'sq:2,3', role: 'read', tileType: 'square', text: '.straight' }])
   })
 
   it('a multi-hop chain records the chain text and the FINAL destination only', () => {
-    const traced = stepTraversersTraced(state('move straight@straight'))
+    const traced = stepTraversersTraced(state('move straight.straight'))
     const move = traced.trace.traversers[0].statements.find((s) => s.kind === 'move')
     if (move?.kind !== 'move') throw new Error('expected a move statement')
-    expect(move.candidates[0].chainText).toBe('straight@straight')
+    expect(move.candidates[0].chainText).toBe('straight.straight')
     expect(move.candidates[0].dest).toBe('sq:2,4') // two east hops
     expect(traced.traversers[0].tile).toBe('sq:2,4')
   })
@@ -121,20 +121,20 @@ describe('tick trace', () => {
     const put = ss[0]
     const inc = ss[1]
     if (put.kind !== 'write' || inc.kind !== 'write') throw new Error('expected writes')
-    // `put A = 5` with no @-path targets the walker's current tile.
+    // `put A = 5` with no .-path targets the walker's current tile.
     expect(put.targets).toEqual([{ text: 'A', id: 'sq:2,2', tileType: 'square', scope: 'tile' }])
     // `increase P` is a walker register — no tile to point at.
     expect(inc.targets).toEqual([{ text: 'P', id: null, tileType: null, scope: 'walker' }])
   })
 
-  it('a multi-target write records each element; an off-grid @-path resolves to no tile', () => {
+  it('a multi-target write records each element; an off-grid .-path resolves to no tile', () => {
     // From an interior tile, five hops in one absolute direction leaves the 5×5 grid, so that element
     // silently writes nothing (id null) — the tell the log surfaces for a stray/typo'd target.
-    const ss = stmts(state('put [A, A@e0@e0@e0@e0@e0] = 1'))
+    const ss = stmts(state('put [A, A.e0.e0.e0.e0.e0] = 1'))
     expect(ss).toHaveLength(1)
     const w = ss[0]
     if (w.kind !== 'write') throw new Error('expected write')
-    expect(w.targets.map((t) => t.text)).toEqual(['A', 'A@e0@e0@e0@e0@e0'])
+    expect(w.targets.map((t) => t.text)).toEqual(['A', 'A.e0.e0.e0.e0.e0'])
     expect(w.targets[0].id).toBe('sq:2,2') // current tile
     expect(w.targets[1].id).toBeNull() // walked off the grid
   })

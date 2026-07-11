@@ -4,7 +4,7 @@
 //    is one token, but `visited - 1` is three — a hyphen before a digit/space is the minus operator).
 //  - Digits and underscores continue an identifier (but can't start one), so custom names like
 //    `Has_A`, `Level_2`, `rule3` lex as a single identifier and can be referenced by name.
-// A path segment like `@e1`/`@r1` therefore lexes as one identifier (`e1`) — parse.ts splits it.
+// A path segment like `.e1`/`.r1` therefore lexes as one identifier (`e1`) — parse.ts splits it.
 
 import type { Result, Span } from './types'
 
@@ -17,7 +17,7 @@ export type TokenKind =
   | 'rbracket'
   | 'comma' // separates elements in a `[A, B]` list
   | 'colon' // : — a list reducer, `[a, b]:sum`
-  | 'at' // @ — starts an attribute's edge-hop path (`visited@e1`)
+  | 'dot' // . — starts an attribute's edge-hop path (`visited.e1`)
   | 'op' // + - * / %
   | 'cmp' // == != < <= > >= (and bare =, normalized to == by the parser)
   | 'eof'
@@ -103,8 +103,11 @@ export function lex(src: string): Result<Token[]> {
       i += 1
       continue
     }
-    if (c === '@') {
-      tokens.push({ kind: 'at', text: c, span: { start, end: i + 1 } })
+    // A lone `.` (the path-hop separator, `visited.e1`). A `.` that begins a number (`.5`) was already
+    // consumed above; the DSL never sees the two-char `..` range (that's traverser-only), so a `.` here
+    // is unambiguously a path separator.
+    if (c === '.') {
+      tokens.push({ kind: 'dot', text: c, span: { start, end: i + 1 } })
       i += 1
       continue
     }

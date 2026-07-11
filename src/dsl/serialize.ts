@@ -27,10 +27,10 @@ function segStr(seg: PathSeg): string {
   }
 }
 
-// An attribute's edge-hop path back to text: `@e1`, `@r1@e5`, `@target`. Empty/absent → ''. Exported
+// An attribute's edge-hop path back to text: `.e1`, `.r1.e5`, `.target`. Empty/absent → ''. Exported
 // so the traverse trace + the visual editor can label a path without re-implementing this.
 export function serializePath(path: TilePath | undefined): string {
-  return path && path.length ? path.map((s) => `@${segStr(s)}`).join('') : ''
+  return path && path.length ? path.map((s) => `.${segStr(s)}`).join('') : ''
 }
 const pathStr = serializePath
 

@@ -12,32 +12,32 @@ describe('traverser program serialization', () => {
   it('round-trips canonically (serialize ∘ parse is stable)', () => {
     const samples = [
       'move straight',
-      'max-split = 2\nif visited@r1 == 1 then move l1\nincrease P',
+      'max-split = 2\nif visited.r1 == 1 then move l1\nincrease P',
       'move [r1, l1]',
-      'move straight@r2@e3',
+      'move straight.r2.e3',
       'put [A] = visited + 1',
-      'put [B@e1] = 1',
-      'if [C] == 0 then put [B@e1] = 1',
-      'increase [C@r1@e5] by 2',
+      'put [B.e1] = 1',
+      'if [C] == 0 then put [B.e1] = 1',
+      'increase [C.r1.e5] by 2',
       'increase Q by 2',
       'morph spinner straight',
-      'movement = absolute\ndirective if visited@target > 0 always forbid move\nreset directives\nmove nearest-unvisited',
-      'directive if visited@target == 0 always allow move',
-      'if visited@target > 0 then move [r1, l1, straight]',
+      'movement = absolute\ndirective if visited.target > 0 always forbid move\nreset directives\nmove nearest-unvisited',
+      'directive if visited.target == 0 always allow move',
+      'if visited.target > 0 then move [r1, l1, straight]',
       'update heading 90',
-      'if visited@e0@e0@e3 > 0 then move e1',
-      'if [A@r1@e5] == 2 then move e1',
-      'if tile-type@target == wedge then move straight',
-      // new: @-chains, bare registries, if-blocks, find-tile + fN
-      'move e0@e4',
+      'if visited.e0.e0.e3 > 0 then move e1',
+      'if [A.r1.e5] == 2 then move e1',
+      'if tile-type.target == wedge then move straight',
+      // new: .-chains, bare registries, if-blocks, find-tile + fN
+      'move e0.e4',
       'put A = A + 1',
       'increase A by 2',
       'if visited > 0 {\n  put A = 1\n  move straight\n}',
       'find-tile A == 5 {\n  move nearest-unvisited\n}\nmove f0',
       'if visited == 2 then move find-tile A == 5 {\n  move straight\n}',
-      'find-tile A == 5 { move straight }\nmove [f0@e0, f0@straight]',
-      'find-tile A == 5 { move straight }\nif exists@f0 then move f0',
-      'if exists@e0 then move e0',
+      'find-tile A == 5 { move straight }\nmove [f0.e0, f0.straight]',
+      'find-tile A == 5 { move straight }\nif exists.f0 then move f0',
+      'if exists.e0 then move e0',
       // else / else-if, and a find-tile with a non-default max-split
       'if visited > 0 {\n  move straight\n} else {\n  move r1\n}',
       'if A == 1 {\n  move e0\n} else if A == 2 {\n  move e1\n} else {\n  move e2\n}',
@@ -65,9 +65,9 @@ describe('traverser program serialization', () => {
     )
   })
 
-  it('serializes bare registry writes and @-chains canonically', () => {
+  it('serializes bare registry writes and .-chains canonically', () => {
     expect(roundTrip('put [A] = 1')).toBe('put A = 1') // a bracketed single registry canonicalises to bare
-    expect(roundTrip('move e0@e4')).toBe('move e0@e4')
+    expect(roundTrip('move e0.e4')).toBe('move e0.e4')
   })
 
   it('omits default settings and drops "by 1" on increase', () => {
@@ -79,8 +79,8 @@ describe('traverser program serialization', () => {
   })
 
   it('serializes a directive predicate-first with the always/move tail', () => {
-    expect(roundTrip('directive if visited@target > 0 always forbid move')).toBe(
-      'directive if visited@target > 0 always forbid move',
+    expect(roundTrip('directive if visited.target > 0 always forbid move')).toBe(
+      'directive if visited.target > 0 always forbid move',
     )
   })
 })

@@ -90,18 +90,18 @@ describe('traverser program execution', () => {
     expect(run('move [r1..r3]').branches).toHaveLength(1) // default max-split = 1 keeps only the first
   })
 
-  it('writes a tile registry on a NEIGHBOUR via an @-path (put [B@straight])', () => {
-    // facing east: @straight = the east tile (sq:2,3), @l1 = north (sq:3,2).
-    const res = run('put [B@straight] = 7\nincrease [C@l1]')
+  it('writes a tile registry on a NEIGHBOUR via a .-path (put [B.straight])', () => {
+    // facing east: .straight = the east tile (sq:2,3), .l1 = north (sq:3,2).
+    const res = run('put [B.straight] = 7\nincrease [C.l1]')
     expect(res.tileWrites).toEqual([
       { tile: 'sq:2,3', reg: 'b', op: 'set', value: 7 },
       { tile: 'sq:3,2', reg: 'c', op: 'add', value: 1 },
     ])
   })
 
-  it('a write whose @-path runs off the grid is a no-op', () => {
-    // sq:2,4 is the east boundary column; facing east, @straight points off-grid -> no write.
-    const res = run('put [A@straight] = 1', 'sq:2,4')
+  it('a write whose .-path runs off the grid is a no-op', () => {
+    // sq:2,4 is the east boundary column; facing east, .straight points off-grid -> no write.
+    const res = run('put [A.straight] = 1', 'sq:2,4')
     expect(res.tileWrites).toEqual([])
   })
 
@@ -111,16 +111,16 @@ describe('traverser program execution', () => {
     expect(run('if visited > 0 then move straight').branches).toHaveLength(0)
   })
 
-  it('reads an @-path guard against the tile across an edge', () => {
-    // mark the east (straight) tile visited; "visited@straight > 0" should then fire
+  it('reads a .-path guard against the tile across an edge', () => {
+    // mark the east (straight) tile visited; "visited.straight > 0" should then fire
     const overlay = addVisits(new Map(), ['sq:2,3'], 0)
-    expect(run('if visited@straight > 0 then move l1', 'sq:2,2', overlay).branches[0]?.tile).toBe('sq:3,2')
-    expect(run('if visited@straight > 0 then move l1').branches).toHaveLength(0)
+    expect(run('if visited.straight > 0 then move l1', 'sq:2,2', overlay).branches[0]?.tile).toBe('sq:3,2')
+    expect(run('if visited.straight > 0 then move l1').branches).toHaveLength(0)
   })
 
-  it('honours a forbid directive on the destination (@target) over following moves', () => {
+  it('honours a forbid directive on the destination (.target) over following moves', () => {
     const overlay = addVisits(new Map(), ['sq:2,3'], 0)
-    const src = 'directive if visited@target > 0 always forbid move\nmove straight'
+    const src = 'directive if visited.target > 0 always forbid move\nmove straight'
     expect(run(src, 'sq:2,2', overlay).branches).toHaveLength(0) // east (destination) visited -> forbidden
     expect(run(src).branches).toHaveLength(1) // east unvisited -> allowed
   })
@@ -133,17 +133,17 @@ describe('traverser program execution', () => {
     expect(run(src).branches).toHaveLength(1) // current tile unvisited -> move allowed regardless of the destination
   })
 
-  it('a @target rule guard filters each candidate of the move', () => {
+  it('a .target rule guard filters each candidate of the move', () => {
     // facing east: straight = east (sq:2,3), l1 = north (sq:3,2), r1 = south (sq:1,2).
     const overlay = addVisits(new Map(), ['sq:2,3', 'sq:3,2'], 0)
-    const res = run('max-split = 3\nif visited@target > 0 then move [straight, l1, r1]', 'sq:2,2', overlay)
+    const res = run('max-split = 3\nif visited.target > 0 then move [straight, l1, r1]', 'sq:2,2', overlay)
     // straight + l1 land on visited tiles (kept); r1 (south, sq:1,2) is unvisited (dropped).
     expect(res.branches.map((b) => b.tile).sort()).toEqual(['sq:2,3', 'sq:3,2'])
   })
 
   it('forbid wins when an allow and a forbid directive both match the destination', () => {
     const overlay = addVisits(new Map(), ['sq:2,3'], 0)
-    const src = 'directive if visited@target > 0 always allow move\ndirective if visited@target > 0 always forbid move\nmove straight'
+    const src = 'directive if visited.target > 0 always allow move\ndirective if visited.target > 0 always forbid move\nmove straight'
     expect(run(src, 'sq:2,2', overlay).branches).toHaveLength(0)
   })
 
@@ -151,21 +151,21 @@ describe('traverser program execution', () => {
     // The allow guard matches only octagon->wedge, which never holds on a square tiling. It has no
     // gate/forbid to override, so it must be a no-op — every unguarded move still fires. (Old buggy
     // semantics rejected all three because the allow guard was false.)
-    const src = 'max-split = 4\ndirective if tile-type == octagon and tile-type@target == wedge always allow move\nmove [l1, r1, straight]'
+    const src = 'max-split = 4\ndirective if tile-type == octagon and tile-type.target == wedge always allow move\nmove [l1, r1, straight]'
     expect(run(src).branches.map((b) => b.tile).sort()).toEqual(['sq:1,2', 'sq:2,3', 'sq:3,2'])
   })
 
-  it('an allow directive overrides a false @target move guard (directives overpower own guards)', () => {
-    // Own guard (visited@target > 0) is false for the unvisited east tile, but the allow directive
+  it('an allow directive overrides a false .target move guard (directives overpower own guards)', () => {
+    // Own guard (visited.target > 0) is false for the unvisited east tile, but the allow directive
     // matches (east is a square) and forces the move through.
-    const src = 'directive if tile-type@target == square always allow move\nif visited@target > 0 then move straight'
+    const src = 'directive if tile-type.target == square always allow move\nif visited.target > 0 then move straight'
     expect(run(src).branches.map((b) => b.tile)).toEqual(['sq:2,3'])
   })
 
   it('an allow directive overrides a false current-tile move guard too', () => {
-    // Non-@target guard (visited > 0) is false on the unvisited current tile — it would normally skip the
+    // Non-.target guard (visited > 0) is false on the unvisited current tile — it would normally skip the
     // whole rule up front, but an active allow must still be able to resurrect the move.
-    const src = 'directive if tile-type@target == square always allow move\nif visited > 0 then move straight'
+    const src = 'directive if tile-type.target == square always allow move\nif visited > 0 then move straight'
     expect(run(src).branches.map((b) => b.tile)).toEqual(['sq:2,3'])
   })
 
@@ -182,20 +182,20 @@ describe('traverser program execution', () => {
     expect(res.next.p).toBe(1)
   })
 
-  it('resolves a multi-hop @-path (two straights read the tile two east)', () => {
+  it('resolves a multi-hop .-path (two straights read the tile two east)', () => {
     const overlay = addVisits(new Map(), ['sq:2,4'], 0) // two east of sq:2,2
-    expect(run('if visited@straight@straight > 0 then move l1', 'sq:2,2', overlay).branches[0]?.tile).toBe('sq:3,2')
-    expect(run('if visited@straight@straight > 0 then move l1').branches).toHaveLength(0)
+    expect(run('if visited.straight.straight > 0 then move l1', 'sq:2,2', overlay).branches[0]?.tile).toBe('sq:3,2')
+    expect(run('if visited.straight.straight > 0 then move l1').branches).toHaveLength(0)
   })
 
   it('evaluates each attribute against its OWN path (per-leaf redirection)', () => {
-    // facing east: @straight = east (sq:2,3), @l1 = north (sq:3,2), r1 move = south (sq:1,2).
+    // facing east: .straight = east (sq:2,3), .l1 = north (sq:3,2), r1 move = south (sq:1,2).
     const eastOnly = addVisits(new Map(), ['sq:2,3'], 0)
     // east visited AND north unvisited -> fire, stepping south
-    expect(run('if visited@straight > 0 and visited@l1 == 0 then move r1', 'sq:2,2', eastOnly).branches[0]?.tile).toBe('sq:1,2')
+    expect(run('if visited.straight > 0 and visited.l1 == 0 then move r1', 'sq:2,2', eastOnly).branches[0]?.tile).toBe('sq:1,2')
     // if north is ALSO visited the second leaf fails -> no move
     const both = addVisits(eastOnly, ['sq:3,2'], 0)
-    expect(run('if visited@straight > 0 and visited@l1 == 0 then move r1', 'sq:2,2', both).branches).toHaveLength(0)
+    expect(run('if visited.straight > 0 and visited.l1 == 0 then move r1', 'sq:2,2', both).branches).toHaveLength(0)
   })
 
   it('reads and writes a BARE tile registry (put A / if A)', () => {
@@ -253,9 +253,9 @@ describe('traverser program execution', () => {
     expect(res.branches[0]?.tile).toBe('sq:2,4')
   })
 
-  it('a found tile can start a chain (move f0@e0)', () => {
+  it('a found tile can start a chain (move f0.e0)', () => {
     // f0 = sq:2,4; then e0 (north) -> sq:3,4.
-    const res = run('find-tile A == 5 {\n  max-split = 4\n  move [e0, e1, e2, e3]\n}\nmove f0@e0', 'sq:2,2', withA5at('sq:2,4'))
+    const res = run('find-tile A == 5 {\n  max-split = 4\n  move [e0, e1, e2, e3]\n}\nmove f0.e0', 'sq:2,2', withA5at('sq:2,4'))
     expect(res.branches[0]?.tile).toBe('sq:3,4')
   })
 
@@ -274,27 +274,27 @@ describe('traverser program execution', () => {
     expect(wide.branches[0]?.tile).toBe('sq:2,4')
   })
 
-  it('exists@f0 distinguishes "not found" from "found but zero" — a plain read cannot', () => {
+  it('exists.f0 distinguishes "not found" from "found but zero" — a plain read cannot', () => {
     const searchSrc = 'find-tile A == 5 {\n  max-split = 4\n  move [e0, e1, e2, e3]\n}\n'
     // Found (sq:2,4 has A=5, and its `visited` is legitimately 0) — exists is true.
-    const found = run(`${searchSrc}if exists@f0 then increase P`, 'sq:2,2', withA5at('sq:2,4'))
+    const found = run(`${searchSrc}if exists.f0 then increase P`, 'sq:2,2', withA5at('sq:2,4'))
     expect(found.next.p).toBe(1)
-    expect(run(`${searchSrc}if visited@f0 == 0 then increase Q`, 'sq:2,2', withA5at('sq:2,4')).next.q).toBe(1) // ALSO 0 — ambiguous on its own
+    expect(run(`${searchSrc}if visited.f0 == 0 then increase Q`, 'sq:2,2', withA5at('sq:2,4')).next.q).toBe(1) // ALSO 0 — ambiguous on its own
     // Not found — exists is false, even though the plain read ALSO comes back 0 (the ambiguity this fixes).
-    const missing = run(`${searchSrc}if exists@f0 then increase P`, 'sq:2,2', new Map())
+    const missing = run(`${searchSrc}if exists.f0 then increase P`, 'sq:2,2', new Map())
     expect(missing.next.p).toBe(0)
-    expect(run(`${searchSrc}if visited@f0 == 0 then increase Q`, 'sq:2,2', new Map()).next.q).toBe(1) // same reading as "found, 0 visits"
+    expect(run(`${searchSrc}if visited.f0 == 0 then increase Q`, 'sq:2,2', new Map()).next.q).toBe(1) // same reading as "found, 0 visits"
   })
 
-  it('exists@e0 tests a plain boundary (no find-tile involved)', () => {
-    expect(run('if exists@e0 then increase P', 'sq:2,2').next.p).toBe(1) // has a north neighbour
+  it('exists.e0 tests a plain boundary (no find-tile involved)', () => {
+    expect(run('if exists.e0 then increase P', 'sq:2,2').next.p).toBe(1) // has a north neighbour
     // r grows north on a 5x5 grid (rows 0..4) -> row 4 is the north edge, no edge-0 neighbour there
     // (sq:0,0 having no SOUTH neighbour, per the resolveAbsolutePath test below, confirms this framing).
-    expect(run('if exists@e0 then increase P', 'sq:4,2').next.p).toBe(0)
+    expect(run('if exists.e0 then increase P', 'sq:4,2').next.p).toBe(0)
   })
 })
 
-describe('resolveAbsolutePath — walker-free @-paths (the coloring context)', () => {
+describe('resolveAbsolutePath — walker-free .-paths (the coloring context)', () => {
   const empty = new Map<string, TileState>()
   const idOf = (path: TilePath, start = 'sq:2,2') => resolveAbsolutePath(tiling, empty, start, path)?.id ?? null
 
@@ -309,7 +309,7 @@ describe('resolveAbsolutePath — walker-free @-paths (the coloring context)', (
     expect(idOf([{ kind: 'edge', index: 0 }, { kind: 'edge', index: 0 }])).toBe('sq:4,2')
   })
 
-  it('resolves a terminal @tile N to the tile with that absolute number', () => {
+  it('resolves a terminal .tile N to the tile with that absolute number', () => {
     expect(idOf([{ kind: 'tile', index: 7 }])).toBe(tiling.nodes[7].id)
   })
 

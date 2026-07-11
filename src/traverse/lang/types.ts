@@ -2,8 +2,8 @@
 // src/tiling. A traverser DEFINITION is a header of settings + an ordered list of rules/directives,
 // evaluated top-to-bottom each tick. Numeric formulas and boolean guards reuse src/dsl's `Expr`/`Pred`
 // (parsed by delegating their substrings to src/dsl); this layer adds the statement grammar and the edge
-// shorthands. A predicate/expression reads a NEIGHBOUR tile via an attribute's own `@`-path (src/dsl) —
-// `visited@e1`, `visited@target` — not a guard-level decoration.
+// shorthands. A predicate/expression reads a NEIGHBOUR tile via an attribute's own `.`-path (src/dsl) —
+// `visited.e1`, `visited.target` — not a guard-level decoration.
 
 import type { Expr, Pred, RegLetter, TilePath } from '../../dsl'
 
@@ -22,11 +22,11 @@ export type EdgeRef =
 
 // A move chain may start from a base tile OTHER than the walker's current one:
 //  - found N: a tile a `find-tile` search located this tick — `move f0`, or with a trailing chain
-//    `move f1@e0`.
+//    `move f1.e0`.
 //  - find: an INLINE `find-tile <pred> { … }` run right here; its result is the base (and is stored as
 //    this find-tile's `fN` for later reference too).
 // No base = the walker's current tile (the common case). `fN` can only ever be a base, never a later hop
-// (`move e0@f1` is rejected at parse time — an edge ref can't be `fN`).
+// (`move e0.f1` is rejected at parse time — an edge ref can't be `fN`).
 export type ChainBase = { kind: 'found'; index: number } | { kind: 'find'; find: FindTile }
 // A chain hops several edges in ONE tick (re-aiming along each) from its base tile; only the final tile
 // is visited. `refs` may be empty when a base names the destination directly (`move f0`).
@@ -35,7 +35,7 @@ export type Chain = { base?: ChainBase; refs: ReadonlyArray<EdgeRef> }
 export type EdgeTarget = ReadonlyArray<Chain> // length 1 = single move; >1 = split
 
 // A guard predicate: written inline, or a reference to a saved predicate by name (resolved to inline at
-// compile). Which tile each attribute reads is carried by the attribute's own `@`-path (src/dsl), not a
+// compile). Which tile each attribute reads is carried by the attribute's own `.`-path (src/dsl), not a
 // guard-level decoration. A path that hits a boundary / missing tile makes that attribute default / the
 // shape test false.
 export type GuardPred = { kind: 'inline'; pred: Pred } | { kind: 'named'; name: string }
@@ -47,17 +47,17 @@ export type Guard = { pred: GuardPred }
 // default the search follows a single path; raise it, e.g. with a `max-split = 4` line in the block, to
 // fan out). The first tile AT LEAST ONE hop away whose `pred` holds is returned (nearest-first, BFS
 // order) — exactly one tile, or none if the search exhausts. Every find-tile in a program gets a
-// source-position `index`, exposed as `fN` (`move f0`, `tile-type@f1`, …). Body moves may be guarded but
+// source-position `index`, exposed as `fN` (`move f0`, `tile-type.f1`, …). Body moves may be guarded but
 // carry no base (each hops from the frontier tile it's expanding).
 export type FindMove = { guard?: Guard; target: EdgeTarget }
 export type FindTile = { index: number; pred: Guard; maxSplit: number; body: ReadonlyArray<FindMove> }
 
-// A numeric value in a put/increase. Attributes inside carry their own `@`-path if they read another tile.
+// A numeric value in a put/increase. Attributes inside carry their own `.`-path if they read another tile.
 export type DExpr = { expr: Expr }
 
 // Where a put/increase writes, mirroring how each registry is READ in a formula:
-//  - tile-reg: a per-tile registry A/B/C, written in brackets `[A]`, with an optional `@`-path so a
-//    walker can write a NEIGHBOUR's registry (`[B@e1]` = the tile across edge 1). Shared with drag-paint.
+//  - tile-reg: a per-tile registry A/B/C, written in brackets `[A]`, with an optional `.`-path so a
+//    walker can write a NEIGHBOUR's registry (`[B.e1]` = the tile across edge 1). Shared with drag-paint.
 //    Several at once with `[A, B]` (each gets the same value).
 //  - walker-reg: the traverser's own P/Q/R — bare, no path (walker state isn't per-tile).
 // An off-grid path makes the write a no-op (see exec.ts), the same way an off-grid read defaults.
@@ -78,8 +78,8 @@ export type Rule = { kind: 'rule'; guard?: Guard; action: Action }
 // A directive gates ALL following move/morph actions. Per candidate destination (order: forbid > allow >
 // the move's own guard): a matching `forbid` blocks it; else a matching `allow` permits it, OVERRIDING
 // the move's own guard; else the move's own guard decides; else it's allowed. So an `allow` with nothing
-// to override is a no-op. Like any guard the predicate reads the CURRENT tile by default; use `@target`
-// on an attribute (e.g. `visited@target`) to test the destination instead. `reset` clears the active
+// to override is a no-op. Like any guard the predicate reads the CURRENT tile by default; use `.target`
+// on an attribute (e.g. `visited.target`) to test the destination instead. `reset` clears the active
 // directives. Grammar: `directive if <guard> always forbid|allow move`.
 export type Directive = { kind: 'directive'; allow: boolean; guard: Guard }
 export type Reset = { kind: 'reset' }
@@ -93,10 +93,10 @@ export type FindStmt = { kind: 'find-tile'; find: FindTile }
 // find-tile's BFS) returning the LOWEST- (or HIGHEST-) NUMBERED tile whose `pred` holds, per the board
 // numbering scheme in force (src/tiling/numbering — normal = generation order, spiral = out from the
 // centre). So the numbering choice IS the search order: spiral + find-lowest = the nearest-centre match.
-// The predicate is WALKER-FREE — tile attributes + absolute `@`-paths only (enforced at compile) — so the
+// The predicate is WALKER-FREE — tile attributes + absolute `.`-paths only (enforced at compile) — so the
 // answer is a pure function of (tile, overlay); the engine caches it and advances a per-query bookmark
 // instead of rescanning every tick (see findLowest.ts). Shares find-tile's source-position `fN` numbering;
-// the result is stored + referenced as `fN` identically (`f0`, `f0@e2`, `exists@f0`).
+// the result is stored + referenced as `fN` identically (`f0`, `f0.e2`, `exists.f0`).
 export type FindDir = 'low' | 'high'
 export type FindExtreme = { index: number; dir: FindDir; pred: Guard }
 export type FindExtremeStmt = { kind: 'find-extreme'; find: FindExtreme }

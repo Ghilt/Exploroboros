@@ -27,7 +27,7 @@ export function walkerGroups(w: TraverserTrace): HighlightGroups {
 // Hovering one statement row.
 export function statementGroups(w: TraverserTrace, s: StmtTrace): HighlightGroups {
   if (s.kind === 'gate-skip') {
-    // The motivating case: show the current tile + every tile the guard's @-paths read.
+    // The motivating case: show the current tile + every tile the guard's .-paths read.
     return build([
       { role: 'current', ids: [w.tile] },
       { role: 'decorator', ids: s.guard.readTiles.map((r) => r.id) },
@@ -57,7 +57,7 @@ export function statementGroups(w: TraverserTrace, s: StmtTrace): HighlightGroup
   }
   if (s.kind === 'write') {
     // Light up every tile this put/increase wrote to — so a multi-target list shows its whole spread,
-    // and a target that resolved off-grid (a typo'd/stray `@`-path) simply doesn't light up.
+    // and a target that resolved off-grid (a typo'd/stray `.`-path) simply doesn't light up.
     return build([
       { role: 'current', ids: [w.tile] },
       { role: 'write', ids: s.targets.map((t) => t.id) },
@@ -67,7 +67,7 @@ export function statementGroups(w: TraverserTrace, s: StmtTrace): HighlightGroup
   return build([{ role: 'current', ids: [w.tile] }])
 }
 
-// Hovering ONE target of a write (`B@f1@e3@e3@e2`): pin the focus on just that tile so you can pick a
+// Hovering ONE target of a write (`B.f1.e3.e3.e2`): pin the focus on just that tile so you can pick a
 // single element out of a long `put […]` list. A walker register / off-grid target lights nothing.
 export function writeTargetGroups(w: TraverserTrace, t: WriteTargetTrace): HighlightGroups {
   return build([
@@ -85,8 +85,8 @@ export function candidateGroups(w: TraverserTrace, c: CandidateTrace): Highlight
   ])
 }
 
-// The tiles a candidate's reject guard READ via `@`-paths, other than the candidate's own destination
-// (a `@target` read IS the dest — already shown as chosen/rejected, so there's nothing extra to mark).
+// The tiles a candidate's reject guard READ via `.`-paths, other than the candidate's own destination
+// (a `.target` read IS the dest — already shown as chosen/rejected, so there's nothing extra to mark).
 function decoratorTiles(c: CandidateTrace): Array<string | null> {
   const g = guardOf(c)
   if (!g) return []

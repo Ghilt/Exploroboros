@@ -7,9 +7,9 @@
 
 import type { Movement } from './lang'
 
-// One tile an attribute in a guard read via its `@`-path — the heart of "why didn't it move onto the
-// wedge". `role` is `target` for the move destination (`@target`) or `read` for a fixed edge/tile path;
-// `id` is null when the path hit a boundary / missing tile. `text` is the path label (`@e1`, `@target`).
+// One tile an attribute in a guard read via its `.`-path — the heart of "why didn't it move onto the
+// wedge". `role` is `target` for the move destination (`.target`) or `read` for a fixed edge/tile path;
+// `id` is null when the path hit a boundary / missing tile. `text` is the path label (`.e1`, `.target`).
 export type ReadTile = {
   id: string | null
   role: 'read' | 'target'
@@ -17,7 +17,7 @@ export type ReadTile = {
   text: string
 }
 
-// One predicate evaluation: the guard text, every NEIGHBOUR tile its attributes read via an `@`-path
+// One predicate evaluation: the guard text, every NEIGHBOUR tile its attributes read via an `.`-path
 // (path-less attributes read the walker's current tile, not listed here), and the boolean result.
 // `readTiles` lets the UI highlight each tile the guard peeked at. `reason` distinguishes a false from
 // an unresolved named predicate from a real comparison that came out false.
@@ -47,8 +47,8 @@ export type CandidateTrace = {
 }
 
 // One resolved target of a `put`/`increase` — the element the walker actually wrote (or tried to).
-// `text` is the per-element label (`B@f1@e3@e3@e2`, `C@f0`, `P`); `id` is the tile it landed on, or
-// null for a walker register (P/Q/R — not a tile) or an `@`-path that went off-grid (a silent no-op —
+// `text` is the per-element label (`B.f1.e3.e3.e2`, `C.f0`, `P`); `id` is the tile it landed on, or
+// null for a walker register (P/Q/R — not a tile) or an `.`-path that went off-grid (a silent no-op —
 // the very thing that makes a stray/typo'd target hard to spot). `scope` tells those two apart. Lets
 // the log show, and the canvas highlight, exactly which tile each element of a multi-target list hit.
 export type WriteTargetTrace = {

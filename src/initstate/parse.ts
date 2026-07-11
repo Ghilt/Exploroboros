@@ -2,7 +2,7 @@
 //   auto-place line {what, angle, percent, param} [if <predicate>]
 //   auto-place blob {what, x, y, radius, param} [if <predicate>]
 // Reuses the traverser DSL's generic statement tokenizer (lexProgram — it already handles
-// `{ } [ ] , @ words numbers` and lumps predicate operators into `sym`) and delegates the `if`
+// `{ } [ ] , . words numbers` and lumps predicate operators into `sym`) and delegates the `if`
 // predicate whole to src/dsl. Errors come back as a Result with a message + span, never thrown across
 // the boundary.
 

@@ -166,7 +166,7 @@ move straight                  # a bare action — always runs`}</pre>
         <h3>Tile attributes you can read</h3>
         <p>
           Use any of these in a predicate or a formula. They report on the tile being asked about — the one
-          you're on, or a neighbour if you add <code>@ &lt;edge&gt;</code> (see <a href="#predicates">Predicates</a>).
+          you're on, or a neighbour if you add <code>.&lt;edge&gt;</code> (see <a href="#predicates">Predicates</a>).
         </p>
 
         <p className="guide-subhead"><strong>Visit state</strong></p>
@@ -268,9 +268,9 @@ move straight                  # a bare action — always runs`}</pre>
             by <code>max-split</code>).
           </li>
           <li>
-            <strong>Chain</strong> — <code>a@b@…</code> hops several edges in a single tick; only the{' '}
-            <em>final</em> tile is visited (the ones passed through are not). It's the same <code>@</code>{' '}
-            that reads a neighbour in a predicate, so <code>move e0@e4</code> reads "cross edge 0, then
+            <strong>Chain</strong> — <code>a.b.…</code> hops several edges in a single tick; only the{' '}
+            <em>final</em> tile is visited (the ones passed through are not). It's the same <code>.</code>{' '}
+            that reads a neighbour in a predicate, so <code>move e0.e4</code> reads "cross edge 0, then
             edge 4 from there".
           </li>
           <li>
@@ -294,8 +294,8 @@ move straight                  # a bare action — always runs`}</pre>
             <tr><td><code>move nearest-unvisited</code></td><td>Step to the closest unvisited neighbour — the built-in Walker.</td></tr>
             <tr><td><code>move [straight, r1, l1]</code></td><td>Split: branch forward, right and left at once.</td></tr>
             <tr><td><code>move [r1..r4]</code></td><td>Split over a range of turns — the same as <code>[r1, r2, r3, r4]</code>.</td></tr>
-            <tr><td><code>move straight@r1</code></td><td>Chain two edges in one tick with <code>@</code>; only the final tile is visited.</td></tr>
-            <tr><td><code>if visited@target == 0 then move [r1, l1, straight]</code></td><td>A <a href="#predicates">predicate</a> gates the move: split three ways, but keep only the branches landing on an <em>unvisited</em> tile (<code>@target</code> on the attribute tests each destination).</td></tr>
+            <tr><td><code>move straight.r1</code></td><td>Chain two edges in one tick with <code>.</code>; only the final tile is visited.</td></tr>
+            <tr><td><code>if visited.target == 0 then move [r1, l1, straight]</code></td><td>A <a href="#predicates">predicate</a> gates the move: split three ways, but keep only the branches landing on an <em>unvisited</em> tile (<code>.target</code> on the attribute tests each destination).</td></tr>
           </tbody>
         </table>
         <p className="guide-note">
@@ -335,9 +335,9 @@ move straight                  # a bare action — always runs`}</pre>
           name that (directly or through another predicate) refers back to itself, is a compile error.
         </p>
         <p>
-          Each attribute reads the tile you're <strong>on</strong> by default. Add an <strong>@-path</strong>{' '}
-          right after the attribute to read it on <em>another</em> tile — <code>visited@e1</code>,{' '}
-          <code>tile-type@target</code>, <code>[A@r1]</code>. Different attributes in one predicate can point
+          Each attribute reads the tile you're <strong>on</strong> by default. Add a <strong><code>.</code>-path</strong>{' '}
+          right after the attribute to read it on <em>another</em> tile — <code>visited.e1</code>,{' '}
+          <code>tile-type.target</code>, <code>[A.r1]</code>. Different attributes in one predicate can point
           at different tiles.
         </p>
         <table className="guide-table">
@@ -345,19 +345,19 @@ move straight                  # a bare action — always runs`}</pre>
             <tr><th>Path</th><th>Reads the attribute on…</th></tr>
           </thead>
           <tbody>
-            <tr><td><code>@e0</code>, <code>@r1</code>, <code>@straight</code>…</td><td>The neighbour across that edge — any <a href="#moving">edge name</a> (<code>eN</code>, <code>r</code>/<code>l</code>, <code>straight</code>, <code>nearest-unvisited</code>).</td></tr>
-            <tr><td><code>@e0@e0@e3</code>, <code>@r1@e5</code></td><td>Follow several edges in turn (re-aiming at each) and read the tile you land on.</td></tr>
-            <tr><td><code>@target</code></td><td>The tile a move is <strong>heading to</strong>. Dynamic: with a split it's tested <em>per branch</em>, so it filters which branches survive. This is how a <a href="#directives">directive</a> gates moves.</td></tr>
-            <tr><td><code>@tile N</code></td><td>The tile with absolute number <code>N</code>.</td></tr>
+            <tr><td><code>.e0</code>, <code>.r1</code>, <code>.straight</code>…</td><td>The neighbour across that edge — any <a href="#moving">edge name</a> (<code>eN</code>, <code>r</code>/<code>l</code>, <code>straight</code>, <code>nearest-unvisited</code>).</td></tr>
+            <tr><td><code>.e0.e0.e3</code>, <code>.r1.e5</code></td><td>Follow several edges in turn (re-aiming at each) and read the tile you land on.</td></tr>
+            <tr><td><code>.target</code></td><td>The tile a move is <strong>heading to</strong>. Dynamic: with a split it's tested <em>per branch</em>, so it filters which branches survive. This is how a <a href="#directives">directive</a> gates moves.</td></tr>
+            <tr><td><code>.tile N</code></td><td>The tile with absolute number <code>N</code>.</td></tr>
           </tbody>
         </table>
         <p className="guide-note">
-          <code>@target</code> and <code>@tile N</code> name a tile directly, so nothing can follow them; edge
-          hops (<code>@e0</code>, <code>@r1</code>…) chain freely.
+          <code>.target</code> and <code>.tile N</code> name a tile directly, so nothing can follow them; edge
+          hops (<code>.e0</code>, <code>.r1</code>…) chain freely.
         </p>
         <DecorationDiagram />
-        <pre className="guide-code">{`if visited@r1 > 0 then move l1                          # if the tile to my right is visited, turn left
-if visited@target == 0 then move [r1, l1, straight]    # split, but only onto unvisited tiles`}</pre>
+        <pre className="guide-code">{`if visited.r1 > 0 then move l1                          # if the tile to my right is visited, turn left
+if visited.target == 0 then move [r1, l1, straight]    # split, but only onto unvisited tiles`}</pre>
       </section>
 
       <section className="guide-section" id="lists">
@@ -370,7 +370,7 @@ if visited@target == 0 then move [r1, l1, straight]    # split, but only onto un
           <li>
             In an <strong>input position</strong> — a condition, or the right of a <code>put … =</code> — a list
             is an <strong>output list</strong>: its items are <em>values</em>, boiled down to one answer by a{' '}
-            <strong>reducer</strong>. <code>[A, B]</code>, <code>[visited@e1, A@e3]:avg</code>.
+            <strong>reducer</strong>. <code>[A, B]</code>, <code>[visited.e1, A.e3]:avg</code>.
           </li>
           <li>
             In an <strong>output position</strong> — a <code>move [...]</code>, or the left of a{' '}
@@ -400,9 +400,9 @@ if visited@target == 0 then move [r1, l1, straight]    # split, but only onto un
           <code>[…]:any == 1</code>. A list is all one kind: all numbers, or all <code>tile-type</code> (compared to
           a shape) — you can't mix them, and directions (<code>r1</code>, <code>e2</code>…) aren't values.
         </p>
-        <pre className="guide-code">{`if [visited@e1, visited@e2, visited@e3]:sum == 1 then move straight   # exactly one of three neighbours visited
+        <pre className="guide-code">{`if [visited.e1, visited.e2, visited.e3]:sum == 1 then move straight   # exactly one of three neighbours visited
 if [A, B, C]:max > 5 then move r1                                     # the biggest registry is over 5
-if [tile-type@r1, tile-type@r2]:any == wedge then move l1             # a wedge on either side
+if [tile-type.r1, tile-type.r2]:any == wedge then move l1             # a wedge on either side
 put [A, B] = [C, visited]:avg                                         # write the average into BOTH A and B`}</pre>
       </section>
 
@@ -428,7 +428,7 @@ put [A, B] = [C, visited]:avg                                         # write th
           <code>[…]</code> now clearly marks a <em>list</em>. <code>[A, B]</code> is the <em>sum</em> when read,
           and writes <strong>both</strong> (each gets the same value) on the left of a <code>put</code>/
           <code>increase</code>. Walker registries are bare <code>P</code> / <code>Q</code> / <code>R</code> for
-          both reading and writing. A <code>@</code>-path writes another tile — <code>put B@e1 = 1</code> sets B
+          both reading and writing. A <code>.</code>-path writes another tile — <code>put B.e1 = 1</code> sets B
           on the neighbour across edge 1. Formulas may also use any tile attribute and the walker's{' '}
           <code>steps</code>, <code>splits</code>, <code>heading</code>.
         </p>
@@ -436,7 +436,7 @@ put [A, B] = [C, visited]:avg                                         # write th
 put [A, B] = 1          # set both A and B at once
 increase P              # add 1 to walker registry P
 put Q = A               # copy the tile's A into the walker's Q
-put B@e1 = 1            # set B on the neighbour across edge 1
+put B.e1 = 1            # set B on the neighbour across edge 1
 if A > 0 then ...       # true when A is positive`}</pre>
         <p className="guide-note">
           If two walkers share a tile in one tick, <code>increase</code> from both <strong>adds up</strong>,
@@ -463,19 +463,19 @@ reset directives`}</pre>
           <code>allow</code> is an <em>exception</em> that lets a move through something a <code>forbid</code> (or
           the move's own guard) would block. <strong>Forbid beats allow</strong>, and an <code>allow</code> with
           nothing to override does nothing. Like any predicate the test reads the tile you're{' '}
-          <strong>on</strong> by default — to gate by where you're <em>going</em>, add <code>@target</code>{' '}
+          <strong>on</strong> by default — to gate by where you're <em>going</em>, add <code>.target</code>{' '}
           (almost always what you want). Directives stack as the program runs top-to-bottom;{' '}
           <code>reset directives</code> clears them so later moves are unconstrained again.
         </p>
         <DirectiveDiagram />
-        <pre className="guide-code">{`directive if visited@target > 0 always forbid move     # never step onto a visited tile…
+        <pre className="guide-code">{`directive if visited.target > 0 always forbid move     # never step onto a visited tile…
 move [straight, r1, l1, r2, l2]                        # …try these, the directive filters them
 
 reset directives                                       # from here on, moves are unfiltered again
 move straight`}</pre>
         <p className="guide-note">
           To <strong>gate</strong> moves — "only onto unvisited tiles" — <code>forbid</code> the opposite
-          (<code>visited@target &gt; 0</code>). Reach for <code>allow</code> only to carve an exception out of a
+          (<code>visited.target &gt; 0</code>). Reach for <code>allow</code> only to carve an exception out of a
           broader <code>forbid</code>. A directive constrains the <code>move</code>/<code>morph</code> lines that{' '}
           <em>follow</em> it — never the ones above.
         </p>
@@ -562,34 +562,34 @@ move straight`}</pre>
 if visited == 2 then move f0`}</pre>
         <p>
           A found tile <code>fN</code> is a <strong>base</strong>: it names a tile you can move to
-          (<code>move f0</code>), continue a <a href="#moving">chain</a> from (<code>move f1@e0</code> —
-          then step across edge 0), or read an attribute on (<code>tile-type@f1</code>,{' '}
-          <code>A@f1</code>). Because it names a tile, it must come <strong>first</strong> —{' '}
-          <code>move e0@f1</code> and <code>visited@e0@f1</code> are not allowed.
+          (<code>move f0</code>), continue a <a href="#moving">chain</a> from (<code>move f1.e0</code> —
+          then step across edge 0), or read an attribute on (<code>tile-type.f1</code>,{' '}
+          <code>A.f1</code>). Because it names a tile, it must come <strong>first</strong> —{' '}
+          <code>move e0.f1</code> and <code>visited.e0.f1</code> are not allowed.
         </p>
         <p className="guide-note">
           Numbering follows the <em>order you wrote them</em>, so <code>fN</code> is stable. If a{' '}
           <code>find-tile</code> didn't run this tick (a guard skipped it) or found nothing, its <code>fN</code>{' '}
-          reads as off-grid — a <code>move fN</code> simply does nothing, and <code>tile-type@fN</code> falls
+          reads as off-grid — a <code>move fN</code> simply does nothing, and <code>tile-type.fN</code> falls
           back to its default. Referencing an <code>fN</code> with no matching block is an error.
         </p>
 
-        <p className="guide-subhead"><strong>Did it find anything? — <code>exists@path</code></strong></p>
+        <p className="guide-subhead"><strong>Did it find anything? — <code>exists.path</code></strong></p>
         <p>
           Reading through <code>fN</code> when the search found nothing gives you the same default a
-          resolved-but-zero tile would — <code>visited@f0</code> reads <code>0</code> either way, so you
+          resolved-but-zero tile would — <code>visited.f0</code> reads <code>0</code> either way, so you
           can't tell "not found" from "found, and it has 0 visits" just by looking at a value. Use{' '}
-          <code>exists@f0</code> to test the search itself: true only if that <code>find-tile</code>{' '}
+          <code>exists.f0</code> to test the search itself: true only if that <code>find-tile</code>{' '}
           actually located a tile this tick.
         </p>
         <pre className="guide-code">{`find-tile A == 5 {
   move nearest-unvisited
 }
-if exists@f0 then move f0`}</pre>
+if exists.f0 then move f0`}</pre>
         <p>
-          <code>exists@path</code> works on any <code>@</code>-path, not just <code>fN</code> — it's the
+          <code>exists.path</code> works on any <code>.</code>-path, not just <code>fN</code> — it's the
           general "did this resolve to a real tile" test behind every off-grid fallback.{' '}
-          <code>exists@e0</code> is true only if there's a neighbour across edge 0 (false at the boundary of
+          <code>exists.e0</code> is true only if there's a neighbour across edge 0 (false at the boundary of
           the tiling), useful for guarding a move before it runs off the edge.
         </p>
 
@@ -601,7 +601,7 @@ if exists@f0 then move f0`}</pre>
           <em>whole plane</em> and return the <strong>lowest-</strong> (or <strong>highest-</strong>)
           <em> numbered</em> tile matching a condition — no <code>{'{ … }'}</code> block, just the condition.
           The result lands in <code>fN</code> exactly like <code>find-tile</code>, so you use it the same way
-          (<code>move f0</code>, <code>exists@f0</code>, <code>tile-type@f0</code>).
+          (<code>move f0</code>, <code>exists.f0</code>, <code>tile-type.f0</code>).
         </p>
         <pre className="guide-code">{`find-lowest-tile visited == 0
 move f0                # jump to the lowest-numbered unvisited tile`}</pre>
@@ -616,8 +616,8 @@ move f0                # jump to the lowest-numbered unvisited tile`}</pre>
         <p>
           Because the search looks at every tile with no walker in mind, its condition can read only the tile
           itself and <strong>absolute</strong> neighbours (<code>visited</code>, <code>[A]</code>,{' '}
-          <code>visited@e0</code>, <code>tile-type == …</code>) — not the walker's heading / steps / registers
-          or a relative direction like <code>straight</code> or <code>@target</code>. The engine keeps a
+          <code>visited.e0</code>, <code>tile-type == …</code>) — not the walker's heading / steps / registers
+          or a relative direction like <code>straight</code> or <code>.target</code>. The engine keeps a
           bookmark per search, so it doesn't rescan the whole plane every tick.
         </p>
       </section>
@@ -680,7 +680,7 @@ auto-place blob {[A], 50, 50, 3, 1}`}</pre>
 
         <h3>Self-avoiding splitter</h3>
         <pre className="guide-code">{`max-split = 3
-directive if visited@target > 0 always forbid move
+directive if visited.target > 0 always forbid move
 move [straight, r1, l1]`}</pre>
         <p>Branches forward/left/right, but never onto a visited tile — branches die as they run out of room, leaving a tree.</p>
 
@@ -780,20 +780,20 @@ function SplitChainDiagram() {
   )
 }
 
-// Path: an attribute with @r1 reads the neighbour, not the current tile.
+// Path: an attribute with .r1 reads the neighbour, not the current tile.
 function DecorationDiagram() {
   return (
     <figure className="guide-figure">
-      <svg viewBox="0 0 320 130" role="img" aria-label="visited@r1 > 0 reads the tile across edge r1, not the tile the walker is on.">
+      <svg viewBox="0 0 320 130" role="img" aria-label="visited.r1 > 0 reads the tile across edge r1, not the tile the walker is on.">
         <Tile x={70} y={45} walker />
         <line x1={110} y1={65} x2={150} y2={65} className="gd-ray" />
-        <text x={130} y={56} textAnchor="middle" className="gd-label gd-label--strong">@r1</text>
+        <text x={130} y={56} textAnchor="middle" className="gd-label gd-label--strong">.r1</text>
         <Tile x={150} y={45} asked />
         <text x={90} y={110} textAnchor="middle" className="gd-caption">you are here</text>
         <text x={170} y={110} textAnchor="middle" className="gd-caption">reads this</text>
       </svg>
       <figcaption>
-        <code>visited@r1 &gt; 0</code> reads the tile across <code>r1</code> — the <code>@</code>-path
+        <code>visited.r1 &gt; 0</code> reads the tile across <code>r1</code> — the <code>.</code>-path
         redirects that attribute to a neighbour.
       </figcaption>
     </figure>
@@ -816,7 +816,7 @@ function DirectiveDiagram() {
         <text x={205} y={28} textAnchor="middle" className="gd-caption gd-no-text">forbidden (visited)</text>
       </svg>
       <figcaption>
-        <code>directive if visited@target &gt; 0 always forbid move</code> drops any following move whose
+        <code>directive if visited.target &gt; 0 always forbid move</code> drops any following move whose
         destination is visited.
       </figcaption>
     </figure>

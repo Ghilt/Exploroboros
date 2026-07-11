@@ -56,7 +56,7 @@ function resolveFindExtreme(find: FindExtreme, names: ReadonlyMap<string, string
     return {
       ok: false,
       error: {
-        message: `find-${find.dir === 'low' ? 'lowest' : 'highest'}-tile searches every tile, so its condition can only read the tile itself and absolute neighbours (visited, [A], visited@e0, tile-type == …) — not the walker's heading/steps/P/Q/R or relative directions (straight, r1, @target)`,
+        message: `find-${find.dir === 'low' ? 'lowest' : 'highest'}-tile searches every tile, so its condition can only read the tile itself and absolute neighbours (visited, [A], visited.e0, tile-type == …) — not the walker's heading/steps/P/Q/R or relative directions (straight, r1, .target)`,
         span: { start: 0, end: 0 },
       },
     }

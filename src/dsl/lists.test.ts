@@ -48,27 +48,27 @@ describe('lists — parse & serialize (round-trip)', () => {
     expect(canon('[A, B]:sum == 2')).toBe('[A, B] == 2')
   })
   it('keeps a non-default numeric reducer', () => {
-    expect(canon('[visited@e1, A@e3]:avg == 1')).toBe('[visited@e1, A@e3]:avg == 1')
+    expect(canon('[visited.e1, A.e3]:avg == 1')).toBe('[visited.e1, A.e3]:avg == 1')
     expect(canon('[A, B]:min > 3')).toBe('[A, B]:min > 3')
     expect(canon('[A, B]:max > 3')).toBe('[A, B]:max > 3')
   })
   it('serializes boolean-reduced numeric and shape lists', () => {
-    expect(canon('[visited@e1, A@e3]:all == 1')).toBe('[visited@e1, A@e3]:all == 1')
-    expect(canon('[visited@e1, A@e3]:any == 1')).toBe('[visited@e1, A@e3]:any == 1')
-    expect(canon('[visited@e1, A@e3]:xor == 1')).toBe('[visited@e1, A@e3]:xor == 1')
-    expect(canon('[tile-type@r1, tile-type@r2]:xor == octagon')).toBe('[tile-type@r1, tile-type@r2]:xor == octagon')
+    expect(canon('[visited.e1, A.e3]:all == 1')).toBe('[visited.e1, A.e3]:all == 1')
+    expect(canon('[visited.e1, A.e3]:any == 1')).toBe('[visited.e1, A.e3]:any == 1')
+    expect(canon('[visited.e1, A.e3]:xor == 1')).toBe('[visited.e1, A.e3]:xor == 1')
+    expect(canon('[tile-type.r1, tile-type.r2]:xor == octagon')).toBe('[tile-type.r1, tile-type.r2]:xor == octagon')
   })
 })
 
 describe('lists — invalid cases (owner spec)', () => {
   it('cannot mix tile-type with numeric values', () => {
-    expect(predErr('[tile-type@e1, A@e3]:xor == 1')).toMatch(/mix tile-type/)
+    expect(predErr('[tile-type.e1, A.e3]:xor == 1')).toMatch(/mix tile-type/)
   })
   it('a boolean reducer needs a comparison (never yields a number)', () => {
     expect(exprErr('[A, B]:all')).toMatch(/comparison|left/)
   })
   it('tile-type values cannot be summed (numeric reducer on a shape list)', () => {
-    expect(exprErr('[tile-type@r1, tile-type@r2]:sum')).toMatch(/tile-type|boolean reducer/)
+    expect(exprErr('[tile-type.r1, tile-type.r2]:sum')).toMatch(/tile-type|boolean reducer/)
   })
   it('a bare direction is not a value inside a list', () => {
     expect(predErr('[r1]:sum == 1')).toMatch(/direction/)
@@ -127,21 +127,21 @@ describe('lists — shape-reduced eval', () => {
     },
   }
   it('xor = exactly one tile has the shape; all/any as expected', () => {
-    expect(pred('[tile-type@r1, tile-type@r2]:xor == octagon', ctx)).toBe(true) // only r1
-    expect(pred('[tile-type@r1, tile-type@r2]:any == octagon', ctx)).toBe(true)
-    expect(pred('[tile-type@r1, tile-type@r2]:all == octagon', ctx)).toBe(false)
-    expect(pred('[tile-type@r1, tile-type@r2]:none == octagon', ctx)).toBe(false)
+    expect(pred('[tile-type.r1, tile-type.r2]:xor == octagon', ctx)).toBe(true) // only r1
+    expect(pred('[tile-type.r1, tile-type.r2]:any == octagon', ctx)).toBe(true)
+    expect(pred('[tile-type.r1, tile-type.r2]:all == octagon', ctx)).toBe(false)
+    expect(pred('[tile-type.r1, tile-type.r2]:none == octagon', ctx)).toBe(false)
   })
 })
 
-describe('lists — @target detection', () => {
-  it('a @target inside a list marks the guard as per-target', () => {
-    const r = parsePredicate('[visited@target, A]:any == 1')
+describe('lists — .target detection', () => {
+  it('a .target inside a list marks the guard as per-target', () => {
+    const r = parsePredicate('[visited.target, A]:any == 1')
     if (!r.ok) throw new Error(r.error.message)
     expect(predReadsTarget(r.value)).toBe(true)
   })
-  it('a list with no @target does not', () => {
-    const r = parsePredicate('[visited@e1, A]:any == 1')
+  it('a list with no .target does not', () => {
+    const r = parsePredicate('[visited.e1, A]:any == 1')
     if (!r.ok) throw new Error(r.error.message)
     expect(predReadsTarget(r.value)).toBe(false)
   })

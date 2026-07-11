@@ -55,7 +55,7 @@ export function DebugPane({ history, viewedStep, onViewStep, tileNumber, onHover
             Each walker shows the statements it ran. <strong>Hover a row</strong> to light up the tiles
             it’s about on the canvas: <span className="dbg-key dbg-key--current">current</span> tile,
             each tile a guard <span className="dbg-key dbg-key--decorator">reads</span> via an
-            <code> @</code>-path (<code>visited@e1</code>, <code>tile-type@target</code>), where it
+            <code>.</code>-path (<code>visited.e1</code>, <code>tile-type.target</code>), where it
             <span className="dbg-key dbg-key--chosen"> moved</span>, and any
             <span className="dbg-key dbg-key--rejected"> rejected</span> candidate. The highlight
             <strong> pulses</strong> so it’s easy to spot; click a row to pin it.
@@ -63,9 +63,9 @@ export function DebugPane({ history, viewedStep, onViewStep, tileNumber, onHover
           <p>
             A <code>put</code> / <code>increase</code> lists every tile it
             <span className="dbg-key dbg-key--write"> wrote</span> to — hover the row for the whole
-            spread, or one target (e.g. <code>B@f1@e3@e3@e2</code>) to pinpoint that single tile. A
+            spread, or one target (e.g. <code>B.f1.e3.e3.e2</code>) to pinpoint that single tile. A
             target that shows <em>off-grid</em> resolved to no tile, so that write did nothing — the tell
-            for a stray or mistyped <code> @</code>-path.
+            for a stray or mistyped <code>.</code>-path.
           </p>
         </HelpButton>
       </header>
@@ -295,7 +295,7 @@ function Verdict({ s }: { s: StmtTrace }) {
     case 'find-tile':
       return <span className={cx('dbg-chip', s.foundTile ? 'dbg-chip--fire' : 'dbg-chip--skip')}>{s.foundTile ? 'found' : 'not found'}</span>
     case 'write': {
-      // "no target" = every element resolved off-grid (a stray/typo'd `@`-path) so the write did nothing.
+      // "no target" = every element resolved off-grid (a stray/typo'd `.`-path) so the write did nothing.
       const hit = s.targets.some((t) => t.scope === 'walker' || t.id)
       return <span className={cx('dbg-chip', !hit && 'dbg-chip--skip')}>{hit ? 'wrote' : 'no target'}</span>
     }
@@ -327,7 +327,7 @@ function rejectText(c: CandidateTrace): string {
   }
 }
 
-// A summary of the tiles a guard read via `@`-paths, for the no-move banner (empty = the current tile).
+// A summary of the tiles a guard read via `.`-paths, for the no-move banner (empty = the current tile).
 function readsText(readTiles: ReadonlyArray<ReadTile>, num: (id: string | null | undefined) => string): string {
   if (readTiles.length === 0) return 'the current tile'
   return readTiles.map((r) => `${r.text} = ${r.tileType ?? 'boundary'} ${num(r.id)}`).join(', ')
