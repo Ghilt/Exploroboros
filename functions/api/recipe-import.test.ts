@@ -6,13 +6,16 @@
 // if a DOM dependency ever leaks into that graph — the cheap early-warning the plan calls for.
 
 import { describe, it, expect } from 'vitest'
-import { parseRecipe } from '../../src/export/recipe'
+import { parseRecipe, RECIPE_SCHEMA_VERSION } from '../../src/export/recipe'
 
+// A current-shape recipe (not an old one relying on migration — the pre-v10 bridge was intentionally
+// removed, see recipe.ts's MIGRATIONS comment, so a stale-shaped fixture would now be rejected here).
 const validRecipe = {
   app: 'exploroboros',
-  schemaVersion: 3,
+  schemaVersion: RECIPE_SCHEMA_VERSION,
   tilingId: 'square',
-  gridN: 64,
+  gridW: 64,
+  gridH: 64,
   output: { width: 512, height: 512, edges: false, background: null },
   seeds: [],
   paint: [],
@@ -20,6 +23,7 @@ const validRecipe = {
   traversers: [],
   coloringRules: [],
   initialState: '',
+  numberingScheme: 'left-to-right',
 }
 
 describe('server-side recipe validation', () => {

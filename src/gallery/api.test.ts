@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { RECIPE_SCHEMA_VERSION } from '../export'
 import { fetchCreation, fetchRecipe } from './api'
 import type { CreationItem } from './types'
 
@@ -44,9 +43,11 @@ describe('fetchRecipe', () => {
     vi.unstubAllGlobals()
   })
 
-  it('migrates a creation stored under an older schema (pre-dates a later bump) to the current shape', async () => {
+  it('throws a friendly error for a creation stored under a schema below v10 (the @→. migration bridge was removed)', async () => {
     // A row uploaded back when v3 (gridN, no gridW/gridH) was current — the server stores the recipe
     // as-normalised-at-upload-time and never re-migrates it, so this is what an old row's GET returns.
+    // The v9→v10 bridge was intentionally dropped (see recipe.ts's MIGRATIONS comment), so a pre-v10 row
+    // now fails to read instead of silently migrating — the same friendly error as any corrupt recipe.
     const stored = {
       app: 'exploroboros',
       schemaVersion: 3,
@@ -61,10 +62,7 @@ describe('fetchRecipe', () => {
       initialState: '',
     }
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(fakeResponse({ recipe: stored })))
-    const recipe = await fetchRecipe('abc')
-    expect(recipe.schemaVersion).toBe(RECIPE_SCHEMA_VERSION)
-    expect(recipe.gridW).toBe(40)
-    expect(recipe.gridH).toBe(40)
+    await expect(fetchRecipe('abc')).rejects.toThrow(/could not be read/i)
   })
 
   it('throws a friendly error when the stored recipe is corrupt rather than handing back a broken object', async () => {

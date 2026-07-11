@@ -174,17 +174,6 @@ describe('migrateRecipe (the upgrade chain that keeps old images readable)', () 
     expect(out).toMatchObject({ schemaVersion: 7, traversers })
   })
 
-  it('opens a full v6 recipe by migrating it to the current schema', () => {
-    // A recipe stamped v6 (built at the current shape, just an older version number) migrates cleanly and
-    // parseRecipe reports the version it came from — old shared-gallery images keep opening.
-    const r = { ...buildRecipe(input()), schemaVersion: 6 }
-    const res = parseRecipe(JSON.stringify(r))
-    expect(res.ok).toBe(true)
-    if (!res.ok) return
-    expect(res.recipe.schemaVersion).toBe(RECIPE_SCHEMA_VERSION)
-    expect(res.migratedFrom).toBe(6)
-  })
-
   it('v7→v8 adds a numbering scheme; v8→v9 maps old names (spiral→radial, else→left-to-right)', () => {
     // v7 predates numbering → gets the reading-order default; the old v8 'spiral' meant concentric rings,
     // which is now 'radial'; the old v8 default 'normal' becomes the geometric 'left-to-right'.
@@ -193,65 +182,16 @@ describe('migrateRecipe (the upgrade chain that keeps old images readable)', () 
     expect(migrateRecipe({ schemaVersion: 8, numberingScheme: 'normal' }, 9)).toMatchObject({ schemaVersion: 9, numberingScheme: 'left-to-right' })
   })
 
-  it('v9→v10 rewrites the DSL path separator @ → . in every DSL-bearing text field', () => {
-    const out = migrateRecipe(
-      {
-        schemaVersion: 9,
-        traversers: [{ id: 't1', name: 'w', text: 'if visited@target > 0 then move e0@e4' }],
-        predicates: [{ id: 'p1', name: 'HasN', text: '[A@e0] > 0', autoName: false }],
-        coloringRules: [
-          { id: 'c1', predicate: { kind: 'inline', text: 'visited@e1 == 0' } },
-          { id: 'c2', predicate: { kind: 'ref', id: 'p1' } }, // a ref predicate has no text — untouched
-        ],
-        initialState: 'auto-place line {t1, angle 0, percent 0} if visited@e0 == 0',
-      },
-      10,
-    )
-    expect(out).toMatchObject({
-      schemaVersion: 10,
-      traversers: [{ text: 'if visited.target > 0 then move e0.e4' }],
-      predicates: [{ text: '[A.e0] > 0' }],
-      coloringRules: [
-        { predicate: { kind: 'inline', text: 'visited.e1 == 0' } },
-        { predicate: { kind: 'ref', id: 'p1' } },
-      ],
-      initialState: 'auto-place line {t1, angle 0, percent 0} if visited.e0 == 0',
-    })
-  })
-
-  it('the v9→v10 path rewrite is idempotent (text already using . is unchanged)', () => {
-    expect(migrateRecipe({ schemaVersion: 9, traversers: [{ id: 't', name: 't', text: 'move e0@e4' }] }, 10)).toMatchObject({
-      traversers: [{ text: 'move e0.e4' }],
-    })
-    // A recipe whose text already uses `.` (e.g. re-migrated / freshly authored) has no `@` left, so the
-    // step is a no-op — this is what makes the production D1 rewrite safe to run more than once.
-    expect(migrateRecipe({ schemaVersion: 9, traversers: [{ id: 't', name: 't', text: 'move e0.e4' }] }, 10)).toMatchObject({
-      traversers: [{ text: 'move e0.e4' }],
-    })
-  })
-
-  it('parseRecipe migrates a v9 recipe, rewriting its @ paths to . (old shared-gallery images keep opening)', () => {
-    const full = buildRecipe(input()) as Record<string, unknown>
-    full.schemaVersion = 9
-    full.traversers = [{ id: 't1', name: 'w', text: 'move e0@e4' }]
-    const res = parseRecipe(JSON.stringify(full))
-    expect(res.ok).toBe(true)
-    if (!res.ok) return
-    expect(res.recipe.schemaVersion).toBe(RECIPE_SCHEMA_VERSION)
-    expect(res.recipe.traversers[0].text).toBe('move e0.e4')
-    expect(res.migratedFrom).toBe(9)
-  })
-
-  it('parseRecipe migrates a v7 recipe with no numberingScheme, defaulting it to left-to-right', () => {
-    const full = buildRecipe(input()) as Record<string, unknown>
-    delete full.numberingScheme // a pre-v8 image never carried it
-    full.schemaVersion = 7
-    const res = parseRecipe(JSON.stringify(full))
-    expect(res.ok).toBe(true)
-    if (!res.ok) return
-    expect(res.recipe.schemaVersion).toBe(RECIPE_SCHEMA_VERSION)
-    expect(res.recipe.numberingScheme).toBe('left-to-right')
-    expect(res.migratedFrom).toBe(7)
+  it('refuses to open a pre-v10 recipe — the v9→v10 (@→.) migration was intentionally removed', () => {
+    // The DSL path separator changed @ → . at v10; the migration that used to bridge v9 recipes was
+    // deliberately dropped once the live gallery's stored text had already been rewritten at rest
+    // (tools/migrate-paths.mjs, since removed). The chain now has a gap at v9, so ANY recipe below the
+    // current version — not just v9 itself — fails to reach v10 and parseRecipe reports 'unsupported'
+    // rather than silently trying to compile leftover `@`-syntax DSL text (which no longer lexes). This
+    // is an accepted, owner-approved break: a PNG exported before the change no longer reopens.
+    expect(migrateRecipe({ schemaVersion: 9 }, 10)).toBeNull()
+    expect(parseRecipe(JSON.stringify({ ...buildRecipe(input()), schemaVersion: 9 }))).toEqual({ ok: false, reason: 'unsupported' })
+    expect(parseRecipe(JSON.stringify({ ...buildRecipe(input()), schemaVersion: 6 }))).toEqual({ ok: false, reason: 'unsupported' })
   })
 
   it('round-trips a spiral / radial recipe through parseRecipe', () => {
