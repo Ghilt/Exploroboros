@@ -117,7 +117,7 @@ export function ColoringPane({
         />
       )}
 
-      <button type="button" className="rule-add" onClick={store.add}>
+      <button type="button" className="rule-add" data-tut="add-coloring-rule" onClick={store.add}>
         + Add rule
       </button>
 

@@ -547,8 +547,44 @@ still needed into this doc **before** then; do not rely on the path persisting.
   (`pointer-events: auto`, so it's touch-scrollable when tall) and runs the same copy + advance/block-hint
   a catcher does; the inner bubbles stay `pointer-events: none`. Also trimmed ", right inside the real
   canvas" from the Tutorial landing blurb. See §9.
+- **Tutorial Chapter 2 "Colorings" + a global ramp-default change (2026-07-12):** the second guided chapter,
+  plus a small everywhere-change it leans on. **(Global)** turning a flat colour into a ramp (the `+` in a
+  coloring rule) now defaults to fading over **`latest-step` modulo 10** (was `visited` mod 6) — a livelier
+  default that animates along a walker's path out of the box (`toRamp` in `ColorField.tsx`). **(Chapter)** an
+  11-step walkthrough: it opens with a pre-placed **`straight walker`** (`move straight`) on a blank board,
+  has the user open the Coloring pane, add a rule, pick a color, Play (watch the line paint), press `+` to
+  make it a fade (now `latest-step`/10), Play again, then — to teach **rule ORDER + opacity** — on Stop it
+  adds two branching fill walkers **`softie-A`/`softie-B`** (writing registries A/B) at the top corners, colors
+  by two **`latest-step`** fades (the top rule opaque, the second at 50% so it blends) plus an opaque covering
+  rule on top, and **plays the run live** so the user watches the board fill; the user deletes the covering
+  rule to reveal the two overlapping fades, then a fireworks finale. This needed a **new tutorial seam**: a per-step **`SceneSetup`** (open a pane / set traverser
+  defs / place seeds with an explicit heading / set the coloring / stop / **pre-fill via `runToCompletion`**),
+  applied once when a step becomes active, plus four new `TutorialSignals` (`runEnded`, `coloringRuleCount`,
+  `firstRuleColorHex`, `firstRuleIsRamp`) and four new `data-tut` anchors on the Coloring pane (the pane itself,
+  `add-coloring-rule`, `rule-swatch`, `add-color`). Chapter-level `coloring`/`forceTraverserName`/`stopAtStep`
+  became optional (this chapter drives coloring through step setups and finishes naturally). **Note on rule
+  order:** this app composites rules **top→bottom with the LAST rule on top**, so the covering rule is the
+  BOTTOM one in the list (the owner's "above them" reads as the inverse — the bubble teaches the real model).
+  See §9. *(Verified headlessly end-to-end; the on-canvas colours + fireworks are the owner's device pass.)*
+  **Refined the same session (pre-first-commit, 2026-07-12):** (1) every bubble now shows a small muted
+  **"N/total" step badge** top-right (`.tut-bubble-num`, `var(--muted)`, 0.72rem — so a bubble is easy to
+  refer to as "step 3/11"), fed by the controller's `index`/`total`, on **all** chapters. (2) The welcome
+  step's `SceneSetup` gained **`editTraverser`** (a def NAME): it opens that walker in the Traversers
+  full-pane **editor** so its `move straight` code is visible while the next bubble talks about it —
+  `TraversersPane` takes a `forceEditName` prop (an effect opens the matching def once it's in the store);
+  Workspace holds `tutEditDef`, set from the scene setup and persisted across steps. (3) The **pick-color /
+  add-color / play-2** bubbles now **anchor to the whole Coloring pane** (`{tut:'coloring'}`, placement
+  right) instead of the small control they used to cover — the `hole`/ring still marks the actual target
+  (swatch / `+` / Play), so the bubble emanates from the pane without hiding the rule it describes. (4) UI
+  copy switched to American **"color"** spelling (bubbles + the chapter blurb). (5) The **ordering** (last
+  teaching) step was reworked: the straight walker is renamed **`forest_gump`**; the two reveal fades now
+  fade over **`latest-step`** (not the registry value), the **top rule fully opaque** and the second at 50%
+  (so it blends where the walkers overlap); and it **plays the run live** via a new **`SceneSetup.play`**
+  (mirrors `initRun` — snapshots the empty board for Stop-revert, resets caches, stamps step-0 visits, sets
+  `runLive`+`running` so the run clock takes over with the fresh `defs`) instead of the static `prefill`, so
+  the user watches the board fill.
 - **Next up:** **`exploroboros.io` custom domain** (register + attach — §8) → more **tutorial chapters**
-  (colorings first) → **DSL-driven traversers** (custom rules in the Traversers pane —
+  (initial-state / export-share next) → **DSL-driven traversers** (custom rules in the Traversers pane —
   paint/move/visit/split/guards/state, §5; reuses the predicate DSL) → **persist user exports across
   reloads** (IndexedDB).
 
@@ -654,6 +690,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-07-12 | **Duplicate a coloring rule.** A **duplicate button** (copy icon) sits in each Coloring-rule row **between the eye and the trash**; clicking it inserts a deep copy of that rule **directly below it** — same predicate / colour (ramps deep-cloned) / opacity / on-off state, fresh id — so the copy is tweakable independently. Pure `withDuplicatedRule` + store `duplicate` (`coloringStore.ts`); new `DuplicateButton.tsx` reusing the shared `.icon-btn` style. | ✅ yes | owner said "excellent please commit"; verified live in the running app on this worktree's preview (**5386**, footer-labelled): added a rule → set it to `Has_A` → clicked duplicate → **two identical `Has_A` rows**, each with reorder/eye/duplicate/delete in that order. Backed by build / lint / **999 tests** (pure `withDuplicatedRule` incl. inserted-directly-after + unknown-id no-op + deep-clone of ramp stops; a `ColoringPane` click test that duplicates a row). The icon's on-screen look is the owner's device call (the preview tab was `document.hidden`, so `preview_screenshot` timed out per §9 — DOM reads confirmed placement + behaviour). | — |
 | 2026-07-12 | **`back` edge keyword — the reverse of `straight`.** `back` is a first-class edge everywhere `straight` is valid (`move back`, chains `move straight.back`, guards, `.`-paths `visited.back`): it exits the straight-through PARTNER of the heading edge (a U-turn), reusing the shape's arrival pairing so it crosses the concave wedge cleanly; in `absolute` movement the reference edge is north. Added to `EdgeRef` (traverse) + `PathSeg` (dsl) with the parse / serialize / `resolveRef` / `segToEdgeRef` / reserved-word sites; walker-free (coloring) contexts fall back to default like the other relative hops. Recipe **schema v10 → v11** (additive no-op migration, like v6→v7). Guide + Traversers help updated (and a stale `straight -> r1` example fixed to `straight.r1`). | ✅ yes | owner said "excellent please commit"; verified in the REAL bundled runtime on 5386 (dynamic-imported the app's own modules): `move back` parses + round-trips byte-identically, `move straight.back` / `if visited.back > 0 then move back` / `visited.back == 0` all parse, and on a real 5×5 square facing north `back` steps south (`sq:1,2`) while `straight` then `back` returns to the start (`sq:2,2`); a bad edge word is still rejected with `back` in the hint. Backed by build / lint / **999 tests** (square U-turn + wedge straight-through `back` on `kallebodaTiling`, parse/serialize round-trips, DSL `.back` path parse, v10→v11 additive migration). The on-canvas visual of a walker reversing is the owner's device call (Konva stage doesn't mount headlessly, §9). | — |
 | 2026-07-12 | **Tutorial mobile fix — off-screen speech bubbles → bottom banner; + full-height block-hint toast; + landing blurb trim, §6.** On phones the anchored speech bubbles rendered off-screen horizontally (`placeBubble` gave a `right`-placed bubble a `left` past the viewport edge with no clamp, and mobile panels are near-full-width). Fix: below **64rem**, DOM-anchored bubbles skip the anchor math and stack into ONE full-width **banner pinned to the bottom** (`placeBubble` returns `'banner'`, rendered in a `.tut-banner`); `center`/`canvas-top` steps (welcome, finale, tile-select) are untouched. The banner catches its own clicks (touch-scrollable) and runs the same copy + advance/block-hint a catcher does; inner bubbles stay `pointer-events:none`. Desktop byte-identical. A shared `BubbleBody` helper renders the bubble innards for both paths; `bubbleRefs` stays one-per-index so `copyBubbleAt` is unchanged. Follow-up (same session): the block-hint/wrong-tile **toast covered the whole screen** on mobile — a CSS source-order slip (my mobile `.tut-message` override preceded the base rule, so `bottom:auto` lost to the base `bottom:4.5rem` while `top` still applied → both set → full-height); moved the override AFTER the base rule so `bottom:auto` wins. Also trimmed ", right inside the real canvas" from the landing blurb. | ✅ yes | owner verified the banner on a real phone ("much better!"), then reported the toast "covers the entire screen"; both fixed and owner confirmed ("Good please commit"). Backed by build / lint / **999 tests** (count is post-rebase onto main's `back`/duplicate-coloring work — this fix adds no tests); headless checks at 375×812 confirmed each `{tut}` banner has no L/R/bottom overflow (open-traversers 72px, write-program 2-bubble+code 287px, close-editor 3-para 264px within the 45vh cap), center/finale stay centered (no banner), a banner tap still copies the bubble payload, and a deterministic `.tut-message` probe (exact wrong-tile text) is content-sized (~106px, `bottom:auto`, top-anchored, no overflow) not full-height; desktop (1280) still renders an anchored tailed bubble (`tut-tail-left`). The on-device visual/interactive pass was the owner's. | — |
+| 2026-07-12 | **Tutorial Chapter 2 "Colorings" + a global ramp-default change, §6.** The second guided chapter (11 steps: place-free start with a pre-placed **`forest_gump`** `move straight` walker shown open in its editor → open Coloring → add a rule → pick a color → Play the line → `+` to make a fade → Play → on Stop, two branching fill walkers `softie-A`/`softie-B` are added and the run **plays live** while two **`latest-step`** fades (top rule opaque, second at 50%) sit under an opaque covering rule → delete the cover to reveal the overlapping fades → fireworks). **Global:** turning a flat color into a ramp now defaults to **`latest-step` mod 10** (was `visited`/6). New reusable tutorial seams: per-step **`SceneSetup`** (`openLeft`/`editTraverser`/`defs`/`seeds`/`coloring`/`stop`/`prefill`/`play`), four new signals (`runEnded`/`coloringRuleCount`/`firstRuleColorHex`/`firstRuleIsRamp`), Coloring-pane `data-tut` anchors, and a per-bubble **"N/total" step badge**. The coloring-control bubbles emanate from the whole Coloring pane (ring still marks swatch/`+`/Play). | ✅ yes | owner iterated across several rounds on this worktree's fresh preview (**5405**, footer-labelled) — asked for the step badge, `color` spelling, the `forest_gump` rename, editor-open on welcome, bubbles emanating from the pane, `latest-step` fades, the top rule at 100% opacity, and playing the run live — then said **"it looks good!"** and to commit. Backed by build / lint / **1019 tests** (chapter-2 shape/setup/advance suite + the global `toRamp` default). Headless drove the DOM-drivable half (step badge `1/11`→`4/11`, `forest_gump`/`move straight` visible in the editor, pick-color's bubble past the pane's right edge with the ring on the swatch); the on-canvas colors, the live fill at the ordering step, and the fireworks are the owner's device pass (Konva + the run clock don't animate on a `document.hidden` tab, §9). | — |
 
 ## 8. Todo list (working backlog)
 
@@ -921,11 +958,14 @@ in-session task tracker.
   - [x] **Chapter 1 — "Basic traverser"** — open the Traversers pane → New → write
     `max-split = 2; move l1; move r1` (named `Ouroboros`) → place on the centre tile → Step ×3 (1→2→4) →
     Play → fills the 20×20 square at tick 21 → fireworks *(2026-07-11)*
-  - [ ] **Chapter 2 — "Colorings"** — placeholder card only; script it next (turn the pattern's data into
-    the gradient the basic-traverser chapter already shows).
-  - [ ] More chapters as the app grows (predicates, initial-state, export/share). Each is just a new
-    `TutorialScript` in `src/tutorial/script.ts` + a `TUTORIAL_CHAPTERS` entry; reuse the existing
-    `data-tut` anchors (add more as needed).
+  - [x] **Chapter 2 — "Colorings"** — a pre-placed `straight walker`, then: open Coloring → Add rule → pick
+    a colour → Play (watch the line paint) → `+` to make it a fade (now `latest-step`/10) → Play → on Stop it
+    adds two registry-writing fill walkers (`softie-A`/`softie-B`) + registry fades at 50% + an opaque cover,
+    pre-run off-screen → delete the covering rule to reveal the overlapping fades → fireworks. Introduced the
+    per-step **`SceneSetup`** seam + four new signals + Coloring-pane anchors (§6/§9) *(2026-07-12)*
+  - [ ] More chapters as the app grows (initial-state, export/share, predicates). Each is a new
+    `TutorialScript` in `src/tutorial/script.ts` + a `TUTORIAL_CHAPTERS` entry (+ any new `data-tut` anchors
+    or `SceneSetup` beats).
 
 ## 9. Dev loop & operational notes (gotchas)
 
@@ -1242,7 +1282,10 @@ Hard-won; read before fighting the tooling again.
   `pointer-events: auto` (so it's touch-scrollable) and carries the same `onClick` the catchers do (copy +
   advance/block-hint); the inner `.tut-bubble`s keep `pointer-events: none`, so a tap on bubble text still
   resolves to the banner's handler (mirrors bubble-over-catcher). `BubbleBody` is the shared inner markup
-  (finale check + paragraphs + code + continue affordance) used by both the desktop per-bubble render and
+  (a **`.tut-bubble-num` "N/total" step badge** top-right — muted, 0.72rem, fed the controller's
+  `index`/`total` so a bubble is referable as "step 3/11", on every chapter; the first paragraph reserves
+  right padding so a long line can't run under it — then the finale check + paragraphs + code + continue
+  affordance) used by both the desktop per-bubble render and
   the banner; `bubbleRefs` stays one-ref-per-`step.bubbles[i]`, populated by whichever of the two
   mutually-exclusive paths renders that index, so `copyBubbleAt` is unchanged. Desktop (≥ 64rem) is
   byte-identical. `.tut-message` (the block-hint toast) flips to top-anchored on mobile so it can't collide
@@ -1262,6 +1305,25 @@ Hard-won; read before fighting the tooling again.
   re-measure is throttled on a hidden/backgrounded preview tab (the §9 headless caveat), so the FIRST measure
   is synchronous; steps 1–6 (DOM-only) drive fine headlessly, but the canvas-interactive half (select/place/
   step/play/fireworks) needs the Konva Stage (rAF-gated) → verify it on a real device.
+  **Scripted stage setup (`SceneSetup`, added for Chapter 2 "Colorings"):** a step may carry a `setup` — a
+  one-shot declarative mutation applied by Workspace's `scene` effect when that step becomes active (keyed on
+  the step id, passed via `handle.scene = {key, setup}`). Fields: `openLeft`, **`editTraverser`** (a def NAME
+  to open in the Traversers full-pane editor so its code is visible — Workspace stores it in `tutEditDef`,
+  persisted across steps, and passes it to `TraversersPane` as `forceEditName`; an effect there opens the
+  matching def once it's in the store), `defs` (traverserStore.setAll),
+  `seeds` (placed walkers with an explicit `heading` edge number), `coloring` (coloringStore.setAll), `stop`,
+  `prefill` (run the seeds to completion via `runToCompletion` and `setOverlay` the finished board, so the
+  colorings have data to paint without the user pressing Play), and **`play`** (start a LIVE run from the
+  seeds when the step activates — mirrors `initRun` but from the local built walkers: it sets
+  `runLive`+`running` so the run clock animates the fill in real time; used by the ordering step so the user
+  watches it play out, vs `prefill`'s instant finished board). The applier compiles the scene's `defs`
+  LOCALLY for each seed's settings — the `defs` memo hasn't picked up the `setAll` yet in the same render, so
+  it can't be read. **Run-finished detection:** a natural finish leaves `runLive` a non-null EMPTY array (all
+  walkers died), so the signal `runEnded = runLive !== null && runLive.length === 0` (distinct from a manual
+  Step-pause, where walkers survive). The other Chapter-2 signals are `coloringRuleCount` / `firstRuleColorHex`
+  / `firstRuleIsRamp`. **Composite order gotcha:** the colorizer stacks rules top→bottom with the LAST rule on
+  top, so a covering (opaque) rule is the BOTTOM of the list, not the "top" — Chapter 2's ordering lesson
+  places the cover last and teaches this.
 - `src/data/galleryRecipes.ts` — placeholder `Recipe`s attached to the gallery images so clicking one opens a
   ready setup (fake for now; real saved creations will carry their recipe in the PNG). `Workspace.loadRecipe`
   applies a recipe (tiling/grid/seeds/paint + the four stores' `setAll`, incl. the Initial-state doc); the canvas-stage also accepts a
@@ -1269,7 +1331,10 @@ Hard-won; read before fighting the tooling again.
 - `src/components/{PredicatePane,ColoringPane,ColorField,ColorPicker,ReorderableList,TrashButton}.tsx`
   — the panes + their pieces. `ReorderableList` is a dependency-free pointer drag-reorder (touch+mouse);
   `ColorField` writes a coloring rule's colour as a readable sentence (a `+` turns one colour into a
-  ramp); the colour picker is the native input (opacity lives on the **rule**, not per colour).
+  ramp — `toRamp` defaults the fade to **`latest-step` mod 10**, changed 2026-07-12 from `visited`/6); the
+  colour picker is the native input (opacity lives on the **rule**, not per colour). `ColorPicker` +
+  `ColorField`'s flat `AddColour` take an optional `dataTut` so the tutorial can spotlight the flat swatch
+  (`rule-swatch`) + the flat `+` (`add-color`); the Coloring pane's "+ Add rule" carries `add-coloring-rule`.
 - **Tile fill now comes from the coloring rules**, not visit counts: Workspace passes a precomputed
   `colorFor` map into `TilingCanvas`; `drawTiles` paints the base then that colour. The old visit-count
   shading is removed — **drag-to-paint still records `visited`/A/B/C data** (the rules read it), it just

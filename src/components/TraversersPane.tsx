@@ -22,6 +22,7 @@ export function TraversersPane({
   lineColors,
   onEditorSelectionChange,
   onEditingChange,
+  forceEditName,
 }: {
   store: TraverserStore
   // name -> DSL text, so a guard can reference a saved predicate by name (resolved at compile).
@@ -35,10 +36,21 @@ export function TraversersPane({
   // Reports whether the full-pane definition editor is open — the tutorial uses it to know when the user
   // has entered / left the editor. Optional so normal usage + tests can omit it.
   onEditingChange?: (open: boolean) => void
+  // Tutorial: force a definition (by name) open in the editor, so a chapter can show its code. Only acts
+  // when set; normal usage + tests leave it undefined.
+  forceEditName?: string | null
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const editing = editingId ? store.traversers.find((t) => t.id === editingId) ?? null : null
   useEffect(() => onEditingChange?.(editingId !== null), [editingId, onEditingChange])
+
+  // Open the tutorial-requested definition in the editor once it exists in the store (the chapter seeds
+  // it and asks for it in the same beat). Idempotent — re-finding the same id is a no-op.
+  useEffect(() => {
+    if (!forceEditName) return
+    const def = store.traversers.find((t) => t.name === forceEditName)
+    if (def) setEditingId(def.id)
+  }, [forceEditName, store.traversers])
 
   // Compile every definition (memoized) so the list can flag the ones that don't compile with a red badge.
   const compileError = useMemo(() => {

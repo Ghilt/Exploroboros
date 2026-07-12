@@ -32,13 +32,13 @@ export function ColorField({
       <div className="color-field">
         <p className="rule-frag">then color the tile</p>
         <div className="rule-line">
-          <ColorPicker value={color.hex} onChange={(hex) => onColor({ kind: 'flat', hex })} />
+          <ColorPicker value={color.hex} onChange={(hex) => onColor({ kind: 'flat', hex })} dataTut="rule-swatch" />
           <DiceButton label="randomize colour" onClick={() => onColor({ kind: 'flat', hex: randomHex() })} />
           <span className="rule-word">at</span>
           <OpacityInput value={opacity} onChange={onOpacity} />
           <span className="rule-word">opacity</span>
         </div>
-        <AddColour onClick={() => onColor(toRamp(color.hex))} />
+        <AddColour onClick={() => onColor(toRamp(color.hex))} dataTut="add-color" />
       </div>
     )
   }
@@ -124,9 +124,9 @@ export function ColorField({
   )
 }
 
-function AddColour({ onClick }: { onClick: () => void }) {
+function AddColour({ onClick, dataTut }: { onClick: () => void; dataTut?: string }) {
   return (
-    <button type="button" className="color-add" aria-label="add a colour" title="Add a colour" onClick={onClick}>
+    <button type="button" className="color-add" data-tut={dataTut} aria-label="add a colour" title="Add a colour" onClick={onClick}>
       +
     </button>
   )
@@ -150,6 +150,9 @@ function OpacityInput({ value, onChange }: { value: number; onChange: (o: number
   )
 }
 
+// Turning a flat colour into a ramp defaults to fading over "latest step" (the tick a tile was most
+// recently reached) wrapped at modulo 10 — a lively default that animates along a walker's path out of
+// the box, rather than the flatter visit-count/6 it used to seed.
 function toRamp(hex: string): RuleColor {
-  return { kind: 'ramp', ramp: { attr: 'visited', mod: 6, stops: [{ hex, at: null }, { hex: '#ffffff', at: null }] } }
+  return { kind: 'ramp', ramp: { attr: 'latest-step', mod: 10, stops: [{ hex, at: null }, { hex: '#ffffff', at: null }] } }
 }

@@ -22,7 +22,7 @@ export const TUTORIAL_CHAPTERS: ReadonlyArray<TutorialChapterMeta> = [
   {
     id: 'colorings',
     title: 'Colorings',
-    blurb: 'Turn a pattern’s data into colour with ramps, rules, and the palette that made those rings.',
-    available: false,
+    blurb: 'Turn a pattern’s data into color with ramps, rules, and the palette that made those rings.',
+    available: true,
   },
 ]

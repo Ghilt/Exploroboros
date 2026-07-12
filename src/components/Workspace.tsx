@@ -44,14 +44,14 @@ import { ExportStrip, type ExportItem } from './ExportStrip'
 import { UploadDialog } from './UploadDialog'
 import { ImageViewer } from './ImageViewer'
 import { usePredicateStore } from '../state/predicateStore'
-import { useTraverserStore } from '../state/traverserStore'
+import { useTraverserStore, makeTraverser } from '../state/traverserStore'
 import { useColoringStore } from '../state/coloringStore'
 import { useInitialStateStore, makeInitialState } from '../state/initialStateStore'
 import { colorize } from '../colorizer'
 import { downloadBlob, exportFilename } from '../export/download'
 import { generateExport, isAbortError, isWorkerUnavailable, type ExportParams } from '../export/exportImage'
 import { downloadExportDebugLog } from '../export/debugLog'
-import { remapSeeds, remapPaint, parseRecipe, decodeRecipeFromPng, APP_VERSION, type Recipe } from '../export'
+import { remapSeeds, remapPaint, parseRecipe, decodeRecipeFromPng, runToCompletion, APP_VERSION, type Recipe } from '../export'
 import { takePendingRecipe } from '../state/pendingRecipe'
 import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
 import type { TutorialHandle, TutorialSignals } from '../tutorial/types'
@@ -165,6 +165,9 @@ export function Workspace({ tutorial }: { tutorial?: TutorialHandle } = {}) {
   // canvas (see the pathPreview memo below). Both set from one TraversersPane callback.
   const [editorSel, setEditorSel] = useState<{ start: number; end: number } | null>(null)
   const [editingDefName, setEditingDefName] = useState<string | null>(null)
+  // Tutorial: a definition NAME to force open in the Traversers editor (a scene setup sets it). Persists
+  // across steps until another setup changes it; null in normal (non-tutorial) use.
+  const [tutEditDef, setTutEditDef] = useState<string | null>(null)
   const pushTrace = (t: TickTrace) => setTraceHistory((h) => [...h, t].slice(-TRACE_HISTORY))
   // Clear the debug log + any highlight — on a fresh run, a stop/reset, or a tiling/recipe switch.
   const clearDebug = () => {
@@ -572,7 +575,9 @@ export function Workspace({ tutorial }: { tutorial?: TutorialHandle } = {}) {
   const onSignalsRef = useRef(tutorial?.onSignals)
   onSignalsRef.current = tutorial?.onSignals
   const traversersList = traverserStore.traversers
+  const coloringRules = coloringStore.rules
   useEffect(() => {
+    const firstColor = coloringRules[0]?.color
     const sig: TutorialSignals = {
       leftOpen,
       rightOpen,
@@ -581,12 +586,18 @@ export function Workspace({ tutorial }: { tutorial?: TutorialHandle } = {}) {
       step,
       running,
       hasRun: runLive !== null,
+      // A natural finish leaves runLive a non-null EMPTY array (all walkers died); a manual Step-pause
+      // leaves it non-empty. So "the run finished" is exactly runLive being present but empty.
+      runEnded: runLive !== null && runLive.length === 0,
       editorOpen: travEditorOpen,
       traverserCount: traversersList.length,
       firstTraverserText: traversersList[0]?.text ?? null,
+      coloringRuleCount: coloringRules.length,
+      firstRuleColorHex: firstColor?.kind === 'flat' ? firstColor.hex : null,
+      firstRuleIsRamp: firstColor?.kind === 'ramp',
     }
     onSignalsRef.current?.(sig)
-  }, [leftOpen, rightOpen, selectedIds, seeds, step, running, runLive, travEditorOpen, traversersList])
+  }, [leftOpen, rightOpen, selectedIds, seeds, step, running, runLive, travEditorOpen, traversersList, coloringRules])
 
   // Import a saved creation from its exported PNG — the real reopen-from-PNG path (the gallery uses
   // in-memory recipes). Two entry points share this: dropping an image on the canvas, and the
@@ -905,6 +916,61 @@ export function Workspace({ tutorial }: { tutorial?: TutorialHandle } = {}) {
       list.map((t) => (t.tile === id ? { ...t, heading: rotateHeading(tiling, id, t.heading, dir) } : t)),
     )
 
+  // ---- tutorial: apply a step's scripted stage setup, once, when the step becomes active ----
+  // A chapter arranges the stage at specific beats (seed + place walkers, set the coloring, stop, or
+  // pre-fill the finished board) via `scene.setup`, keyed on the step id. Everything the applier needs
+  // (stores, setters, tiling, numbering) is in scope by here. Depends ONLY on the step key, so it runs
+  // exactly once per step; the closure captures current values at that render (deps intentionally lean).
+  const sceneKey = tutorial?.scene?.key
+  useEffect(() => {
+    const setup = tutorial?.scene?.setup
+    if (!setup) return
+    if (setup.openLeft !== undefined) setLeftOpen(setup.openLeft)
+    if (setup.editTraverser !== undefined) setTutEditDef(setup.editTraverser)
+    if (setup.stop) stopRun()
+    if (setup.defs) traverserStore.setAll(setup.defs.map((d) => makeTraverser(d.name, d.text)))
+    if (setup.seeds) {
+      // Compile the scene's defs locally for each seed's settings — the `defs` memo hasn't picked up the
+      // setAll above yet this render, so we can't read it. Heading is the explicit edge number if given.
+      const localDefs = new Map<string, Program>()
+      for (const d of setup.defs ?? []) {
+        const c = compileProgram(d.text, predicateNames)
+        if (c.ok) localDefs.set(d.name, c.value)
+      }
+      const built: Traverser[] = setup.seeds.map((s, i) => {
+        const set = localDefs.get(s.def)?.settings ?? DEFAULT_SETTINGS
+        const n = nodeById(tiling, s.tile)?.sides.length ?? 0
+        const rawHeading = s.heading ?? set.heading ?? 0
+        const heading = n > 0 ? (((Math.round(rawHeading) % n) + n) % n) : 0
+        return { id: `tut-seed-${sceneKey}-${i}`, tile: s.tile, heading, def: s.def, steps: 0, splits: 0, maxSplit: set.maxSplit, maxSteps: set.maxSteps, movement: set.movement, p: 0, q: 0, r: 0 }
+      })
+      if (setup.prefill) {
+        // Run the placed walkers to completion off-screen and show the finished board — so the colorings
+        // have registry/visit data to paint without the user pressing Play.
+        const result = runToCompletion(tiling, built, new Map(), localDefs, indexById, undefined, undefined, numbering)
+        setRunning(false)
+        setRunLive(null)
+        setStep(0)
+        setOverlay(result.overlay)
+      } else if (setup.play) {
+        // Start a LIVE run from the built walkers so the user watches the board fill in real time. Mirror
+        // initRun: snapshot the (empty) authored board for Stop-revert, reset the find caches + log, stamp
+        // step-0 visits on the starting tiles, then hand off to the run clock (it reads the fresh `defs`
+        // memo on its next tick, so the just-setAll softies resolve).
+        authoredOverlayRef.current = new Map()
+        findLowestCacheRef.current = new Map()
+        clearDebug()
+        setStep(0)
+        setRunLive(built.map((s) => ({ ...s })))
+        setOverlay(addVisits(new Map(), built.map((t) => t.tile), 0))
+        setRunning(true)
+      }
+      setSeeds(built)
+    }
+    if (setup.coloring) coloringStore.setAll(setup.coloring)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sceneKey])
+
   // ---- bulk edits over a box-selected set (the multi-tile Inspect view) ----
   const placeTraversersMany = (ids: ReadonlyArray<string>, def: string) =>
     setSeeds((list) => {
@@ -1104,6 +1170,7 @@ export function Workspace({ tutorial }: { tutorial?: TutorialHandle } = {}) {
             setEditorSel(sel)
           }}
           onEditingChange={setTravEditorOpen}
+          forceEditName={tutEditDef}
         />
       </Panel>
 
@@ -1112,6 +1179,7 @@ export function Workspace({ tutorial }: { tutorial?: TutorialHandle } = {}) {
         side="left"
         wide
         fill
+        tut="coloring"
         collapsed={leftOpen !== 'coloring'}
         onCollapsedChange={() => toggleLeft('coloring')}
       >

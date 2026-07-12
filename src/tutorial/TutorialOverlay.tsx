@@ -125,11 +125,26 @@ function layoutKey(l: Layout): string {
 }
 
 // The inner markup of a bubble, shared by the desktop per-bubble render and the mobile banner so it lives
-// in one place: an optional finale checkmark, the text paragraphs, an optional code block, and (on a
-// narration step) the "click to continue" affordance.
-function BubbleBody({ b, showFinale, narration }: { b: Bubble; showFinale: boolean; narration?: boolean }) {
+// in one place: a small "step N/total" badge (top-right), an optional finale checkmark, the text
+// paragraphs, an optional code block, and (on a narration step) the "click to continue" affordance.
+function BubbleBody({
+  b,
+  showFinale,
+  narration,
+  stepNo,
+  stepTotal,
+}: {
+  b: Bubble
+  showFinale: boolean
+  narration?: boolean
+  stepNo: number
+  stepTotal: number
+}) {
   return (
     <>
+      <span className="tut-bubble-num" aria-hidden="true">
+        {stepNo}/{stepTotal}
+      </span>
       {showFinale && (
         <div className="tut-finale-check" aria-hidden="true">
           <span>✓</span>
@@ -153,7 +168,7 @@ export function TutorialOverlay({
   onExit: () => void
   tileRect: ScreenRect | null
 }) {
-  const { step, message, isFinale, onOverlayClick } = controller
+  const { step, index, total, message, isFinale, onOverlayClick } = controller
   const [layout, setLayout] = useState<Layout>(() => ({ hole: null, reveals: [], ring: null, bubbles: [] }))
   // One DOM ref per currently-rendered bubble, so a click can be geometrically tested against each
   // bubble's live rect without changing the bubble's own pointer-events (it stays click-through).
@@ -261,7 +276,7 @@ export function TutorialOverlay({
             className={`tut-bubble tut-tail-${placed.tail}`}
             style={placed.style}
           >
-            <BubbleBody b={b} showFinale={isFinale} narration={step.narration} />
+            <BubbleBody b={b} showFinale={isFinale} narration={step.narration} stepNo={index + 1} stepTotal={total} />
           </div>
         )
       })}
@@ -286,7 +301,7 @@ export function TutorialOverlay({
                 }}
                 className="tut-bubble tut-tail-none"
               >
-                <BubbleBody b={b} showFinale={isFinale} narration={step.narration} />
+                <BubbleBody b={b} showFinale={isFinale} narration={step.narration} stepNo={index + 1} stepTotal={total} />
               </div>
             ) : null,
           )}

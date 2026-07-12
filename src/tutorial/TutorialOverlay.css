@@ -71,6 +71,23 @@
 .tut-bubble p:last-child {
   margin-bottom: 0;
 }
+
+/* Small "step N/total" badge in the bubble's top-right corner — a locator so the user (and we) can refer
+   to "step 3/11". Muted + smaller than the body so it doesn't read as content. Absolutely placed against
+   the bubble (fixed on desktop; position:relative in the mobile banner below); the first paragraph
+   reserves room on its right so a long first line never runs under the badge. */
+.tut-bubble-num {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.6rem;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  pointer-events: none;
+}
+.tut-bubble > p:first-of-type {
+  padding-right: 2rem;
+}
 .tut-code {
   margin: 0.6rem 0 0;
   padding: 0.55rem 0.7rem;
@@ -155,7 +172,8 @@
     cursor: pointer;
   }
   .tut-banner .tut-bubble {
-    position: static;
+    /* relative (not static) so the absolute .tut-bubble-num badge anchors to the bubble, not the banner. */
+    position: relative;
     max-width: none;
   }
   .tut-banner .tut-bubble::after {
