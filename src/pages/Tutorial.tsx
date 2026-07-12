@@ -33,8 +33,8 @@ function TutorialLanding() {
         <p className="page-eyebrow">Learn</p>
         <h1 className="page-title">Tutorial</h1>
         <p className="page-lead">
-          Short, hands-on chapters that build up the ideas behind Exploroboros, one small skill at a time,
-          right inside the real canvas. Start with the basics and work your way up.
+          Short, hands-on chapters that build up the ideas behind Exploroboros, one small skill at a time.
+          Start with the basics and work your way up.
         </p>
       </header>
 

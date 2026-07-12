@@ -80,6 +80,7 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.9rem;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   color: var(--fg);
 }
 .tut-continue {
@@ -132,6 +133,36 @@
   border-left: none;
 }
 
+/* Mobile: DOM-anchored bubbles have no horizontal room next to a full-width stacked panel, so they skip
+   their anchor math (placeBubble's isMobile branch) and stack into ONE full-width banner pinned to the
+   bottom of the viewport — nothing goes off-screen. Same z-index tier as an anchored bubble. Unlike a
+   bubble, the banner IS click-catching (pointer-events:auto) so it's touch-scrollable when tall, and a tap
+   runs the same copy + advance/block-hint as a catcher tap (see TutorialOverlay.tsx) rather than silently
+   reaching a control beneath it; the inner bubbles keep pointer-events:none from the base rule. */
+@media (max-width: 64rem) {
+  .tut-banner {
+    position: fixed;
+    left: 0.6rem;
+    right: 0.6rem;
+    bottom: calc(0.6rem + env(safe-area-inset-bottom, 0px));
+    z-index: 63;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    max-height: 45vh;
+    overflow-y: auto;
+    pointer-events: auto;
+    cursor: pointer;
+  }
+  .tut-banner .tut-bubble {
+    position: static;
+    max-width: none;
+  }
+  .tut-banner .tut-bubble::after {
+    display: none;
+  }
+}
+
 /* The transient nudge (block hint / wrong-tile). A low, unobtrusive toast — not a popup. */
 .tut-message {
   position: fixed;
@@ -155,6 +186,17 @@
   from {
     opacity: 0;
     transform: translate(-50%, 6px);
+  }
+}
+
+/* Mobile: float the block-hint/wrong-tile toast near the top (under the sticky nav) instead of the bottom,
+   so it can't collide with the bottom banner. MUST come after the base .tut-message rule above — same
+   specificity, so source order decides: set bottom:auto here to actually override the base bottom:4.5rem
+   (otherwise top + bottom both apply and the toast stretches the full viewport height). */
+@media (max-width: 64rem) {
+  .tut-message {
+    top: calc(0.6rem + env(safe-area-inset-top, 0px) + 3.7rem);
+    bottom: auto;
   }
 }
 

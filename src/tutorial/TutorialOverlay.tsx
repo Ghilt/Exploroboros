@@ -16,7 +16,9 @@ import { Fireworks } from './Fireworks'
 // is reported by the canvas (tileRect prop).
 
 type Rect = { left: number; top: number; width: number; height: number }
-type Placed = { style: CSSProperties; tail: 'left' | 'right' | 'top' | 'bottom' | 'none' }
+// A DOM-anchored bubble's computed placement, OR the literal 'banner' (mobile: skip anchor math and stack
+// the step's bubbles into one bottom banner — see placeBubble / the .tut-banner render).
+type Placed = { style: CSSProperties; tail: 'left' | 'right' | 'top' | 'bottom' | 'none' } | 'banner'
 type Layout = { hole: Rect | null; reveals: Rect[]; ring: Rect | null; bubbles: Placed[] }
 
 const DIM_OPACITY = 0.22
@@ -25,6 +27,9 @@ const GAP = 14
 const MARGIN = 12
 const EST_W = 300
 const EST_H = 150
+// Below this width the Canvas/Workspace stacks to a full-width column (same breakpoint everywhere in the
+// app), so anchor-relative bubbles have no horizontal room and go off-screen — switch them to a banner.
+const MOBILE_QUERY = '(max-width: 64rem)'
 
 function rectOf(sel: string): Rect | null {
   const el = document.querySelector(sel)
@@ -50,7 +55,7 @@ function autoPlacement(r: Rect, vw: number): 'left' | 'right' | 'bottom' | 'top'
   return 'bottom'
 }
 
-function placeBubble(bubble: Bubble): Placed {
+function placeBubble(bubble: Bubble, isMobile: boolean): Placed {
   const vw = window.innerWidth
   const vh = window.innerHeight
   const center: Placed = { style: { left: vw / 2, top: vh * 0.46, transform: 'translate(-50%,-50%)' }, tail: 'none' }
@@ -64,6 +69,10 @@ function placeBubble(bubble: Bubble): Placed {
       tail: 'none',
     }
   }
+
+  // Only DOM-anchored bubbles hit the (mobile-hostile) anchor math; center/canvas-top above are already
+  // viewport-relative and stay put at every width. On mobile the rest become a bottom banner.
+  if (isMobile) return 'banner'
 
   const r = rectOf(`[data-tut="${bubble.anchor.tut}"]`)
   if (!r) return center
@@ -91,6 +100,9 @@ function placeBubble(bubble: Bubble): Placed {
 }
 
 function computeLayout(step: TutorialController['step'], tileRect: ScreenRect | null): Layout {
+  // Read the breakpoint fresh each call — this runs every animation frame (measure loop below), so a
+  // resize/rotation across the boundary re-lays-out for free, no extra state/listener needed.
+  const isMobile = window.matchMedia(MOBILE_QUERY).matches
   const hole = holeRectFor(step.hole)
   const reveals: Rect[] = []
   if (hole) reveals.push(hole)
@@ -100,14 +112,36 @@ function computeLayout(step: TutorialController['step'], tileRect: ScreenRect | 
   }
   const ringMode = step.ring ?? 'hole'
   const ring = ringMode === 'none' ? null : ringMode === 'tile' ? tileRect : hole
-  return { hole, reveals, ring, bubbles: step.bubbles.map(placeBubble) }
+  return { hole, reveals, ring, bubbles: step.bubbles.map((b) => placeBubble(b, isMobile)) }
 }
 
 function layoutKey(l: Layout): string {
   const box = (r: Rect | null) => (r ? `${r.left | 0},${r.top | 0},${r.width | 0},${r.height | 0}` : 'x')
   const reveals = l.reveals.map(box).join(';')
-  const bubbles = l.bubbles.map((p) => `${p.tail}:${String(p.style.left)}:${String(p.style.top)}:${String(p.style.transform)}`).join('|')
+  const bubbles = l.bubbles
+    .map((p) => (p === 'banner' ? 'banner' : `${p.tail}:${String(p.style.left)}:${String(p.style.top)}:${String(p.style.transform)}`))
+    .join('|')
   return `${box(l.hole)}#${reveals}#${box(l.ring)}#${bubbles}`
+}
+
+// The inner markup of a bubble, shared by the desktop per-bubble render and the mobile banner so it lives
+// in one place: an optional finale checkmark, the text paragraphs, an optional code block, and (on a
+// narration step) the "click to continue" affordance.
+function BubbleBody({ b, showFinale, narration }: { b: Bubble; showFinale: boolean; narration?: boolean }) {
+  return (
+    <>
+      {showFinale && (
+        <div className="tut-finale-check" aria-hidden="true">
+          <span>✓</span>
+        </div>
+      )}
+      {b.text.split('\n\n').map((para, j) => (
+        <p key={j}>{para}</p>
+      ))}
+      {b.code && <pre className="tut-code">{b.code}</pre>}
+      {narration && <span className="tut-continue">click to continue →</span>}
+    </>
+  )
 }
 
 export function TutorialOverlay({
@@ -213,9 +247,11 @@ export function TutorialOverlay({
         />
       )}
 
+      {/* Desktop: each bubble anchored next to its target. (A 'banner'-typed entry is rendered by the
+          .tut-banner block below instead, so it's skipped here.) */}
       {step.bubbles.map((b, i) => {
         const placed = layout.bubbles[i]
-        if (!placed) return null
+        if (!placed || placed === 'banner') return null
         return (
           <div
             key={i}
@@ -225,19 +261,37 @@ export function TutorialOverlay({
             className={`tut-bubble tut-tail-${placed.tail}`}
             style={placed.style}
           >
-            {isFinale && (
-              <div className="tut-finale-check" aria-hidden="true">
-                <span>✓</span>
-              </div>
-            )}
-            {b.text.split('\n\n').map((para, j) => (
-              <p key={j}>{para}</p>
-            ))}
-            {b.code && <pre className="tut-code">{b.code}</pre>}
-            {step.narration && <span className="tut-continue">click to continue →</span>}
+            <BubbleBody b={b} showFinale={isFinale} narration={step.narration} />
           </div>
         )
       })}
+
+      {/* Mobile: the step's DOM-anchored bubbles stack into one full-width bottom banner (nothing goes
+          off-screen). The banner itself catches clicks (so it's touch-scrollable) and runs the SAME
+          copy + advance/block-hint the catchers do; the inner bubbles stay pointer-events:none. */}
+      {layout.bubbles.some((p) => p === 'banner') && (
+        <div
+          className="tut-banner"
+          onClick={(e) => {
+            copyBubbleAt(e)
+            onOverlayClick()
+          }}
+        >
+          {step.bubbles.map((b, i) =>
+            layout.bubbles[i] === 'banner' ? (
+              <div
+                key={i}
+                ref={(el) => {
+                  bubbleRefs.current[i] = el
+                }}
+                className="tut-bubble tut-tail-none"
+              >
+                <BubbleBody b={b} showFinale={isFinale} narration={step.narration} />
+              </div>
+            ) : null,
+          )}
+        </div>
+      )}
 
       {message && <div className="tut-message" role="status">{message}</div>}
 
