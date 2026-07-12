@@ -57,7 +57,7 @@ export type ExecResult = {
   next: { maxSplit: number; maxSteps: number; movement: Movement; p: number; q: number; r: number }
   // This tick's find-tile / find-lowest/highest results, indexed by source position — the tile `fN`
   // resolves to (or null where the search found nothing / didn't run). The path preview reads it so
-  // `move f0`, `visited@f1@e0`, … resolve; the tick itself doesn't need it returned.
+  // `move f0`, `visited.f1.e0`, … resolve; the tick itself doesn't need it returned.
   found: Hop[]
 }
 

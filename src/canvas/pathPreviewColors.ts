@@ -1,7 +1,7 @@
 // The colour palette for the traverser path preview — the pulsating lines drawn on the canvas when the
 // user selects DSL text, and the matching swatches in the editor gutter. ONE source of truth so the two
 // can never drift. Pure (no DOM); a colour is assigned per SOURCE LINE (cycling), so all paths written on
-// one line — e.g. the two chains of `move [r1@r2, straight@straight]` — share a colour, and selecting the
+// one line — e.g. the two chains of `move [r1.r2, straight.straight]` — share a colour, and selecting the
 // whole program shows each line in its own colour.
 //
 // ~10 medium-saturation hues, chosen to stay distinct from one another and readable on the light canvas.

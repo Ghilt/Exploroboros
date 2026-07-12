@@ -551,8 +551,8 @@ export function parseExpr(src: string): Result<Expr> {
   return run(src, (p) => p.parseExpr())
 }
 
-// Parse a standalone `@`-path fragment — the text must START with `@` (e.g. `@e1`, `@r1@straight`,
-// `@target`, `@tile 3`, `@f1@e0`). Used by the path-preview scanner, which isolates the `@…` run of an
+// Parse a standalone `.`-path fragment — the text must START with `.` (e.g. `.e1`, `.r1.straight`,
+// `.target`, `.tile 3`, `.f1.e0`). Used by the path-preview scanner, which isolates the `.…` run of an
 // attribute/registry read and re-parses it here so the segment grammar is never duplicated. Errors come
 // back as a Result (never thrown), like the other entry points.
 export function parsePathFragment(src: string): Result<TilePath> {

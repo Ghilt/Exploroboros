@@ -308,7 +308,7 @@ export function Workspace() {
     () => (editingDefName ? traverserStore.traversers.find((t) => t.name === editingDefName)?.text ?? null : null),
     [editingDefName, traverserStore.traversers],
   )
-  // Every path (move chain / `@`-path) in that text, with spans, re-scanned only when the text changes.
+  // Every path (move chain / `.`-path) in that text, with spans, re-scanned only when the text changes.
   const pathOccurrences = useMemo<PathOccurrence[]>(() => (activePreviewText == null ? [] : scanPaths(activePreviewText)), [activePreviewText])
 
   // The hand-authored base for an export: manual paint + registries only. A run's visits AND its A/B/C
@@ -688,7 +688,7 @@ export function Workspace() {
     }
     const program = defs.get(walker.def)
     const movement = program?.settings.movement ?? walker.movement
-    // Resolve the walker's `fN` (find-tile / find-lowest) results this tick, so `move f0` / `visited@f1@e0`
+    // Resolve the walker's `fN` (find-tile / find-lowest) results this tick, so `move f0` / `visited.f1.e0`
     // light up the tile the search lands on. Needs a compiling program; a broken one just leaves fN unlit.
     const found = program ? computeFound(tiling, displayOverlay, walker, program, numbering.order, indexById, numbering, step) : undefined
     const resolve = (o: PathOccurrence) => resolveWalk(tiling, displayOverlay, selected.id, walker.heading, movement, o, numbering.order, found)

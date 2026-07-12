@@ -680,8 +680,8 @@ function stmtFoundRefs(s: Stmt, out: number[]): void {
   }
 }
 
-// Parse a standalone move TARGET fragment — a single chain (`straight`, `e0@e4`, `r1@r2`) or a bracketed
-// list (`[r1@r2, straight@straight]`, `[e1..e3]`) — into its Chain(s), with lists and `..` ranges expanded
+// Parse a standalone move TARGET fragment — a single chain (`straight`, `e0.e4`, `r1.r2`) or a bracketed
+// list (`[r1.r2, straight.straight]`, `[e1..e3]`) — into its Chain(s), with lists and `..` ranges expanded
 // exactly as a real `move`/`morph` would. Used by the path-preview scanner, which slices a move target out
 // of a program and re-parses it here so the chain grammar is never duplicated. Errors return as a Result.
 export function parseChainFragment(src: string): Result<EdgeTarget> {
