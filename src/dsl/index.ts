@@ -38,7 +38,7 @@ export { lex } from './lex'
 export type { EvalContext, AttrSpec, TraverserAttrs } from './attributes'
 export { ATTRIBUTES, TILE_ATTRIBUTES, RAMP_ATTRIBUTES, attrSpec } from './attributes'
 
-export { parsePredicate, parseExpr } from './parse'
+export { parsePredicate, parseExpr, parsePathFragment } from './parse'
 export { serialize, serializeExpr, serializePath } from './serialize'
 export { evalNumber, evalPredicate } from './eval'
 export { predReadsTarget, exprReadsTarget, predFoundIndices, exprFoundIndices, predIsAbsolute, predPathReach } from './target'

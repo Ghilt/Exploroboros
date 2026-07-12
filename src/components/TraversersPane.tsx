@@ -1,6 +1,6 @@
 import './PredicatePane.css'
 import './TraversersPane.css'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { compileProgram } from '../traverse'
 import { reservedNameError } from '../dsl'
 import type { TraverserStore, StoredTraverser } from '../state/traverserStore'
@@ -8,6 +8,7 @@ import { PROTOTYPE_PORTS, pickRandomPort } from '../data/prototypePorts'
 import { HelpButton } from './HelpButton'
 import { TrashButton } from './TrashButton'
 import { DslTextarea } from './DslTextarea'
+import { lineTopFor } from './caretCoords'
 import { buildDslCompletions, TRAVERSER_STARTERS } from './dslCompletions'
 
 // The Traversers pane: a library of walker DEFINITIONS, each a DSL program describing how a walker
@@ -18,12 +19,18 @@ export function TraversersPane({
   store,
   predicateNames,
   onOpenPredicates,
+  lineColors,
+  onEditorSelectionChange,
 }: {
   store: TraverserStore
   // name -> DSL text, so a guard can reference a saved predicate by name (resolved at compile).
   predicateNames: ReadonlyMap<string, string>
   // Opens the shared Custom-predicates dialog (the badge at the pane foot). Optional so tests can omit it.
   onOpenPredicates?: () => void
+  // Path preview: per-source-line swatch colours (whole-program mode; empty otherwise), and a callback
+  // reporting the editor's text selection so the Workspace can light up the selected paths on the canvas.
+  lineColors?: ReadonlyMap<number, string>
+  onEditorSelectionChange?: (defName: string, sel: { start: number; end: number } | null) => void
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const editing = editingId ? store.traversers.find((t) => t.id === editingId) ?? null : null
@@ -67,6 +74,8 @@ export function TraversersPane({
           traverser={editing}
           predicateNames={predicateNames}
           nameError={nameError(editing)}
+          lineColors={lineColors}
+          onSelectionChange={(sel) => onEditorSelectionChange?.(editing.name, sel)}
           onSetText={store.setText}
           onRename={store.rename}
           onDone={() => setEditingId(null)}
@@ -206,6 +215,8 @@ function TraverserEditor({
   traverser,
   predicateNames,
   nameError,
+  lineColors,
+  onSelectionChange,
   onSetText,
   onRename,
   onDone,
@@ -213,6 +224,8 @@ function TraverserEditor({
   traverser: StoredTraverser
   predicateNames: ReadonlyMap<string, string>
   nameError: string | null
+  lineColors?: ReadonlyMap<number, string>
+  onSelectionChange?: (sel: { start: number; end: number } | null) => void
   onSetText: (id: string, text: string) => void
   onRename: (id: string, name: string) => void
   onDone: () => void
@@ -222,6 +235,45 @@ function TraverserEditor({
   // Ctrl+Space suggestions: tile attributes, the walker's own attributes (a traverser IS a walker here),
   // and every referenceable predicate name.
   const completions = useMemo(() => buildDslCompletions({ predicateNames, includeTraverser: true }), [predicateNames])
+
+  // Clear the preview when the editor unmounts (Done / switching rows), even if no blur fired.
+  const selCbRef = useRef(onSelectionChange)
+  selCbRef.current = onSelectionChange
+  useEffect(() => () => selCbRef.current?.(null), [])
+
+  // Swatch gutter: a colour dot beside each illuminated source line (whole-program preview mode; empty
+  // otherwise). Measured against the real textarea so it stays aligned even when a long line wraps, and
+  // recomputed on scroll/resize. `top` is already scroll-adjusted (see lineTopFor); the gutter clips.
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [swatches, setSwatches] = useState<Array<{ line: number; color: string; top: number }>>([])
+  useEffect(() => {
+    const ta = wrapRef.current?.querySelector('textarea') as HTMLTextAreaElement | null
+    if (!ta || !lineColors || lineColors.size === 0) {
+      setSwatches([])
+      return
+    }
+    const recompute = () => {
+      const starts: number[] = [0]
+      for (let i = 0; i < traverser.text.length; i += 1) if (traverser.text[i] === '\n') starts.push(i + 1)
+      const next: Array<{ line: number; color: string; top: number }> = []
+      for (const [line, color] of lineColors) {
+        const off = starts[line]
+        if (off === undefined) continue
+        next.push({ line, color, top: lineTopFor(ta, off).top })
+      }
+      setSwatches(next)
+    }
+    recompute()
+    ta.addEventListener('scroll', recompute)
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(recompute) : null
+    ro?.observe(ta)
+    window.addEventListener('resize', recompute)
+    return () => {
+      ta.removeEventListener('scroll', recompute)
+      ro?.disconnect()
+      window.removeEventListener('resize', recompute)
+    }
+  }, [lineColors, traverser.text])
 
   return (
     <div className="trav-edit">
@@ -241,15 +293,23 @@ function TraverserEditor({
         </p>
       )}
 
-      <DslTextarea
-        className="pred-text trav-edit-text"
-        value={traverser.text}
-        spellCheck={false}
-        aria-label="traverser DSL"
-        completions={completions}
-        starters={TRAVERSER_STARTERS}
-        onValueChange={(t) => onSetText(traverser.id, t)}
-      />
+      <div className="trav-edit-textwrap" ref={wrapRef}>
+        <DslTextarea
+          className="pred-text trav-edit-text"
+          value={traverser.text}
+          spellCheck={false}
+          aria-label="traverser DSL"
+          completions={completions}
+          starters={TRAVERSER_STARTERS}
+          onValueChange={(t) => onSetText(traverser.id, t)}
+          onSelectionChange={onSelectionChange}
+        />
+        <div className="trav-swatch-gutter" aria-hidden="true">
+          {swatches.map((s) => (
+            <span key={s.line} className="trav-swatch" style={{ top: s.top, background: s.color }} />
+          ))}
+        </div>
+      </div>
       <p className="dsl-hint">
         <kbd>Ctrl</kbd>+<kbd>Space</kbd> — suggest attributes &amp; predicates
       </p>

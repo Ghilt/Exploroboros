@@ -28,3 +28,6 @@ export {
 export type { TileClip } from './clipboard'
 export { clipFromTile, canPaste, applyClip } from './clipboard'
 export { buildTiling } from './buildTiling'
+export { pathPreviewColors, colorForLine } from './pathPreviewColors'
+export type { SelSpan, PathPreviewEntry } from './pathPreviewSelect'
+export { isWholeProgram, occurrenceInSelection, buildPathPreview, lineColorsFor } from './pathPreviewSelect'

@@ -680,6 +680,27 @@ function stmtFoundRefs(s: Stmt, out: number[]): void {
   }
 }
 
+// Parse a standalone move TARGET fragment — a single chain (`straight`, `e0@e4`, `r1@r2`) or a bracketed
+// list (`[r1@r2, straight@straight]`, `[e1..e3]`) — into its Chain(s), with lists and `..` ranges expanded
+// exactly as a real `move`/`morph` would. Used by the path-preview scanner, which slices a move target out
+// of a program and re-parses it here so the chain grammar is never duplicated. Errors return as a Result.
+export function parseChainFragment(src: string): Result<EdgeTarget> {
+  const lexed = lexProgram(src)
+  if (!lexed.ok) return lexed
+  const units = splitUnits(lexed.value)
+  if (units.length === 0) return { ok: false, error: { message: 'expected a move target', span: { start: 0, end: 0 } } }
+  const line = new Line(units[0], src)
+  const ctx: ParseCtx = { findCount: 0 }
+  try {
+    const target = parseEdgeTarget(line, ctx)
+    line.expectEnd()
+    return { ok: true, value: target }
+  } catch (e) {
+    if (e instanceof ParseFail) return { ok: false, error: { message: e.message, span: e.span } }
+    throw e
+  }
+}
+
 export function parseProgram(src: string): Result<Program> {
   const lexed = lexProgram(src)
   if (!lexed.ok) return lexed

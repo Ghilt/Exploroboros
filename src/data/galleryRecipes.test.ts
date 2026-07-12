@@ -90,5 +90,7 @@ describe('GALLERY_RECIPES (real ported fractals)', () => {
       expect(visited, `${file} should visit beyond the seed`).toBeGreaterThan(20)
       expect(colored.size, `${file} should colour a visible fractal`).toBeGreaterThan(20)
     }
-  })
+    // Runs 29 recipes to completion — genuinely heavy, so give it headroom above the 5s default rather
+    // than let it flake on a timeout when the suite runs under parallel CPU load.
+  }, 30_000)
 })

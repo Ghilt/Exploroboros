@@ -35,11 +35,43 @@
 .trav-edit-name {
   flex: 0 0 auto;
 }
+/* Wraps the DSL textarea so the path-preview swatch gutter can overlay it. Inherits the textarea's
+   flex-fill role; the textarea then fills the wrapper. */
+.trav-edit-textwrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: clamp(8rem, 42vh, 32rem);
+  display: flex;
+  flex-direction: column;
+}
 .trav-edit-text {
   flex: 1 1 auto;
   /* A generous floor so it's still usable on mobile, where the pane height is content-driven. */
   min-height: clamp(8rem, 42vh, 32rem);
   resize: none;
+  /* Always reserve the gutter column on the left (a code-editor style gutter), so showing swatches never
+     shifts the text. */
+  padding-left: 1.15rem;
+}
+/* The swatch gutter: a thin non-interactive column of colour dots, one per illuminated source line, shown
+   when the whole program is selected. Dots are positioned per line (scroll-adjusted) and clipped here. */
+.trav-swatch-gutter {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 1.1rem;
+  pointer-events: none;
+  overflow: hidden;
+}
+.trav-swatch {
+  position: absolute;
+  left: 0.28rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-top: 0.2rem; /* nudge onto the line's cap height */
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3);
 }
 .trav-edit .pred-status {
   flex: 0 0 auto;

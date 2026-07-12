@@ -450,8 +450,9 @@ class Parser {
 
   // One or more `.`-segments after a leaf: `.e1`, `.r1.e5`, `.target`. Called only when the next token
   // is a `dot`. Edge/turn/straight/unvisited segments chain; `target`/`tile N` are terminal (they name
-  // a tile directly) and must be a path's only hop.
-  private parsePath(): TilePath {
+  // a tile directly) and must be a path's only hop. Public so parsePathFragment can parse a standalone
+  // `.`-path (the path-preview scanner slices one out of a program and re-parses it).
+  parsePath(): TilePath {
     const segs: PathSeg[] = []
     while (this.peek().kind === 'dot') {
       this.next() // consume '.'
@@ -548,4 +549,12 @@ export function parsePredicate(src: string): Result<Pred> {
 
 export function parseExpr(src: string): Result<Expr> {
   return run(src, (p) => p.parseExpr())
+}
+
+// Parse a standalone `@`-path fragment — the text must START with `@` (e.g. `@e1`, `@r1@straight`,
+// `@target`, `@tile 3`, `@f1@e0`). Used by the path-preview scanner, which isolates the `@…` run of an
+// attribute/registry read and re-parses it here so the segment grammar is never duplicated. Errors come
+// back as a Result (never thrown), like the other entry points.
+export function parsePathFragment(src: string): Result<TilePath> {
+  return run(src, (p) => p.parsePath())
 }

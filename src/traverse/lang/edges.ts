@@ -133,3 +133,27 @@ export function resolveChain(
   }
   return cur
 }
+
+// Like resolveChain, but returns the id of EVERY tile the chain passes through — the start tile, each
+// intermediate hop, and the final destination — so a caller can draw the whole walk (a line through the
+// tile centres), not just land on the end. A null hop (boundary / dead ref) TRUNCATES the walk to the
+// tiles reached so far. Kept a SEPARATE sibling of resolveChain (which stays a single-Hop function on the
+// per-tick hot path); this is the preview/debug variant. See src/traverse/lang/resolveWalk.ts.
+export function walkChain(
+  tiling: Tiling,
+  overlay: ReadonlyMap<string, TileState>,
+  tile: string,
+  heading: number,
+  movement: Movement,
+  refs: ReadonlyArray<EdgeRef>,
+): string[] {
+  const tiles: string[] = [tile]
+  let cur: { tile: string; heading: number } = { tile, heading }
+  for (const ref of refs) {
+    const hop = resolveRef(tiling, overlay, cur.tile, cur.heading, movement, ref)
+    if (!hop) break
+    cur = hop
+    tiles.push(cur.tile)
+  }
+  return tiles
+}

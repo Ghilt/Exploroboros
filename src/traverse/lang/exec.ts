@@ -55,14 +55,19 @@ export type ExecResult = {
   tileWrites: TileWrite[]
   // The walker's post-tick self-state, stamped onto every surviving branch.
   next: { maxSplit: number; maxSteps: number; movement: Movement; p: number; q: number; r: number }
+  // This tick's find-tile / find-lowest/highest results, indexed by source position — the tile `fN`
+  // resolves to (or null where the search found nothing / didn't run). The path preview reads it so
+  // `move f0`, `visited@f1@e0`, … resolve; the tick itself doesn't need it returned.
+  found: Hop[]
 }
 
 // Wrap an edge-number heading into 0..n-1 for a tile with `n` sides.
 const wrapEdge = (edge: number, n: number) => (n > 0 ? (((Math.round(edge) % n) + n) % n) : 0)
 
 // A hop-shaped path segment IS an EdgeRef (same shape); the terminal target/tile segs are resolved by
-// the caller and never reach here.
-function segToEdgeRef(seg: PathSeg): EdgeRef | null {
+// the caller and never reach here. Exported so the path-preview scanner (scanPaths) can lift a TilePath's
+// chainable segments into EdgeRefs the same way, single-sourcing the mapping.
+export function segToEdgeRef(seg: PathSeg): EdgeRef | null {
   switch (seg.kind) {
     case 'straight':
       return { kind: 'straight' }
@@ -510,5 +515,6 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
     branches,
     tileWrites,
     next: { maxSplit: self.maxSplit, maxSteps: self.maxSteps, movement: self.movement, p: self.p, q: self.q, r: self.r },
+    found,
   }
 }

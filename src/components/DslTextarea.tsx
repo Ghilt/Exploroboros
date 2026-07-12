@@ -11,6 +11,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import type { DslCompletion } from './dslCompletions'
+import { caretCoordinates } from './caretCoords'
 
 // The DSL editors' Ctrl+Space autocomplete. Two drop-in fields share it: <DslTextarea> (traverser /
 // initial-state / predicate editors) and <DslInput> (the coloring inline predicate). Press Ctrl+Space to
@@ -208,16 +209,54 @@ function kindLabel(kind: DslCompletion['kind']): string {
   }
 }
 
+// Emit the field's current selection (debounced) on select/keyup/mouseup, and null on blur — the hook the
+// path preview listens to. A no-op when `onSelectionChange` is absent, so non-preview fields pay nothing.
+function useSelectionEmitter(
+  ref: RefObject<Field | null>,
+  onSelectionChange?: (sel: { start: number; end: number } | null) => void,
+): { onSelect: () => void; onKeyUp: () => void; onMouseUp: () => void; onBlur: () => void } {
+  const timer = useRef<number | null>(null)
+  const cb = useRef(onSelectionChange)
+  cb.current = onSelectionChange
+  useEffect(
+    () => () => {
+      if (timer.current != null) clearTimeout(timer.current)
+    },
+    [],
+  )
+  const emit = () => {
+    const el = ref.current
+    if (!cb.current || !el) return
+    const start = el.selectionStart ?? 0
+    const end = el.selectionEnd ?? start
+    if (timer.current != null) clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => cb.current?.({ start, end }), 80)
+  }
+  const onBlur = () => {
+    if (timer.current != null) {
+      clearTimeout(timer.current)
+      timer.current = null
+    }
+    cb.current?.(null)
+  }
+  return { onSelect: emit, onKeyUp: emit, onMouseUp: emit, onBlur }
+}
+
 type TextareaProps = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'value' | 'onChange'> & {
   value: string
   onValueChange: (v: string) => void
   completions: DslCompletion[]
   starters?: ReadonlyArray<DslCompletion>
+  // Emitted (debounced ~80ms) with the current selection on select/keyup/mouseup, and null on blur — for
+  // the path-preview feature. Absent = the field ignores selection (zero overhead). Independent of the
+  // Ctrl+Space autocomplete's own onKeyDown.
+  onSelectionChange?: (sel: { start: number; end: number } | null) => void
 }
 
-export function DslTextarea({ value, onValueChange, completions, starters, onKeyDown, ...rest }: TextareaProps) {
+export function DslTextarea({ value, onValueChange, completions, starters, onKeyDown, onSelectionChange, ...rest }: TextareaProps) {
   const ref = useRef<Field | null>(null)
   const ac = useDslAutocomplete({ ref, value, onValueChange, completions, starters })
+  const sel = useSelectionEmitter(ref, onSelectionChange)
   return (
     <>
       <textarea
@@ -229,6 +268,10 @@ export function DslTextarea({ value, onValueChange, completions, starters, onKey
           onKeyDown?.(e)
           ac.onKeyDown(e)
         }}
+        onSelect={sel.onSelect}
+        onKeyUp={sel.onKeyUp}
+        onMouseUp={sel.onMouseUp}
+        onBlur={sel.onBlur}
       />
       {ac.menu}
     </>
@@ -260,71 +303,4 @@ export function DslInput({ value, onValueChange, completions, starters, onKeyDow
       {ac.menu}
     </>
   )
-}
-
-// Pixel position of the caret inside a textarea/input, relative to the field's border-box (so the caller
-// adds getBoundingClientRect() to place a fixed popup). The standard mirror-div technique: render an
-// off-screen div styled identically to the field, put the text up to the caret in it followed by a marker
-// span, and read the span's offset. Only runs on real interaction (never during render/tests).
-const MIRROR_PROPS = [
-  'direction',
-  'boxSizing',
-  'width',
-  'overflowX',
-  'overflowY',
-  'borderTopWidth',
-  'borderRightWidth',
-  'borderBottomWidth',
-  'borderLeftWidth',
-  'paddingTop',
-  'paddingRight',
-  'paddingBottom',
-  'paddingLeft',
-  'fontStyle',
-  'fontVariant',
-  'fontWeight',
-  'fontStretch',
-  'fontSize',
-  'lineHeight',
-  'fontFamily',
-  'textAlign',
-  'textTransform',
-  'textIndent',
-  'letterSpacing',
-  'wordSpacing',
-  'tabSize',
-] as const
-
-function caretCoordinates(el: Field, position: number): { top: number; left: number; height: number } {
-  const isInput = el.tagName === 'INPUT'
-  const computed = getComputedStyle(el)
-  const div = document.createElement('div')
-  const s = div.style
-  s.position = 'absolute'
-  s.visibility = 'hidden'
-  s.whiteSpace = isInput ? 'pre' : 'pre-wrap'
-  s.wordWrap = isInput ? 'normal' : 'break-word'
-  s.top = '0'
-  s.left = '0'
-  s.overflow = 'hidden'
-  for (const prop of MIRROR_PROPS) {
-    s.setProperty(cssName(prop), computed.getPropertyValue(cssName(prop)))
-  }
-  s.height = 'auto'
-  // An <input> collapses runs of whitespace and never wraps; mirror that so the marker lands right.
-  div.textContent = isInput ? el.value.slice(0, position).replace(/\s/g, ' ') : el.value.slice(0, position)
-  const span = document.createElement('span')
-  span.textContent = (isInput ? el.value.slice(position).replace(/\s/g, ' ') : el.value.slice(position)) || '.'
-  div.appendChild(span)
-  document.body.appendChild(div)
-  const top = span.offsetTop + parseFloat(computed.borderTopWidth || '0') - el.scrollTop
-  const left = span.offsetLeft + parseFloat(computed.borderLeftWidth || '0') - el.scrollLeft
-  const height = parseFloat(computed.lineHeight) || parseFloat(computed.fontSize) * 1.2
-  document.body.removeChild(div)
-  return { top, left, height }
-}
-
-// camelCase style key -> CSS property name (e.g. borderTopWidth -> border-top-width).
-function cssName(prop: string): string {
-  return prop.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)
 }

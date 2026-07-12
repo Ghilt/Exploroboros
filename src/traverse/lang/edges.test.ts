@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { squareTiling, kallebodaTiling, across, clockwiseEdgeOrder, localSideToEdge, nodeById } from '../../tiling'
 import { addVisits, type TileState } from '../../canvas'
-import { resolveRef, resolveChain, straightPartner } from './edges'
+import { resolveRef, resolveChain, walkChain, straightPartner } from './edges'
 
 // heading is now an EDGE NUMBER (clockwise from top: 0 = north). On a 5×5 square, tile (r,c) id
 // `sq:r,c`, edge 0 = north (r+1), 1 = east (c+1), 2 = south (r-1), 3 = west (c-1).
@@ -50,6 +50,51 @@ describe('edge resolution on a square (heading = edge number)', () => {
     // straight (north) -> sq:3,2 arriving from its south edge; new heading = north again; straight -> sq:4,2.
     const hop = resolveChain(tiling, empty, 'sq:2,2', NORTH, 'relative', [{ kind: 'straight' }, { kind: 'straight' }])
     expect(hop?.tile).toBe('sq:4,2')
+  })
+})
+
+describe('walkChain returns every tile the chain passes through', () => {
+  it('a single hop yields start + destination', () => {
+    expect(walkChain(tiling, empty, 'sq:2,2', NORTH, 'relative', [{ kind: 'straight' }])).toEqual(['sq:2,2', 'sq:3,2'])
+  })
+
+  it('collects the INTERMEDIATE tile, not just the final one', () => {
+    // The whole point vs resolveChain: sq:3,2 must be present between start and end.
+    expect(walkChain(tiling, empty, 'sq:2,2', NORTH, 'relative', [{ kind: 'straight' }, { kind: 'straight' }])).toEqual([
+      'sq:2,2',
+      'sq:3,2',
+      'sq:4,2',
+    ])
+  })
+
+  it('re-aims after a turn', () => {
+    // r1 from north -> east into sq:2,3 (arrives facing east), then straight -> sq:2,4.
+    expect(walkChain(tiling, empty, 'sq:2,2', NORTH, 'relative', [{ kind: 'turn', dir: 'r', n: 1 }, { kind: 'straight' }])).toEqual([
+      'sq:2,2',
+      'sq:2,3',
+      'sq:2,4',
+    ])
+  })
+
+  it('empty refs yield just the start tile', () => {
+    expect(walkChain(tiling, empty, 'sq:2,2', NORTH, 'relative', [])).toEqual(['sq:2,2'])
+  })
+
+  it('truncates at a boundary, keeping the tiles reached so far', () => {
+    // From sq:2,3 facing east: straight -> sq:2,4 (edge column), straight -> off-grid -> stop.
+    expect(walkChain(tiling, empty, 'sq:2,3', 1, 'relative', [{ kind: 'straight' }, { kind: 'straight' }])).toEqual([
+      'sq:2,3',
+      'sq:2,4',
+    ])
+  })
+
+  it('a boundary on the first hop yields just the start', () => {
+    expect(walkChain(tiling, empty, 'sq:2,4', 1, 'relative', [{ kind: 'straight' }])).toEqual(['sq:2,4'])
+  })
+
+  it('honours absolute movement (turns from north)', () => {
+    // Facing east (1) but absolute: straight is north -> sq:3,2.
+    expect(walkChain(tiling, empty, 'sq:2,2', 1, 'absolute', [{ kind: 'straight' }])).toEqual(['sq:2,2', 'sq:3,2'])
   })
 })
 

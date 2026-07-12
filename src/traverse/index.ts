@@ -19,5 +19,11 @@ export { parseProgram, serializeProgram, compileProgram, DEFAULT_SETTINGS } from
 // predicates like `[A.e0] > 0` can read a neighbouring tile without a walker.
 export { resolveAbsolutePath } from './lang'
 
+// Path preview: scan a program's text for its move-chains / `@`-paths (with spans), and resolve one into
+// the ordered tiles it walks — so the Traversers editor can light up a selected path on the canvas.
+// `computeFound` runs one tick to resolve the walker's `fN` (find-tile) results for the preview.
+export { scanPaths, resolveWalk, computeFound } from './lang'
+export type { PathOccurrence, OccurrenceBase } from './lang'
+
 // Downloadable whole-run trace log (the analysis artifact): runs the setup to completion traced.
 export { buildTraverseLog, serializeTraverseLog, traverseLogFilename, TRAVERSE_LOG_VERSION, type TraverseLog, type TraverseLogMeta } from './traceLog'

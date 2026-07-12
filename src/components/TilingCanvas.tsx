@@ -120,6 +120,10 @@ type Props = {
   autoTraverserHeads?: ReadonlyMap<string, number>
   // Debug overlay: tiles to outline by role (decision-log hover). Undefined / empty = nothing drawn.
   highlightGroups?: HighlightGroups
+  // Path preview: ordered tile walks to draw as pulsating polylines through centroids, the FINAL tile of
+  // each outlined, in that path's per-source-line colour (shared with the editor swatches). From selecting
+  // text in the Traversers editor. Undefined / empty = nothing drawn.
+  pathPreview?: ReadonlyArray<{ tiles: ReadonlyArray<string>; color: string }>
   tileNumber?: (id: string) => number
   onSelect?: (id: string) => void
   onSelectTiles?: (ids: string[]) => void
@@ -141,6 +145,7 @@ export function TilingCanvas({
   traverserHeads,
   autoTraverserHeads,
   highlightGroups,
+  pathPreview,
   tileNumber,
   onSelect,
   onSelectTiles,
@@ -329,13 +334,14 @@ export function TilingCanvas({
     return () => cancelAnimationFrame(raf)
   }, [])
 
-  // While a debug log row is hovered/pinned (highlightGroups non-empty), run a gentle sine pulse so the
-  // outline breathes and is easy to pick out on a dense grid. Redraws only the (cheap) UI layer each
-  // frame, and stops — resetting to full strength — the moment nothing is highlighted, so it costs
-  // nothing at rest. `highlightGroups` gets a new identity on every hover, which re-arms the loop.
+  // While a debug log row is hovered/pinned (highlightGroups) OR a path preview is showing (pathPreview),
+  // run a gentle sine pulse so the outlines/lines breathe and are easy to pick out on a dense grid. Redraws
+  // only the (cheap) UI layer each frame, and stops — resetting to full strength — the moment nothing is
+  // highlighted, so it costs nothing at rest. Each prop gets a new identity when it changes, re-arming it.
   const hasHighlight = !!highlightGroups && highlightGroups.length > 0
+  const hasPreview = !!pathPreview && pathPreview.length > 0
   useEffect(() => {
-    if (!hasHighlight) {
+    if (!hasHighlight && !hasPreview) {
       pulseRef.current = 1
       return
     }
@@ -348,7 +354,7 @@ export function TilingCanvas({
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
-  }, [hasHighlight])
+  }, [hasHighlight, hasPreview])
 
   // Pointer interaction (no modes): tap a tile to inspect it, drag to paint the visited overlay,
   // two-finger drag (touch) or middle-mouse drag (desktop) to pan, pinch / wheel to zoom. Attached
@@ -639,6 +645,10 @@ export function TilingCanvas({
             <Shape
               listening={false}
               sceneFunc={(ctx) => drawHighlights(ctx, tiling, viewRef.current, paletteRef.current, highlightGroups, pulseRef.current)}
+            />
+            <Shape
+              listening={false}
+              sceneFunc={(ctx) => drawPathPreview(ctx, tiling, viewRef.current, pathPreview, pulseRef.current)}
             />
             <Shape
               listening={false}
@@ -1021,4 +1031,68 @@ function drawHighlights(
     if (s.dash) ctx.setLineDash([])
     ctx.restore()
   }
+}
+
+// The path preview overlay: draw each selected traverser path as a pulsating polyline through the tile
+// centres, with the FINAL tile outlined + faintly filled, in that path's per-source-line colour. A thin
+// translucent-white casing under every stroke keeps the coloured line legible over a similar coloring fill
+// (the base tiles are white, so it's invisible there). Undefined/empty = nothing drawn. `pulse` (0..1)
+// breathes opacity + weight, shared with drawHighlights. Walks are short (max-steps), so no culling.
+function drawPathPreview(
+  ctx: Konva.Context,
+  tiling: Tiling,
+  view: View,
+  paths: ReadonlyArray<{ tiles: ReadonlyArray<string>; color: string }> | undefined,
+  pulse = 1,
+): void {
+  if (!paths || paths.length === 0) return
+  const alphaK = 0.55 + 0.45 * pulse
+  const widthK = 1 + 0.4 * pulse
+  const tilePx = representativeTileSize(tiling) * view.scale
+  const lineW = Math.max(2, tilePx * 0.09)
+  const outlineW = Math.max(2.5, tilePx * 0.08)
+  ctx.save()
+  ctx.setAttr('lineJoin', 'round')
+  ctx.setAttr('lineCap', 'round')
+  for (const { tiles, color } of paths) {
+    if (tiles.length === 0) continue
+    // The polyline through the tile centres (only when the walk visits more than one tile).
+    if (tiles.length > 1) {
+      const pts: Array<{ x: number; y: number }> = []
+      for (const id of tiles) {
+        const node = nodeById(tiling, id)
+        if (node) pts.push(worldToScreen(node.centroid, view))
+      }
+      if (pts.length > 1) {
+        const stroke = (w: number, style: string, a: number) => {
+          ctx.beginPath()
+          ctx.moveTo(pts[0].x, pts[0].y)
+          for (let i = 1; i < pts.length; i += 1) ctx.lineTo(pts[i].x, pts[i].y)
+          ctx.setAttr('globalAlpha', a)
+          ctx.setAttr('strokeStyle', style)
+          ctx.setAttr('lineWidth', w)
+          ctx.stroke()
+        }
+        stroke((lineW + 3) * widthK, '#ffffff', 0.7 * alphaK) // casing
+        stroke(lineW * widthK, color, alphaK)
+      }
+    }
+    // The terminal tile: a faint fill and a strong outline (with its own white casing), both pulsing.
+    const term = nodeById(tiling, tiles[tiles.length - 1])
+    if (term) {
+      traceTile(ctx, term.vertices, view)
+      ctx.setAttr('globalAlpha', alphaK * 0.18)
+      ctx.setAttr('fillStyle', color)
+      ctx.fill()
+      ctx.setAttr('globalAlpha', 0.7 * alphaK)
+      ctx.setAttr('strokeStyle', '#ffffff')
+      ctx.setAttr('lineWidth', (outlineW + 3) * widthK)
+      ctx.stroke()
+      ctx.setAttr('globalAlpha', alphaK)
+      ctx.setAttr('strokeStyle', color)
+      ctx.setAttr('lineWidth', outlineW * widthK)
+      ctx.stroke()
+    }
+  }
+  ctx.restore()
 }

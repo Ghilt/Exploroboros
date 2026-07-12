@@ -461,6 +461,23 @@ still needed into this doc **before** then; do not rely on the path persisting.
   deleted. **This is an accepted, intentional compatibility break** — any recipe not already on schema v10
   (a pre-change exported PNG, or a gallery row whose text wasn't already rewritten at the time) now fails to
   open (`'unsupported'`) instead of migrating automatically. See §7 + the §9 lexer/recipe notes.
+- **Path preview — selecting traverser text lights up its paths on the canvas (built 2026-07-10, rebased onto
+  the `.`-separator refactor + landed 2026-07-12):** when exactly
+  one selected tile carries a walker AND the Traversers editor is open on THAT walker's definition,
+  highlighting DSL text draws each **path** it contains as a **pulsating line through the tile centres**,
+  ending at an outlined final tile — resolved from the walker's tile + heading (and **`fN` find-tile /
+  find-lowest results**, resolved by running the walker's search for the tick — so `move f0` / `visited.f1`
+  light where the search lands). EVERY path illuminates (move
+  chains AND `.`-paths inside conditions / put values / write targets), never the non-path syntax (owner's
+  choice). A list `[r1.r2, straight.straight]` draws two lines; partial selection lights just the paths it
+  touches. Selecting the **whole program** shows each path in a distinct **per-source-line colour** (10
+  cycling) with a matching **swatch beside each line** in the editor gutter. Pure core in `src/traverse/lang/`
+  — `scanPaths` (find every path + its span, by re-lexing + delegating to the existing fragment parsers, no
+  AST-span changes) and `resolveWalk`/`walkChain` (collect every hop, not just the final); pure glue in
+  `src/canvas/` — `pathPreviewColors` + `pathPreviewSelect` (selection filtering → drawable walks + swatch
+  colours). `DslTextarea` gained a debounced `onSelectionChange`; `TilingCanvas` a `pathPreview` prop drawn in
+  the UI layer with the existing pulse. No recipe/schema change (nothing is stored — it's a live authoring
+  aid). See §9.
 - **Next up:** **`exploroboros.io` custom domain** (register + attach — §8) → **DSL-driven traversers** (custom
   rules in the Traversers pane — paint/move/visit/split/guards/state, §5; reuses the predicate DSL) → **persist
   user exports across reloads** (IndexedDB).
@@ -799,6 +816,14 @@ in-session task tracker.
     **pulse** (rAF sine, live only while hovered/pinned) so they stand out on a dense grid; writes get their
     own magenta role. `WriteTargetTrace` on the write trace (`exec.ts`); `writeTargetGroups` + a `write` case
     (`highlights.ts`); `drawHighlights` pulse (`TilingCanvas.tsx`) *(verified 2026-07-09)*
+  - [x] **Path preview from a text selection** — with one selected tile carrying a walker and the Traversers
+    editor open on THAT walker's definition, highlighting DSL text draws each **path** (move chain / `.`-path)
+    as a **pulsating line through the tile centres** to an outlined final tile, resolved from the walker's tile
+    + heading. Every path illuminates (incl. condition/value/write `.`-paths); whole-program selection shows
+    each in a **per-line colour** (10 cycling) with matching **editor-gutter swatches**. Pure `scanPaths` +
+    `resolveWalk`/`walkChain` (`src/traverse/lang/`) + `pathPreviewColors` + `pathPreviewSelect`
+    (`src/canvas/`); `DslTextarea` `onSelectionChange`; `TilingCanvas` `pathPreview` prop. No schema change
+    *(built 2026-07-10, rebased onto the `.`-separator refactor + landed 2026-07-12)*
 - [x] **Deploy to Cloudflare Pages** *(done 2026-07-04, `605d35a`)* — SPA + gallery Functions live at
   **https://exploroboros.pages.dev** (D1 `exploroboros` + R2 `exploroboros-images`; schema applied
   `--remote`; `npm run deploy`). Backend verified live (API + an R2 image round-trip); gallery launched
@@ -1196,6 +1221,33 @@ Hard-won; read before fighting the tooling again.
   `pulse` factor (0..1) modulating alpha + line-width, driven by a rAF loop in `TilingCanvas` that runs
   ONLY while `highlightGroups` is non-empty (a hover/pin) and resets to full strength at rest — so it costs
   nothing when idle and needs no new state plumbed up from `Workspace`.
+- **Path preview (selecting traverser text lights up its paths on the canvas).** Pipeline:
+  `DslTextarea.onSelectionChange` (debounced ~80ms select/keyup/mouseup, null on blur; no-op when the prop is
+  absent, so only the traverser editor pays) → `TraversersPane`/`TraverserEditor` forward it up as
+  `onEditorSelectionChange(defName, sel)` → `Workspace` holds `editorSel` + `editingDefName`. The GATE (one
+  memo in `Workspace`): exactly one tile selected, it carries a walker (`selectedTraverser ?? selectedAuto`),
+  the editor is on THAT walker's def (`editingDefName === walker.def`), and there's a live selection. When it
+  holds, `scanPaths(activePreviewText)` (memoized on the def's live store text) gives every path occurrence
+  (`{span, line, base, refs}`), `buildPathPreview` filters them to the selection + resolves each with
+  `resolveWalk(tiling, displayOverlay, selected.id, walker.heading, movement, occ, numbering.order)`, colours
+  each by `colorForLine(occ.line)`, and `lineColorsFor` returns the gutter swatch map (whole-program only).
+  `pathPreview` → `TilingCanvas` (drawn as pulsating polylines + terminal outline via `drawPathPreview`, same
+  pulse rAF as the debug highlights, now armed by `hasHighlight || hasPreview`); `lineColors` → the editor's
+  swatch gutter (dots positioned by `lineTopFor`, the mirror-div helper now in `src/components/caretCoords.ts`
+  — extracted from `DslTextarea` so that file exports only components). **Pure, tested core:** `scanPaths` /
+  `resolveWalk` / `walkChain` (`src/traverse/lang/`) + `pathPreviewColors` / `pathPreviewSelect`
+  (`src/canvas/`). `scanPaths` is a SCANNER, not a parser: it re-lexes with `lexProgram` and delegates each
+  isolated path-run to the existing `parseChainFragment` (move targets) / `parsePathFragment` (`.`-paths), so
+  the grammar is single-sourced and NO source-span field was added to the AST. `walkChain` is a sibling of
+  `resolveChain` that returns EVERY hop (for the line), leaving the hot-path `resolveChain` untouched. Nothing
+  is persisted — it's a live authoring aid, so no recipe/schema change. Base handling in `resolveWalk`:
+  `.tile N` resolves via the numbering order; **`fN` resolves via `computeFound`** — which runs ONE tick of
+  the walker's compiled program (`runProgram`, moves/writes discarded) and reads its `found` array (the
+  find-tile / find-lowest/highest results, indexed by source position), so `move f0` / `f1.e0` /
+  `visited.f0` light the tile the search lands on (and the walk STARTS there); a find gated off by a false
+  guard this tick, or a non-compiling program, leaves that `fN` unlit (matches the engine); `.target` (a
+  move's candidate destination) has no static answer outside a move, so it stays unlit. `runProgram` now
+  returns `found` on its `ExecResult` for this.
 
 **Running commands (tool shells):** `node`/`npm.cmd`/`npx.cmd` are NOT on PATH here — prepend it
 every command: `$env:Path = 'C:\Program Files\nodejs;' + $env:Path; npx.cmd vitest run`

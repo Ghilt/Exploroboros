@@ -18,9 +18,12 @@ import {
   authoredBoard,
   hasTraverserVisits,
   MANUAL_STEP,
+  buildPathPreview,
+  lineColorsFor,
+  colorForLine,
 } from '../canvas'
-import type { TileClip, TileState, Registry, PaintTarget } from '../canvas'
-import { stepTraversers, stepTraversersTraced, rotateHeading, renameSeedDefs, compileProgram, DEFAULT_SETTINGS, buildTraverseLog, serializeTraverseLog, traverseLogFilename, type Traverser, type Program, type TickTrace, type FindLowestCache } from '../traverse'
+import type { TileClip, TileState, Registry, PaintTarget, PathPreviewEntry } from '../canvas'
+import { stepTraversers, stepTraversersTraced, rotateHeading, renameSeedDefs, compileProgram, DEFAULT_SETTINGS, buildTraverseLog, serializeTraverseLog, traverseLogFilename, scanPaths, resolveWalk, computeFound, type Traverser, type Program, type TickTrace, type FindLowestCache, type PathOccurrence } from '../traverse'
 import { compileDoc, resolveInitialState, mergeByTile, applyInitWrites, type InitResolved } from '../initstate'
 import { TilingCanvas, type DisplayMode, type DragMode, type HighlightGroups } from './TilingCanvas'
 import { TilingPicker } from './TilingPicker'
@@ -58,6 +61,10 @@ const GRID_MAX = 140
 // A stable empty Initial-state resolution — used when the document is blank or fails to compile, so the
 // downstream memos don't churn on a fresh object each render.
 const EMPTY_INIT: InitResolved = { seeds: [], writes: [], unknownRefs: [] }
+
+// A stable empty swatch map, so the Traversers pane doesn't re-render on a fresh Map each time the preview
+// is inactive.
+const EMPTY_LINE_COLORS: ReadonlyMap<number, string> = new Map()
 
 // Debug log: keep at most this many recent ticks' decision traces (a ring) — plenty to scrub back
 // through while step-debugging, but bounded so a fast run can't grow it without limit.
@@ -140,6 +147,11 @@ export function Workspace() {
   const [viewedStep, setViewedStep] = useState<number | null>(null)
   const [hoveredHighlight, setHoveredHighlight] = useState<HighlightGroups | null>(null)
   const [pinned, setPinned] = useState<{ key: string; groups: HighlightGroups } | null>(null)
+  // Path preview: the text selection in the Traversers editor (null = none) + which definition it's in.
+  // When the selected tile carries a walker of that same definition, the selected paths light up on the
+  // canvas (see the pathPreview memo below). Both set from one TraversersPane callback.
+  const [editorSel, setEditorSel] = useState<{ start: number; end: number } | null>(null)
+  const [editingDefName, setEditingDefName] = useState<string | null>(null)
   const pushTrace = (t: TickTrace) => setTraceHistory((h) => [...h, t].slice(-TRACE_HISTORY))
   // Clear the debug log + any highlight — on a fresh run, a stop/reset, or a tiling/recipe switch.
   const clearDebug = () => {
@@ -289,6 +301,15 @@ export function Workspace() {
   const defOptions = useMemo(() => [...defs.keys()], [defs])
   // Fall back to the first available definition if the chosen one was deleted/renamed.
   const effectiveDef = defs.has(placeDef) ? placeDef : defOptions[0] ?? BUILTIN_WALKER
+
+  // The live text of the definition currently open in the Traversers editor (from the store, so it tracks
+  // as the user types) — the source the path preview scans. Null when no definition is being edited.
+  const activePreviewText = useMemo(
+    () => (editingDefName ? traverserStore.traversers.find((t) => t.name === editingDefName)?.text ?? null : null),
+    [editingDefName, traverserStore.traversers],
+  )
+  // Every path (move chain / `@`-path) in that text, with spans, re-scanned only when the text changes.
+  const pathOccurrences = useMemo<PathOccurrence[]>(() => (activePreviewText == null ? [] : scanPaths(activePreviewText)), [activePreviewText])
 
   // The hand-authored base for an export: manual paint + registries only. A run's visits AND its A/B/C
   // registry writes are re-derived by re-running on the export grid — NOT baked in. Routed through the
@@ -656,6 +677,25 @@ export function Workspace() {
   // part of runLive, found via selectedTraverser). Drives a read-only "placed by a rule" note in Inspect.
   const selectedAuto = selected && stopped ? initSeeds.find((t) => t.tile === selected.id) ?? null : null
 
+  // Path preview: when exactly one tile is selected, it carries a walker, AND the Traversers editor is open
+  // on THAT walker's definition with a live text selection, resolve each selected path from the walker's
+  // tile + heading into a walk (line through tile centres) and colour it by its source line. The same
+  // per-line colours feed the editor swatch gutter (whole-program mode only) so the two can't drift.
+  const { pathPreview, lineColors } = useMemo<{ pathPreview: PathPreviewEntry[] | undefined; lineColors: ReadonlyMap<number, string> }>(() => {
+    const walker = selectedTraverser ?? selectedAuto
+    if (!selected || !walker || !editorSel || activePreviewText == null || editingDefName !== walker.def) {
+      return { pathPreview: undefined, lineColors: EMPTY_LINE_COLORS }
+    }
+    const program = defs.get(walker.def)
+    const movement = program?.settings.movement ?? walker.movement
+    // Resolve the walker's `fN` (find-tile / find-lowest) results this tick, so `move f0` / `visited@f1@e0`
+    // light up the tile the search lands on. Needs a compiling program; a broken one just leaves fN unlit.
+    const found = program ? computeFound(tiling, displayOverlay, walker, program, numbering.order, indexById, numbering, step) : undefined
+    const resolve = (o: PathOccurrence) => resolveWalk(tiling, displayOverlay, selected.id, walker.heading, movement, o, numbering.order, found)
+    const entries = buildPathPreview(pathOccurrences, editorSel, activePreviewText.length, resolve, colorForLine)
+    return { pathPreview: entries.length ? entries : undefined, lineColors: lineColorsFor(entries, editorSel, activePreviewText.length) }
+  }, [selected, selectedTraverser, selectedAuto, editorSel, editingDefName, activePreviewText, pathOccurrences, defs, tiling, displayOverlay, numbering, indexById, step])
+
   // ---- traverser run controls ----
   // Start a fresh run from the authored seeds on a COPY (so the seeds stay intact for Stop to
   // restore): refresh each walker's settings/registers from its current definition (so editing a def
@@ -987,6 +1027,11 @@ export function Workspace() {
           store={traverserStore}
           predicateNames={predicateNames}
           onOpenPredicates={() => setPredsOpen(true)}
+          lineColors={lineColors}
+          onEditorSelectionChange={(defName, sel) => {
+            setEditingDefName(sel ? defName : null)
+            setEditorSel(sel)
+          }}
         />
       </Panel>
 
@@ -1021,6 +1066,7 @@ export function Workspace() {
               traverserHeads={traverserHeads}
               autoTraverserHeads={autoTraverserHeads}
               highlightGroups={traceOn ? highlightGroups : undefined}
+              pathPreview={pathPreview}
               tileNumber={(id) => numberOf(tiling, numberingScheme, id)}
               onSelect={(id) => setSelectedIds([id])}
               onSelectTiles={setSelectedIds}
