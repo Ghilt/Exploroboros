@@ -1,0 +1,16 @@
+/* Mirrors .canvas-page (src/pages/Canvas.css) so the guided Workspace fills the viewport exactly like
+   the real Canvas — same desktop full-width breakout + full height (paired with .app-canvas). */
+.tut-chapter {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+@media (min-width: 64rem) {
+  .tut-chapter {
+    width: calc(100vw - 2rem);
+    margin-left: 50%;
+    transform: translateX(-50%);
+    height: 100%;
+  }
+}

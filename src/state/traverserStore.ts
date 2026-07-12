@@ -72,13 +72,15 @@ export type TraverserStore = {
   setAll: (list: ReadonlyArray<StoredTraverser>) => void
 }
 
-export function useTraverserStore(): TraverserStore {
-  const [traversers, setTraversers] = useState<StoredTraverser[]>(load)
+// `persist: false` (the tutorial sandbox) starts blank and never touches localStorage. Defaults true.
+export function useTraverserStore(opts?: { persist?: boolean }): TraverserStore {
+  const persist = opts?.persist ?? true
+  const [traversers, setTraversers] = useState<StoredTraverser[]>(() => (persist ? load() : []))
   const [persistOk, setPersistOk] = useState(true)
 
   useEffect(() => {
-    setPersistOk(saveStored<FileShape>(KEY, { version: VERSION, traversers }))
-  }, [traversers])
+    if (persist) setPersistOk(saveStored<FileShape>(KEY, { version: VERSION, traversers }))
+  }, [traversers, persist])
 
   const add = useCallback(() => {
     const t = makeTraverser(uniqueName(traversers))

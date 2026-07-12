@@ -133,6 +133,10 @@ type Props = {
   onPaint?: (ids: ReadonlyArray<string>) => void
   // Bumping this counter (e.g. a Fit button) re-frames the whole tiling.
   fitSignal?: number
+  // The tutorial can ask for a tile's on-screen (viewport) rect so its overlay can highlight it. Reported
+  // whenever the view changes (pan/zoom/fit/resize); null when the id isn't found. No cost when unset.
+  spotlightTileId?: string
+  onSpotlightRect?: (rect: { left: number; top: number; width: number; height: number } | null) => void
 }
 
 export function TilingCanvas({
@@ -152,6 +156,8 @@ export function TilingCanvas({
   onDeselect,
   onPaint,
   fitSignal,
+  spotlightTileId,
+  onSpotlightRect,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const fpsRef = useRef<HTMLSpanElement>(null)
@@ -183,6 +189,11 @@ export function TilingCanvas({
   onDeselectRef.current = onDeselect
   const onPaintRef = useRef(onPaint)
   onPaintRef.current = onPaint
+  const spotlightTileIdRef = useRef(spotlightTileId)
+  spotlightTileIdRef.current = spotlightTileId
+  const onSpotlightRectRef = useRef(onSpotlightRect)
+  onSpotlightRectRef.current = onSpotlightRect
+  const lastSpotlightRef = useRef<string>('')
   // Ephemeral outline on the tiles of the current/just-finished paint stroke; alpha fades to 0 after
   // release. Canvas-local visual feedback only — never touches the overlay.
   const paintFlashRef = useRef<{ ids: Set<string>; alpha: number } | null>(null)
@@ -205,9 +216,48 @@ export function TilingCanvas({
     if (hostRef.current) hostRef.current.style.touchAction = dragMode === 'off' ? 'pan-y' : 'none'
   }, [dragMode])
 
+  // Report a spotlight tile's viewport rect to the tutorial overlay whenever the view changes (redraw is
+  // called on every pan/zoom/fit/resize). Throttled by a rounded key so it only fires on real movement,
+  // and a no-op when unset. Container offset (getBoundingClientRect) makes the rect viewport-relative,
+  // matching the overlay's fixed positioning.
+  const reportSpotlight = () => {
+    const cb = onSpotlightRectRef.current
+    if (!cb) return
+    const host = hostRef.current
+    const id = spotlightTileIdRef.current
+    const node = id ? nodeById(tilingRef.current, id) : null
+    if (!host || !node) {
+      if (lastSpotlightRef.current !== 'null') {
+        lastSpotlightRef.current = 'null'
+        cb(null)
+      }
+      return
+    }
+    const view = viewRef.current
+    const hostRect = host.getBoundingClientRect()
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (const v of node.vertices) {
+      const s = worldToScreen(v, view)
+      minX = Math.min(minX, s.x)
+      maxX = Math.max(maxX, s.x)
+      minY = Math.min(minY, s.y)
+      maxY = Math.max(maxY, s.y)
+    }
+    const rect = { left: hostRect.left + minX, top: hostRect.top + minY, width: maxX - minX, height: maxY - minY }
+    const key = `${rect.left | 0},${rect.top | 0},${rect.width | 0},${rect.height | 0}`
+    if (key !== lastSpotlightRef.current) {
+      lastSpotlightRef.current = key
+      cb(rect)
+    }
+  }
+
   const redraw = () => {
     tilesLayerRef.current?.batchDraw()
     uiLayerRef.current?.batchDraw()
+    reportSpotlight()
   }
 
   // Ease the view to `target` (same scale, new tx/ty) instead of a jump-cut — so bringing a selected

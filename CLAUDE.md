@@ -478,9 +478,54 @@ still needed into this doc **before** then; do not rely on the path persisting.
   colours). `DslTextarea` gained a debounced `onSelectionChange`; `TilingCanvas` a `pathPreview` prop drawn in
   the UI layer with the existing pulse. No recipe/schema change (nothing is stored — it's a live authoring
   aid). See §9.
-- **Next up:** **`exploroboros.io` custom domain** (register + attach — §8) → **DSL-driven traversers** (custom
-  rules in the Traversers pane — paint/move/visit/split/guards/state, §5; reuses the predicate DSL) → **persist
-  user exports across reloads** (IndexedDB).
+- **Tutorial system — guided chapters + mobile hamburger nav (2026-07-11):** a new **Tutorial** nav section
+  (`#/tutorial`) — a blurb + chapter cards; each available chapter opens a **guided, simplified version of the
+  real Canvas** (`#/tutorial/<id>`, a hash sub-route like the gallery spotlight). The reusable
+  "tutorialization" layer **reuses the real `Workspace` unchanged** via three additive, default-off seams (an
+  optional `tutorial` prop): **(1) sandbox** — the four authoring stores gained a `{persist?:boolean}` arg, so
+  a chapter runs on blank, throwaway state that never reads or writes the user's real library; the chapter
+  seeds a **hidden gradient coloring** (reusing `buildPresetRules` — so the pattern blooms in colour without
+  the user opening the Coloring pane) and force-names the new traverser; the built-in Walker is hidden so the
+  chapter's own traverser is the only thing placeable. **(2) Signals + control** — it reports a
+  `TutorialSignals` snapshot up (through a ref, so no render loop) and **pauses the run at `stopAtStep`**
+  (guarded in the tick + a backstop effect). **(3) `data-tut` anchors** — inert attributes on the transport
+  buttons, the canvas stage, the Panel root, and the Traversers new/name/code/done + Inspect place controls,
+  which the overlay spotlights. The overlay (`src/tutorial/`, **portalled to `<body>`** to escape the
+  chapter wrapper's CSS transform) **decouples what's VISIBLE from what's CLICKABLE**: a light dim
+  (`rgba` 0.22, via an SVG mask) punches out the step's **`reveal`** regions so the user can *watch* the
+  canvas grow (or see the whole pane) while a separate transparent **click-catcher** opens only at the
+  **`hole`** (the one interactive target); a **pulsing ring** marks the focus — which can be the exact
+  **tile** to click (its on-screen rect reported by the canvas, since tiles aren't DOM nodes). Speech
+  bubbles have a tail; off-task clicks get an **inline nudge** (a low toast, not a popup); the finish fires
+  a **fireworks** burst; completed chapters get a ✓ (persisted via `tutorialProgress`).
+  **Field-locking is emergent** — only the current step's anchor is inside the hole, so moving it "locks" the
+  previous field (no `readOnly` code). **Chapter 1 "Basic traverser"** walks from an empty canvas to a placed
+  `Ouroboros` walker that splits (`max-split = 2; move l1; move r1`) and fills a 20×20 square by **tick 21**
+  (engine-probe-verified: 1→2→4 walkers, 400/400 tiles at 21). The step **script is pure data**
+  (`src/tutorial/script.ts`; advancement is a pure `proceed.test(signals)`, and the program match is
+  **semantic** — compile + canonical-serialize equality, not string-exact) so it's unit-tested per step.
+  Mobile nav collapses Home/Canvas/Gallery/Tutorial into a **hamburger** (< 40rem), replacing the old
+  `<30rem` hide-Home hack. A placeholder **Colorings** chapter is the next one to script.
+- **Tutorial chapter 1 polish (2026-07-12):** a copy + interaction pass on the guided walkthrough above,
+  done before its first commit. Every bubble was reworded to read naturally (no em dashes — they read as
+  AI-written); the close-editor bubble grew into a short plain-language explanation of WHY the two `move`
+  lines split the traverser in two; the code bubble's lead-in became "Type the following instructions into
+  the box:". **Clicking a speech bubble now silently copies its payload to the clipboard** — the code
+  sample if it has one (so the write-program bubble copies exactly the runnable three-line program, no
+  toast, no visual change) else its plain text — via a geometric hit-test against each bubble's live rect
+  in `TutorialOverlay.tsx` (`copyBubbleAt`), so it's purely additive: the bubble itself keeps
+  `pointer-events: none` and every existing click-through/advance/block-hint behaviour is unchanged. The
+  finale's checkmark moved from a fixed viewport badge into an ordinary block **inside the celebration
+  bubble** (above its text) and turned **green** (`#2e9e5b`, was the orange accent); the celebratory burst
+  now tumbles tiny **kalleboda wedge** shapes instead of plain dots — `Fireworks.tsx` normalises the
+  wedge's own vertices (see `kallebodaTiling`'s `WEDGE` constant) to a unit radius around its centroid via
+  the standard shoelace-centroid formula, then scales/rotates/mirrors each particle from that unit shape.
+  A **back-to-previous-step control** was tried (a chevron in the active bubble) and then dropped entirely
+  as not worth the complexity — the chapter is linear, forward-only.
+- **Next up:** **`exploroboros.io` custom domain** (register + attach — §8) → more **tutorial chapters**
+  (colorings first) → **DSL-driven traversers** (custom rules in the Traversers pane —
+  paint/move/visit/split/guards/state, §5; reuses the predicate DSL) → **persist user exports across
+  reloads** (IndexedDB).
 
 ## 7. Verifying on a phone + verification log
 
@@ -580,6 +625,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-07-11 | **DSL path separator `@` → `.`** — the "read/hop to another tile" operator is now a dot everywhere (traverser code, predicates, colorings, the Guide, all pane help + autocomplete): `visited.e1`, `move e0.e4`, `.tile N`, `exists.f0`, `put [B.e1] = 1`. `@` is no longer a DSL character. Lexes unambiguously (number-dot needs a trailing digit so `.5`/`3.5` stay numbers; the two-char `..` range is matched before a lone `.`). Recipe **schema v9→v10** migration rewrites `@`→`.` in the DSL-text fields so old PNGs + gallery rows open on read; `tools/migrate-paths.mjs` rewrites the live D1 at rest. | ✅ yes (owner reviewed the plain-language account + finite/local verification and said "looks good, please commit"; will try the prod-data migration next) | build / lint / **907 tests** (+6 new: DSL lexer decimal-vs-hop + `@`-rejection; traverser `.` hop vs `..` range; recipe v9→v10 transform / idempotency / parseRecipe-migrates-v9). Full `@`→`.` cutover audited across `src` (only `@testing-library`/`@media`/`@localhost` + the intentional migration code & cutover tests keep an `@`). `tools/migrate-paths.mjs` exercised end-to-end on a seeded local D1 (8 `@`-syntax fixtures → dry-run lists all 8 → `--apply` → re-run finds none; a migrated row has 0 `@`, `.` paths, schemaVersion untouched). **Follow-up:** owner ran the live-gallery `--apply --remote` migration successfully, then asked for the migration + tool to be removed — see the next row. | — |
 | 2026-07-11 | **Removed the v9→v10 on-read migration + `tools/migrate-paths.mjs`** — once the owner confirmed the one-time production D1 rewrite (dry-run → `--apply` → dry-run clean) had already fixed the live gallery's stored `@`-text, they asked to delete both the migration code and the tool rather than keep carrying them. `src/export/recipe.ts`'s `MIGRATIONS` now has a deliberate GAP at `from: 9` (no `rewritePathsV10`) — `migrateRecipe` returns `null` for any recipe below schema v10, so `parseRecipe` reports `'unsupported'`. **This is an accepted, intentional compatibility break:** any pre-change exported PNG, or any gallery row whose text wasn't already rewritten by the time the tool ran, now fails to open outright instead of migrating automatically. `tools/migrate-paths.mjs` is deleted. | ✅ yes | owner explicitly confirmed understanding the consequence (asked via a clarifying question first: "every recipe not already on the newest schema version, including the existing gallery, would fail to load") and chose "remove it anyway"; updated the tests that depended on the old migrate-through-v9 behaviour: `recipe.test.ts` (removed the 3 v9→v10-specific tests, replaced the "opens a full v6 recipe" test with one proving v9/v6 recipes now refuse as `'unsupported'`), `src/gallery/api.test.ts` (`fetchRecipe` on an old stored row now throws the friendly "could not be read" error instead of migrating), and `functions/api/recipe-import.test.ts` (its fixture was rebuilt at the current schema shape instead of relying on the removed migration — the test's actual purpose, proving `parseRecipe` stays DOM-free, is unaffected). Three other tests (`prepare.test.ts`/`generate.test.ts`/`debugReport.test.ts`) construct typed `Recipe` objects directly and never touch `parseRecipe`, so they were unaffected by the removal. Backed by build / lint / tests green. | — |
 | 2026-07-12 | **Path preview — selecting traverser text lights up its paths on the canvas (incl. `fN`).** With one tile selected that carries a walker and the Traversers editor open on THAT walker's definition, highlighting DSL text draws each **path** it contains (a move chain or a `.`-path — incl. neighbour reads inside conditions / put values / write targets) as a **pulsating line through the tile centres** to an outlined final tile, resolved from the walker's tile + heading — and from `fN` **find-tile / find-lowest results** (the walker's search is run one tick to locate them, so `move f0` / `visited.f0` light where the search lands). A list draws one line per element; whole-program selection colours each path by source line (10 cycling) with matching **editor-gutter swatches**. Pure `scanPaths` + `resolveWalk`/`walkChain` (`src/traverse/lang/`) + `pathPreviewColors`/`pathPreviewSelect` (`src/canvas/`); `DslTextarea` `onSelectionChange`; `TilingCanvas` `pathPreview` prop. No recipe/schema change. **Built pre-refactor on the old `@` separator, then rebased onto main's `@`→`.` refactor + reconciled** (the scanner's separator tokens, its tests, and the docs all converted to `.`) — landed linearly on `main` (`75a64db`). | ✅ yes | owner tested the reconciled `.`-based build on this worktree's fresh preview (port **5390** — a new port, so no stale-`@` browser cache) and said "all looks good", then asked to confirm everything's on `main` + the guide is correct. Backed by build / lint / **967 tests** (new pure suites: `scanPaths`, `resolveWalk`+`computeFound`, `walkChain`, `pathPreviewColors`, `pathPreviewSelect`, + a `Workspace.pathPreview` wiring test) + served-source confirmation the fresh preview serves the reconciled code (0 `@` separator checks, 4 `.` checks in `scanPaths`; clean console; app booted). **Guide audited** — already fully `.`-based (the refactor had updated it) and it documents `fN`/`exists`, so no change was needed. | `75a64db` |
+| 2026-07-12 | **Tutorial system — guided chapters + mobile hamburger nav (Chapter 1: "Basic traverser"), §6.** First commit of the whole feature after several rounds of owner iteration on this worktree's preview: a screenshot caught the overlay sitting ~60px misaligned (root cause was `.tut-chapter`'s CSS transform becoming the containing block for the overlay's `position:fixed` children — fixed by portalling to `document.body`) plus a request for 50% more transparency; a second round asked to separate what's "visible" from what's "clickable" (the canvas/pane should stay fully visible during Step/Play/closing the editor, not dimmed, while only the one interactive control is click-blocked elsewhere), to highlight the exact tile to click, and to close the WHOLE Traversers pane (not just its Done button); a back-to-previous-step control was requested, built as a bubble-corner chevron, then the owner decided to drop it entirely ("not worth it"); a final pass reworded every bubble to read naturally (no em dashes), added a silent clipboard-copy on bubble click (the code bubble copies exactly the runnable program), and moved the finale's checkmark inside the celebration bubble in green with kalleboda-wedge-shaped confetti. | ✅ yes | owner iterated across all the rounds above on this worktree's preview and finished with "this is good, please commit it". Backed by build / lint / **926 tests**; headless verification drove the DOM-drivable half of the flow start-to-finish (welcome → open pane → new traverser → name/code bubbles → the close-editor explanation → the tile-select prompt), confirming each signal-gated step advances on the right condition and a served-source check confirmed every changed file was live; also confirmed live that clicking the code bubble copies exactly `max-split = 2\n\nmove l1\nmove r1` (not the surrounding sentence) via a monkey-patched `clipboard.writeText`. The canvas-interactive half (tile click, Step ×3, Play, the finale checkmark/confetti in motion) and the mobile hamburger nav were the owner's own on-device confirmation throughout, consistent with every other round in this session (this preview tab is `document.hidden`, per §9, so the Konva stage never mounts headlessly). | — |
 
 ## 8. Todo list (working backlog)
 
@@ -833,6 +879,19 @@ in-session task tracker.
 - [ ] **Custom domain `exploroboros.io`** — register it (Cloudflare Registrar, ~$35–50/yr) + attach it to
   the `exploroboros` Pages project as a custom domain (free SSL). Owner wants it; deferred until after live
   testing *(owner, 2026-07-04)*.
+- [ ] **Tutorial system** — a guided, simplified take on the real Canvas (§6). The reusable
+  "tutorialization" foundation is built (`src/tutorial/`: pure step-script + controller + spotlight overlay +
+  fireworks; the `Workspace` `tutorial` seams; a persisted `tutorialProgress` store).
+  - [x] **Mobile hamburger nav** + the **Tutorial** landing page (blurb + chapter cards, ✓ on completed)
+    *(2026-07-11)*
+  - [x] **Chapter 1 — "Basic traverser"** — open the Traversers pane → New → write
+    `max-split = 2; move l1; move r1` (named `Ouroboros`) → place on the centre tile → Step ×3 (1→2→4) →
+    Play → fills the 20×20 square at tick 21 → fireworks *(2026-07-11)*
+  - [ ] **Chapter 2 — "Colorings"** — placeholder card only; script it next (turn the pattern's data into
+    the gradient the basic-traverser chapter already shows).
+  - [ ] More chapters as the app grows (predicates, initial-state, export/share). Each is just a new
+    `TutorialScript` in `src/tutorial/script.ts` + a `TUTORIAL_CHAPTERS` entry; reuse the existing
+    `data-tut` anchors (add more as needed).
 
 ## 9. Dev loop & operational notes (gotchas)
 
@@ -1111,6 +1170,43 @@ Hard-won; read before fighting the tooling again.
   (SSR/quota-safe load/save + `newId`). Pure list updaters are unit-tested; the hooks wire them to
   persistence. Each store has a **`setAll`** (replace the whole list/doc — used by reopen). `pendingRecipe.ts`
   is the one-shot gallery→canvas handoff: the gallery stashes a `Recipe`, the Workspace consumes it on mount.
+  Each of the four authoring hooks takes an optional **`{persist?:boolean}`** (default true); `persist:false`
+  = blank + no localStorage, the **tutorial sandbox**. `tutorialProgress.ts` persists completed chapter ids.
+- `src/tutorial/` — the **guided-walkthrough layer** (the "tutorialization" of the Canvas). `script.ts` is
+  PURE DATA: `TutorialScript`/`TutorialStep`/`Bubble` + the `BASIC_TRAVERSER` script + constants
+  (`CENTER_TILE='sq:10,10'`, `TARGET_PROGRAM`, `stopAtStep=21`, the hidden `coloring` via `buildPresetRules`);
+  a step's `proceed` is either `{on:'click'}` (narration) or `{on:'signal', test(sig)}` (a **pure** predicate
+  over `TutorialSignals`, so it's unit-tested in `script.test.ts`); `programMatchesTarget` is **semantic**
+  (compile + canonical `serializeProgram` equality — accepts the exact text + harmless reformatting, never the
+  wrong program). `useTutorialController.ts` runs the state machine (advances ≤1 step per signal change — its
+  effect depends on `[signals]` and reads the current step via a ref; narration advances on an overlay click;
+  wrong-tile nudge; finale → `markComplete` + navigate). `TutorialOverlay.tsx`
+  (**`createPortal` to `<body>`** — the chapter wrapper's `transform` would otherwise be the containing
+  block for its `position:fixed` children and offset every rect) **decouples visible from clickable**: an
+  SVG-mask **dim** (opacity 0.22) punches out the step's `reveal` rects (visible but not clickable — e.g. the
+  canvas during Step/Play), while a transparent **click-catcher** (4 rects framing the `hole`, or full-screen
+  for narration) blocks clicks except at the hole; a **ring** marks `hole` or the `'tile'` (from `tileRect`);
+  bubbles are measured from the live anchor rect **synchronously first, then per-rAF** (so they show even on a
+  backgrounded/throttled tab); plus the nudge toast, Exit, and the `Fireworks`. Clicking a bubble **silently
+  copies its payload to the clipboard** (`copyBubbleAt` — the `code` sample if it has one, else its `text`)
+  via a **geometric hit-test** against each bubble's live `getBoundingClientRect()`, not `pointer-events` —
+  the bubble stays click-through (`pointer-events: none`) so every existing advance/block-hint click behaviour
+  is unaffected; the copy is a pure side effect layered on top.
+  `Fireworks.tsx` is a dependency-free canvas particle burst (reduced-motion-aware) whose particles are tiny
+  tumbling **kalleboda wedges** (normalised to a unit radius around their own centroid via the shoelace
+  formula), not circles, rotated/mirrored per-particle for variety. The spotlight-tile rect
+  comes from `TilingCanvas`'s `spotlightTileId`/`onSpotlightRect` (computed in `redraw` from the world→screen
+  view + the host's viewport offset, throttled) since a tile has no DOM node.
+  `TutorialChapter.tsx` = the real `<Workspace tutorial={…}/>` + the overlay + an "✕ Exit" escape. **The
+  tutorial adds NOTHING tutorial-specific to Workspace beyond the config-driven `tutorial` prop** — the
+  spotlight is the gate, so off-task controls need no per-action guards. To add a chapter: a `TutorialScript`
+  in `script.ts` + a `TUTORIAL_CHAPTERS` entry (`src/data/tutorialChapters.ts`) + any new `data-tut` anchors.
+  **Anchor convention:** UI elements the overlay targets carry an inert `data-tut="…"` (Panel's `tut` prop,
+  the transport buttons, the canvas stage, TraversersPane new/name/code/done, the Inspect PlaceControl) — the
+  overlay finds them by `[data-tut=…]` and reads their live rect. **rAF gotcha:** the overlay's per-frame
+  re-measure is throttled on a hidden/backgrounded preview tab (the §9 headless caveat), so the FIRST measure
+  is synchronous; steps 1–6 (DOM-only) drive fine headlessly, but the canvas-interactive half (select/place/
+  step/play/fireworks) needs the Konva Stage (rAF-gated) → verify it on a real device.
 - `src/data/galleryRecipes.ts` — placeholder `Recipe`s attached to the gallery images so clicking one opens a
   ready setup (fake for now; real saved creations will carry their recipe in the PNG). `Workspace.loadRecipe`
   applies a recipe (tiling/grid/seeds/paint + the four stores' `setAll`, incl. the Initial-state doc); the canvas-stage also accepts a

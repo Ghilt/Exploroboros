@@ -35,13 +35,15 @@ export type InitialStateStore = {
   setAll: (state: StoredInitialState) => void
 }
 
-export function useInitialStateStore(): InitialStateStore {
-  const [state, setState] = useState<StoredInitialState>(load)
+// `persist: false` (the tutorial sandbox) starts blank and never touches localStorage. Defaults true.
+export function useInitialStateStore(opts?: { persist?: boolean }): InitialStateStore {
+  const persist = opts?.persist ?? true
+  const [state, setState] = useState<StoredInitialState>(() => (persist ? load() : makeInitialState()))
   const [persistOk, setPersistOk] = useState(true)
 
   useEffect(() => {
-    setPersistOk(saveStored<FileShape>(KEY, { version: VERSION, state }))
-  }, [state])
+    if (persist) setPersistOk(saveStored<FileShape>(KEY, { version: VERSION, state }))
+  }, [state, persist])
 
   const setText = useCallback((text: string) => setState((s) => ({ ...s, text })), [])
   const setAll = useCallback((next: StoredInitialState) => setState({ ...next }), [])

@@ -63,13 +63,16 @@ export type ColoringStore = {
   setAll: (list: ReadonlyArray<ColoringRule>) => void
 }
 
-export function useColoringStore(): ColoringStore {
-  const [rules, setRules] = useState<ColoringRule[]>(load)
+// `persist: false` (the tutorial sandbox) starts blank and never touches localStorage; the tutorial
+// seeds its hidden gradient via setAll, and it's discarded on exit. Defaults true (the normal Canvas).
+export function useColoringStore(opts?: { persist?: boolean }): ColoringStore {
+  const persist = opts?.persist ?? true
+  const [rules, setRules] = useState<ColoringRule[]>(() => (persist ? load() : []))
   const [persistOk, setPersistOk] = useState(true)
 
   useEffect(() => {
-    setPersistOk(saveStored<FileShape>(KEY, { version: VERSION, rules }))
-  }, [rules])
+    if (persist) setPersistOk(saveStored<FileShape>(KEY, { version: VERSION, rules }))
+  }, [rules, persist])
 
   const add = useCallback(() => {
     const rule = makeRule()

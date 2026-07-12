@@ -54,6 +54,7 @@ import { downloadExportDebugLog } from '../export/debugLog'
 import { remapSeeds, remapPaint, parseRecipe, decodeRecipeFromPng, APP_VERSION, type Recipe } from '../export'
 import { takePendingRecipe } from '../state/pendingRecipe'
 import { BUNDLED_PREDICATES } from '../data/bundledPredicates'
+import type { TutorialHandle, TutorialSignals } from '../tutorial/types'
 
 const GRID_MIN = 10
 const GRID_MAX = 140
@@ -100,7 +101,14 @@ const BUILTIN_WALKER_TEXT = 'move nearest-unvisited'
 // (Traversers, Coloring) on the left, inspection panes (Inspect + its traverser log, Initial state) on
 // the right, at most one open per side at a time. It owns per-run state (selection, the tile overlay)
 // off the immutable Tiling, and builds the Tiling itself from the picker choice + grid size.
-export function Workspace() {
+//
+// Passing a `tutorial` handle puts it in GUIDED mode: the stores become blank + ephemeral (the real
+// library is untouched), both docks start closed, the gallery handoff is skipped, the built-in Walker
+// is hidden from placement (the chapter's own traverser is the only one), the run pauses at
+// `stopAtStep`, and it reports a signal snapshot up so the tutorial controller can advance. See
+// src/tutorial/.
+export function Workspace({ tutorial }: { tutorial?: TutorialHandle } = {}) {
+  const isTutorial = !!tutorial
   // Selected tiles: one (tap / single-tile inspect) or many (select-mode box → bulk edit).
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   // Per-tile run state (visits-as-step-list + the A/B/C registries), keyed by tile id and kept off
@@ -132,7 +140,12 @@ export function Workspace() {
   // The docks are an accordion: at most ONE pane open per side of the canvas (opening one collapses the
   // other on that side). Right starts on Inspect; left starts closed.
   const [leftOpen, setLeftOpen] = useState<'traversers' | 'coloring' | null>(null)
-  const [rightOpen, setRightOpen] = useState<'inspect' | 'initial' | null>('inspect')
+  // Tutorial mode starts with BOTH docks closed (the chapter opens them on cue); the normal Canvas
+  // starts on Inspect.
+  const [rightOpen, setRightOpen] = useState<'inspect' | 'initial' | null>(isTutorial ? null : 'inspect')
+  // The Traversers full-pane editor's open state, surfaced from that pane so the tutorial can tell when
+  // the user has opened/closed the definition editor.
+  const [travEditorOpen, setTravEditorOpen] = useState(false)
   const toggleLeft = (p: 'traversers' | 'coloring') => setLeftOpen((cur) => (cur === p ? null : p))
   const toggleRight = (p: 'inspect' | 'initial') => setRightOpen((cur) => (cur === p ? null : p))
   // The shared Custom-predicates dialog, opened by the badge at the foot of the authoring panes (predicates
@@ -197,10 +210,13 @@ export function Workspace() {
 
   // The user's predicate library (bundled + custom), traverser definitions, and coloring rules,
   // persisted in the browser. Lifted here so the colorizer + the traverse run can read them.
-  const predicateStore = usePredicateStore()
-  const traverserStore = useTraverserStore()
-  const coloringStore = useColoringStore()
-  const initialStateStore = useInitialStateStore()
+  // In tutorial mode the stores are blank + non-persisted (a throwaway sandbox), so a guided session
+  // never reads or overwrites the user's real library.
+  const persist = !isTutorial
+  const predicateStore = usePredicateStore({ persist })
+  const traverserStore = useTraverserStore({ persist })
+  const coloringStore = useColoringStore({ persist })
+  const initialStateStore = useInitialStateStore({ persist })
   // Which definition the Inspect "Place" buttons instantiate.
   const [placeDef, setPlaceDef] = useState(BUILTIN_WALKER)
 
@@ -266,14 +282,18 @@ export function Workspace() {
   // definitions or referenced predicates change — not per frame.
   const defs = useMemo(() => {
     const map = new Map<string, Program>()
-    const walker = compileProgram(BUILTIN_WALKER_TEXT, predicateNames)
-    if (walker.ok) map.set(BUILTIN_WALKER, walker.value)
+    // Tutorial mode hides the built-in Walker so the chapter's own traverser is the only thing the
+    // Place button can place (no wrong-def branch to break the scripted narrative).
+    if (!isTutorial) {
+      const walker = compileProgram(BUILTIN_WALKER_TEXT, predicateNames)
+      if (walker.ok) map.set(BUILTIN_WALKER, walker.value)
+    }
     for (const t of traverserStore.traversers) {
       const c = compileProgram(t.text, predicateNames)
       if (c.ok) map.set(t.name, c.value)
     }
     return map
-  }, [traverserStore.traversers, predicateNames])
+  }, [traverserStore.traversers, predicateNames, isTutorial])
 
   // Renaming a traverser definition must carry through to any walker already PLACED with it —
   // `seed.def`/`runLive[].def` store the definition NAME (the engine's lookup key into `defs` above), so
@@ -518,11 +538,55 @@ export function Workspace() {
   const loadRecipeRef = useRef(loadRecipe)
   loadRecipeRef.current = loadRecipe
 
-  // On mount, apply a recipe handed off from the gallery ("open in canvas"). One-shot.
+  // On mount, apply a recipe handed off from the gallery ("open in canvas"). One-shot. Skipped in
+  // tutorial mode (a guided chapter never opens a gallery creation).
   useEffect(() => {
+    if (isTutorial) return
     const r = takePendingRecipe()
     if (r) loadRecipeRef.current(r)
-  }, [])
+  }, [isTutorial])
+
+  // ---- tutorial mode: arrange the stage + report signals ----
+  // Seed the chapter's hidden gradient coloring once, so the pattern grows in colour without the user
+  // ever opening the Coloring pane. The sandbox coloring store is blank, so this is the only rule.
+  const tutorialColoring = tutorial?.coloring
+  useEffect(() => {
+    if (tutorialColoring) coloringStore.setAll(tutorialColoring)
+    // coloringStore.setAll is stable; run once for the given coloring.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tutorialColoring])
+
+  // Force the single sandbox traverser's name (so the editor's Name field reads "Ouroboros"). Runs when
+  // the user creates their first traverser; idempotent once the name matches.
+  const forceName = tutorial?.forceTraverserName
+  useEffect(() => {
+    if (!forceName) return
+    const list = traverserStore.traversers
+    if (list.length === 1 && list[0].name !== forceName) traverserStore.rename(list[0].id, forceName)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forceName, traverserStore.traversers])
+
+  // Report a signal snapshot up whenever a relevant field changes. The callback is read through a ref so
+  // this effect depends only on the signal VALUES (not the `tutorial` object's identity) — a parent that
+  // stores the snapshot in state then re-renders can't create a feedback loop.
+  const onSignalsRef = useRef(tutorial?.onSignals)
+  onSignalsRef.current = tutorial?.onSignals
+  const traversersList = traverserStore.traversers
+  useEffect(() => {
+    const sig: TutorialSignals = {
+      leftOpen,
+      rightOpen,
+      selectedIds,
+      seedCount: seeds.length,
+      step,
+      running,
+      hasRun: runLive !== null,
+      editorOpen: travEditorOpen,
+      traverserCount: traversersList.length,
+      firstTraverserText: traversersList[0]?.text ?? null,
+    }
+    onSignalsRef.current?.(sig)
+  }, [leftOpen, rightOpen, selectedIds, seeds, step, running, runLive, travEditorOpen, traversersList])
 
   // Import a saved creation from its exported PNG — the real reopen-from-PNG path (the gallery uses
   // in-memory recipes). Two entry points share this: dropping an image on the canvas, and the
@@ -587,21 +651,26 @@ export function Workspace() {
   // One tick of the live run. When the Inspect pane is open (`traceOn`) it records the tick's decision
   // trace into the history (and only then — plain stepTraversers is used otherwise, so a hidden log costs
   // nothing). Returns the surviving walkers (or null when not running). Shared by the clock and manual step.
-  const advanceOneTick = (): Traverser[] | null => {
+  const advanceOneTick = (): { traversers: Traverser[]; step: number } | null => {
     if (runLive === null) return null
+    // Tutorial finale guard: never step past the chapter's stop tick — belt-and-suspenders with the
+    // pause in tickRef, so even a stray timer/frame can't overshoot the frozen final board.
+    if (tutorial?.stopAtStep != null && step >= tutorial.stopAtStep) return { traversers: runLive, step }
     const input = { tiling, overlay, traversers: runLive, step, defs, indexById, numbering, findLowestCache: findLowestCacheRef.current }
     const result = traceOn ? stepTraversersTraced(input) : stepTraversers(input)
     if (traceOn) pushTrace((result as ReturnType<typeof stepTraversersTraced>).trace)
     setOverlay(result.overlay)
     setRunLive(result.traversers)
     setStep(result.step)
-    return result.traversers
+    return { traversers: result.traversers, step: result.step }
   }
 
   const tickRef = useRef<() => void>(() => {})
   tickRef.current = () => {
-    const next = advanceOneTick()
-    if (next && next.length === 0) setRunning(false) // every walker died -> auto-pause
+    const res = advanceOneTick()
+    if (!res) return
+    if (res.traversers.length === 0) setRunning(false) // every walker died -> auto-pause
+    else if (tutorial?.stopAtStep != null && res.step >= tutorial.stopAtStep) setRunning(false) // finale
   }
   useEffect(() => {
     if (!running) return
@@ -954,11 +1023,11 @@ export function Workspace() {
   const canvasControls = (
     <>
       <div className="transport seg-shell" role="group" aria-label="traverser run">
-        <button type="button" className="seg-item seg-item--btn transport-btn" onClick={togglePlay} disabled={!running && !hasWalkers} aria-label={running ? 'Pause — stop ticking, keep the walkers' : 'Play — run the traversers'} title={running ? 'Pause — stop ticking, keep the walkers' : 'Play — run the traversers'}>{running ? '❚❚' : '▶'}</button>
-        <button type="button" className="seg-item seg-item--btn transport-btn" onClick={stepOnce} disabled={!hasWalkers} aria-label="Step — advance one tick (pauses if playing)" title="Step — advance one tick (pauses if playing)">
+        <button type="button" data-tut="play" className="seg-item seg-item--btn transport-btn" onClick={togglePlay} disabled={!running && !hasWalkers} aria-label={running ? 'Pause — stop ticking, keep the walkers' : 'Play — run the traversers'} title={running ? 'Pause — stop ticking, keep the walkers' : 'Play — run the traversers'}>{running ? '❚❚' : '▶'}</button>
+        <button type="button" data-tut="step" className="seg-item seg-item--btn transport-btn" onClick={stepOnce} disabled={!hasWalkers} aria-label="Step — advance one tick (pauses if playing)" title="Step — advance one tick (pauses if playing)">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true" focusable="false"><path d="M6 5 L15 12 L6 19 Z" /><rect x="16" y="5" width="2.4" height="14" rx="1" /></svg>
         </button>
-        <button type="button" className="seg-item seg-item--btn transport-btn" onClick={stopRun} disabled={!running && runLive === null && !hasTraverserVisits(overlay)} aria-label="Stop — end the run and clear its trail (keeps the walkers and your painting)" title="Stop — end the run and clear its trail (keeps the walkers and your painting)">■</button>
+        <button type="button" data-tut="stop" className="seg-item seg-item--btn transport-btn" onClick={stopRun} disabled={!running && runLive === null && !hasTraverserVisits(overlay)} aria-label="Stop — end the run and clear its trail (keeps the walkers and your painting)" title="Stop — end the run and clear its trail (keeps the walkers and your painting)">■</button>
       </div>
       <SpeedBar value={speed} onChange={setSpeed} ariaLabel="traverser speed" />
       <span className="canvas-divider" aria-hidden="true" />
@@ -1020,6 +1089,8 @@ export function Workspace() {
         side="left"
         wide
         fill
+        tut="traversers"
+        tutHead="traversers-head"
         collapsed={leftOpen !== 'traversers'}
         onCollapsedChange={() => toggleLeft('traversers')}
       >
@@ -1032,6 +1103,7 @@ export function Workspace() {
             setEditingDefName(sel ? defName : null)
             setEditorSel(sel)
           }}
+          onEditingChange={setTravEditorOpen}
         />
       </Panel>
 
@@ -1052,7 +1124,7 @@ export function Workspace() {
       </Panel>
 
       <div className="canvas-pane">
-        <div className="canvas-stage" onDragOver={onCanvasDragOver} onDragLeave={onCanvasDragLeave} onDrop={onCanvasDrop}>
+        <div className="canvas-stage" data-tut="canvas" onDragOver={onCanvasDragOver} onDragLeave={onCanvasDragLeave} onDrop={onCanvasDrop}>
           {viewing && viewing.fullUrl ? (
             <ImageViewer src={viewing.fullUrl} />
           ) : (
@@ -1073,6 +1145,8 @@ export function Workspace() {
               onDeselect={() => setSelectedIds((cur) => (cur.length ? [] : cur))}
               onPaint={paint}
               fitSignal={fitNonce}
+              spotlightTileId={tutorial?.spotlightTileId}
+              onSpotlightRect={tutorial?.onTileRect}
             />
           )}
           <ExportStrip
@@ -1118,7 +1192,7 @@ export function Workspace() {
               or click to pick one (the only import path on touch). Shown whenever the live canvas is up
               (hidden only while the image viewer has replaced it); pins to the very bottom-left, under
               the tile/FPS HUD. */}
-          {!(viewing && viewing.fullUrl) && (
+          {!isTutorial && !(viewing && viewing.fullUrl) && (
             <button
               type="button"
               className="canvas-import-hint"
@@ -1160,6 +1234,7 @@ export function Workspace() {
         title="Inspect"
         side="right"
         wide
+        tut="inspect"
         collapsed={rightOpen !== 'inspect'}
         onCollapsedChange={() => toggleRight('inspect')}
       >
@@ -1345,6 +1420,7 @@ function PlaceControl({
   onChangeDef,
   onPlace,
   label,
+  tut,
 }: {
   options: ReadonlyArray<string>
   placeDef: string
@@ -1352,10 +1428,12 @@ function PlaceControl({
   // Place the given definition (a direct-place button passes its own; the dropdown passes the picked one).
   onPlace: (def: string) => void
   label: string
+  // Optional tutorial anchor id (single-tile Inspect only), so the guided overlay can spotlight it.
+  tut?: string
 }) {
   if (options.length < 4) {
     return (
-      <div className="trav-place-direct">
+      <div className="trav-place-direct" data-tut={tut}>
         <span className="trav-place-lead">{label}:</span>
         <div className="seg-shell">
           {options.map((o) => (
@@ -1374,7 +1452,7 @@ function PlaceControl({
     )
   }
   return (
-    <div className="trav-place-row seg-shell">
+    <div className="trav-place-row seg-shell" data-tut={tut}>
       <DefSelect options={options} value={placeDef} onChange={onChangeDef} />
       <button type="button" className="seg-item seg-item--btn trav-place" onClick={() => onPlace(placeDef)}>
         {label}
@@ -1505,6 +1583,7 @@ function InspectContent({
             onChangeDef={onChangeDef}
             onPlace={(def) => onPlaceTraverser(node.id, def)}
             label="Place"
+            tut="place"
           />
         ) : (
           <div className="trav-placed">

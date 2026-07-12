@@ -21,6 +21,7 @@ export function TraversersPane({
   onOpenPredicates,
   lineColors,
   onEditorSelectionChange,
+  onEditingChange,
 }: {
   store: TraverserStore
   // name -> DSL text, so a guard can reference a saved predicate by name (resolved at compile).
@@ -31,9 +32,13 @@ export function TraversersPane({
   // reporting the editor's text selection so the Workspace can light up the selected paths on the canvas.
   lineColors?: ReadonlyMap<number, string>
   onEditorSelectionChange?: (defName: string, sel: { start: number; end: number } | null) => void
+  // Reports whether the full-pane definition editor is open — the tutorial uses it to know when the user
+  // has entered / left the editor. Optional so normal usage + tests can omit it.
+  onEditingChange?: (open: boolean) => void
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const editing = editingId ? store.traversers.find((t) => t.id === editingId) ?? null : null
+  useEffect(() => onEditingChange?.(editingId !== null), [editingId, onEditingChange])
 
   // Compile every definition (memoized) so the list can flag the ones that don't compile with a red badge.
   const compileError = useMemo(() => {
@@ -155,7 +160,7 @@ export function TraversersPane({
       <section className="pred-section">
         <header className="pred-section-head">
           <span>Your traversers</span>
-          <button type="button" className="pred-add" onClick={add}>
+          <button type="button" className="pred-add" data-tut="new-traverser" onClick={add}>
             + New
           </button>
         </header>
@@ -282,6 +287,7 @@ function TraverserEditor({
         <span className="pred-field-label">Name</span>
         <input
           className={`pred-name-input${nameError ? ' is-error' : ''}`}
+          data-tut="trav-name"
           value={traverser.name}
           onChange={(e) => onRename(traverser.id, e.target.value)}
           aria-label="traverser name"
@@ -296,6 +302,7 @@ function TraverserEditor({
       <div className="trav-edit-textwrap" ref={wrapRef}>
         <DslTextarea
           className="pred-text trav-edit-text"
+          data-tut="trav-code"
           value={traverser.text}
           spellCheck={false}
           aria-label="traverser DSL"
@@ -410,7 +417,7 @@ find-highest-tile [A] > 0        highest-numbered match → f2`}</pre>
       </div>
 
       <div className="trav-edit-foot">
-        <button type="button" className="trav-done" onClick={onDone}>
+        <button type="button" className="trav-done" data-tut="trav-done" onClick={onDone}>
           ‹ Done
         </button>
       </div>

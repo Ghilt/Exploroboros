@@ -1,0 +1,105 @@
+.tutorial-landing {
+  padding-top: var(--space-5);
+  padding-bottom: var(--space-6);
+}
+
+.tut-chapter-list {
+  list-style: none;
+  margin: var(--space-5) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.tut-chapter-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.tut-chapter-card:not(.is-soon):hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+.tut-chapter-card.is-soon {
+  opacity: 0.6;
+}
+
+.tut-chapter-num {
+  flex-shrink: 0;
+  width: 2.4rem;
+  height: 2.4rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+.tut-chapter-check {
+  color: #fff;
+}
+/* A completed chapter's number badge turns into a filled accent check. */
+.tut-chapter-card .tut-chapter-num:has(.tut-chapter-check) {
+  background: var(--accent);
+}
+
+.tut-chapter-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.tut-chapter-title {
+  margin: 0;
+  font-size: 1.15rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.tut-chapter-done-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-pill);
+}
+.tut-chapter-blurb {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.tut-chapter-action {
+  flex-shrink: 0;
+}
+.tut-chapter-soon {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.tut-back {
+  margin-top: var(--space-5);
+}
+
+@media (max-width: 34rem) {
+  .tut-chapter-card {
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+  .tut-chapter-action {
+    width: 100%;
+  }
+  .tut-chapter-action .btn {
+    width: 100%;
+  }
+}

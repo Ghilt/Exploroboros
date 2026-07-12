@@ -13,6 +13,7 @@
   justify-content: space-between;
   gap: 1rem;
   min-height: 3.5rem;
+  position: relative; /* anchor for the mobile dropdown */
 }
 
 .nav-brand {
@@ -56,23 +57,57 @@
   color: var(--accent);
 }
 
-/* Phone widths: the logo + all three links don't fit — Home is redundant
-   with tapping the logo, so drop it and shrink the mark to buy more room. */
-@media (max-width: 30rem) {
-  .nav {
-    gap: 0.6rem;
+/* Hamburger button — hidden on desktop, revealed on mobile (see media query). */
+.nav-hamburger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: var(--radius-sm);
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid transparent;
+}
+.nav-hamburger:hover {
+  background: var(--surface-2);
+}
+.nav-hamburger[aria-expanded="true"] {
+  background: var(--surface-2);
+  border-color: var(--line);
+}
+
+/* Phone / narrow widths: the four links + brand don't fit, so collapse the links behind the
+   hamburger. The link list becomes a dropdown card anchored to the bar. */
+@media (max-width: 40rem) {
+  .nav-hamburger {
+    display: inline-flex;
   }
-  .nav-brand {
-    gap: 0.4rem;
-    font-size: 0.92rem;
-  }
-  .nav-brand-mark {
-    width: 2.32rem;
-  }
-  .nav-link--home {
+  .nav-links {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.15rem;
+    min-width: 11rem;
+    padding: 0.4rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+    z-index: 20;
+    /* Hidden until opened. */
     display: none;
   }
+  .nav-links.is-open {
+    display: flex;
+  }
   .nav-link {
-    padding: 0.45rem 0.5rem;
+    padding: 0.6rem 0.8rem;
+    font-size: 1rem;
+  }
+  .nav-link:hover {
+    background: var(--surface-2);
   }
 }

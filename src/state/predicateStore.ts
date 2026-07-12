@@ -73,13 +73,16 @@ export type PredicateStore = {
   setAll: (list: ReadonlyArray<StoredPredicate>) => void
 }
 
-export function usePredicateStore(): PredicateStore {
-  const [predicates, setPredicates] = useState<StoredPredicate[]>(load)
+// `persist: false` (the tutorial sandbox) starts blank and never touches localStorage, so a guided
+// session can't read or overwrite the user's real library. Defaults to true (the normal Canvas).
+export function usePredicateStore(opts?: { persist?: boolean }): PredicateStore {
+  const persist = opts?.persist ?? true
+  const [predicates, setPredicates] = useState<StoredPredicate[]>(() => (persist ? load() : []))
   const [persistOk, setPersistOk] = useState(true)
 
   useEffect(() => {
-    setPersistOk(saveStored<FileShape>(KEY, { version: VERSION, predicates }))
-  }, [predicates])
+    if (persist) setPersistOk(saveStored<FileShape>(KEY, { version: VERSION, predicates }))
+  }, [predicates, persist])
 
   const add = useCallback(() => {
     const pred = makePredicate(DEFAULT_TEXT)

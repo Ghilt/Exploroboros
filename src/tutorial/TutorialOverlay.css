@@ -1,0 +1,225 @@
+/* The guided overlay. Root is click-through; only the dim rects (and the exit button) catch clicks, so
+   the spotlight "hole" gap passes taps to the real UI beneath. */
+.tut-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+
+/* Visual dim only (pointer-events off) — a full-screen SVG whose mask punches out the reveal regions,
+   so the focus stays fully visible while the rest is dimmed. Click handling is the catchers below. */
+.tut-dim-svg {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+
+/* Transparent click-catchers framing the hole (or full-screen for a narration step). They block clicks
+   everywhere except the hole gap — independent of what's visually dimmed. */
+.tut-catch {
+  position: fixed;
+  z-index: 61;
+  background: transparent;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* The pulsing focus ring around the current target (the "hole" or the spotlight tile). Purely visual. */
+.tut-ring {
+  position: fixed;
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+  z-index: 62;
+  box-shadow: 0 0 0 3px var(--accent);
+  animation: tut-pulse 1.6s ease-in-out infinite;
+}
+@keyframes tut-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px var(--accent), 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 3px var(--accent), 0 0 16px 7px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tut-ring {
+    animation: none;
+    box-shadow: 0 0 0 3px var(--accent), 0 0 14px 5px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+}
+
+.tut-bubble {
+  position: fixed;
+  z-index: 63;
+  max-width: min(20rem, calc(100vw - 1.5rem));
+  padding: 0.8rem 1rem;
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.3);
+  font-size: 0.95rem;
+  line-height: 1.45;
+  pointer-events: none;
+}
+.tut-bubble p {
+  margin: 0 0 0.5rem;
+}
+.tut-bubble p:last-child {
+  margin-bottom: 0;
+}
+.tut-code {
+  margin: 0.6rem 0 0;
+  padding: 0.55rem 0.7rem;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  color: var(--fg);
+}
+.tut-continue {
+  display: block;
+  margin-top: 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* A small tail pointing from the bubble toward its anchor. Drawn with a rotated square nub. */
+.tut-bubble::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  transform: rotate(45deg);
+}
+.tut-tail-none::after {
+  display: none;
+}
+.tut-tail-left::after {
+  left: -7px;
+  top: 50%;
+  margin-top: -6px;
+  border-right: none;
+  border-top: none;
+}
+.tut-tail-right::after {
+  right: -7px;
+  top: 50%;
+  margin-top: -6px;
+  border-left: none;
+  border-bottom: none;
+}
+.tut-tail-top::after {
+  top: -7px;
+  left: 50%;
+  margin-left: -6px;
+  border-bottom: none;
+  border-right: none;
+}
+.tut-tail-bottom::after {
+  bottom: -7px;
+  left: 50%;
+  margin-left: -6px;
+  border-top: none;
+  border-left: none;
+}
+
+/* The transient nudge (block hint / wrong-tile). A low, unobtrusive toast — not a popup. */
+.tut-message {
+  position: fixed;
+  left: 50%;
+  bottom: 4.5rem;
+  transform: translateX(-50%);
+  z-index: 64;
+  max-width: min(28rem, calc(100vw - 2rem));
+  padding: 0.6rem 1rem;
+  background: var(--accent);
+  color: #fff;
+  border-radius: var(--radius-pill);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+  animation: tut-message-in 0.18s ease-out;
+}
+@keyframes tut-message-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+}
+
+/* The finale's checkmark, laid out inside the finale bubble above its text. A green pop-in celebration cue. */
+.tut-finale-check {
+  margin: 0 auto 0.7rem;
+  width: 3.6rem;
+  height: 3.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #2e9e5b;
+  color: #fff;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25), 0 0 0 6px rgba(46, 158, 91, 0.22);
+  animation: tut-check-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes tut-check-pop {
+  0% {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tut-finale-check {
+    animation: none;
+  }
+}
+
+.tut-fireworks {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 70;
+  pointer-events: none;
+}
+
+.tut-exit {
+  position: fixed;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 80;
+  pointer-events: auto;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  backdrop-filter: blur(6px);
+}
+.tut-exit:hover {
+  background: var(--surface);
+}
+
