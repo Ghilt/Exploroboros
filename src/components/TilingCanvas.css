@@ -22,6 +22,28 @@
   border-radius: 2px;
 }
 
+/* The DSL path spelled out above the cursor while a transcribe drag grows. Positioned at the pointer
+   (left/top in host px) and lifted up-centred so it floats just above the finger/mouse. */
+.canvas-transcribe-label {
+  position: absolute;
+  display: none;
+  transform: translate(-50%, calc(-100% - 0.75rem));
+  pointer-events: none;
+  z-index: 20;
+  max-width: min(80vw, 32rem);
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--accent, #e2682a);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
 /* Tile count + FPS readout for the grid-size lag probe — a small HUD in the bottom-left corner.
    Sits just ABOVE the Workspace's "drag an image here to import" box (which pins to the very bottom),
    so the two stack in the same corner instead of overlapping. */

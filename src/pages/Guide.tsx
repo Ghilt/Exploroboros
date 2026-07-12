@@ -305,6 +305,14 @@ move straight                  # a bare action — always runs`}</pre>
           <code>eN</code> is always absolute. Set <code>movement = absolute</code> in the header to frame{' '}
           <em>all</em> of them by north instead.
         </p>
+        <p className="guide-note">
+          <strong>Draw a path instead of typing it.</strong> On the canvas, press the little grid button
+          (bottom-left, or <code>Ctrl</code>+<code>M</code>) then drag from tile to tile across their
+          shared edges. The path spells itself out above the cursor as it grows and lands on your
+          clipboard to paste here. Start on a tile that carries a walker and it comes out{' '}
+          <em>relative</em> (<code>straight.r1.r1.l2</code>); start anywhere else and it's{' '}
+          <em>absolute</em> (<code>e0.e3.e3.e6</code>). Stay on one tile and you get its type instead.
+        </p>
       </section>
 
       <section className="guide-section" id="predicates">

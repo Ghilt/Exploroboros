@@ -22,10 +22,11 @@ import {
   lineColorsFor,
   colorForLine,
 } from '../canvas'
-import type { TileClip, TileState, Registry, PaintTarget, PathPreviewEntry } from '../canvas'
+import type { TileClip, TileState, Registry, PaintTarget, PathPreviewEntry, TranscribeResult } from '../canvas'
 import { stepTraversers, stepTraversersTraced, rotateHeading, renameSeedDefs, compileProgram, DEFAULT_SETTINGS, buildTraverseLog, serializeTraverseLog, traverseLogFilename, scanPaths, resolveWalk, computeFound, type Traverser, type Program, type TickTrace, type FindLowestCache, type PathOccurrence } from '../traverse'
 import { compileDoc, resolveInitialState, mergeByTile, applyInitWrites, type InitResolved } from '../initstate'
 import { TilingCanvas, type DisplayMode, type DragMode, type HighlightGroups } from './TilingCanvas'
+import { TranscribeButton } from './TranscribeButton'
 import { TilingPicker } from './TilingPicker'
 import { Panel } from './Panel'
 import { TileMini } from './TileMini'
@@ -122,6 +123,9 @@ export function Workspace({ tutorial }: { tutorial?: TutorialHandle } = {}) {
   // The drag-control popup (mode + paint target in one menu).
   const [dragMenuOpen, setDragMenuOpen] = useState(false)
   const dragMenuRef = useRef<HTMLDivElement>(null)
+  // The drag mode to restore after a ONE-SHOT transcribe (armed by the quick button / Ctrl+M): non-null
+  // while a single capture is armed, null when transcribe was chosen persistently from the drag menu.
+  const [transcribeReturnTo, setTranscribeReturnTo] = useState<DragMode | null>(null)
   // The traverse run. `seeds` is the AUTHORED initial state — the walkers the user placed and aimed,
   // i.e. the savable "starting position" of a fractal. A run works on a COPY (`runLive`) so the
   // originals are never lost: `runLive` is null while stopped (we then show `seeds`) and an array
@@ -733,15 +737,42 @@ export function Workspace({ tutorial }: { tutorial?: TutorialHandle } = {}) {
     }
   }, [dragMenuOpen])
 
-  // Drag popup choices: a mode (off / select) or a paint target (which also switches to paint mode).
+  // Drag popup choices: a mode (off / select / transcribe) or a paint target (which also switches to
+  // paint mode). Any explicit choice cancels a pending one-shot transcribe revert (the menu is persistent).
   const chooseDrag = (m: DragMode) => {
+    setTranscribeReturnTo(null)
     setDragMode(m)
     setDragMenuOpen(false)
   }
   const choosePaint = (t: PaintTarget) => {
+    setTranscribeReturnTo(null)
     setPaintTarget(t)
     setDragMode('paint')
     setDragMenuOpen(false)
+  }
+  // The quick button / Ctrl+M: capture the NEXT drag as a path, then revert to the current drag mode.
+  const armTranscribeOnce = () => {
+    if (dragMode !== 'transcribe') setTranscribeReturnTo(dragMode)
+    setDragMode('transcribe')
+    setDragMenuOpen(false)
+  }
+  const armRef = useRef(armTranscribeOnce)
+  armRef.current = armTranscribeOnce
+  // A transcribe drag finished: put its DSL path (or the tile type) on the clipboard with a toast, then
+  // if a one-shot capture was armed, restore the previous drag mode.
+  const handleTranscribe = (res: TranscribeResult) => {
+    if (transcribeReturnTo !== null) {
+      setDragMode(transcribeReturnTo)
+      setTranscribeReturnTo(null)
+    }
+    if (!res.text) {
+      showDropNote('Nothing to transcribe — drag across a tile edge.')
+      return
+    }
+    const label = res.kind === 'tile-type' ? `Tile type copied: ${res.text}` : `Path copied: ${res.text}`
+    const write = navigator.clipboard?.writeText(res.text)
+    if (write) write.then(() => showDropNote(label), () => showDropNote('Couldn’t copy — the page must be secure (https or localhost).'))
+    else showDropNote('Couldn’t copy — the page must be secure (https or localhost).')
   }
 
   // A single-tile selection drives the full Inspect view; a multi-tile box drives the bulk view.
@@ -1067,12 +1098,15 @@ export function Workspace({ tutorial }: { tutorial?: TutorialHandle } = {}) {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return
       const key = e.key.toLowerCase()
-      if (key !== 'c' && key !== 'v') return
+      if (key !== 'c' && key !== 'v' && key !== 'm') return
       const el = document.activeElement
       if (el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) {
         return
       }
-      if (key === 'c') {
+      if (key === 'm') {
+        // Ctrl/Cmd+M arms a one-shot transcribe (same as the little grid button).
+        armRef.current()
+      } else if (key === 'c') {
         if (!window.getSelection()?.isCollapsed) return // a real text selection -> let the browser copy
         copyRef.current()
       } else {
@@ -1101,7 +1135,7 @@ export function Workspace({ tutorial }: { tutorial?: TutorialHandle } = {}) {
         <TilingPicker value={tilingId} onChange={selectTiling} />
         <div className="canvas-drag" ref={dragMenuRef}>
           <button type="button" className="canvas-trigger" aria-label="drag mode" aria-haspopup="menu" aria-expanded={dragMenuOpen} title="What a one-finger drag does" onClick={() => setDragMenuOpen((o) => !o)}>
-            {dragMode === 'paint' ? `paint: ${paintLabel(paintTarget)}` : dragMode === 'select' ? 'drag: box select' : dragMode === 'paintselect' ? 'drag: paint select' : 'drag: off'}
+            {dragMode === 'paint' ? `paint: ${paintLabel(paintTarget)}` : dragMode === 'select' ? 'drag: box select' : dragMode === 'paintselect' ? 'drag: paint select' : dragMode === 'transcribe' ? 'drag: transcribe' : 'drag: off'}
             <span className="canvas-trigger-caret" aria-hidden="true">▾</span>
           </button>
           {dragMenuOpen && (
@@ -1109,6 +1143,7 @@ export function Workspace({ tutorial }: { tutorial?: TutorialHandle } = {}) {
               <button type="button" role="menuitem" className="drag-item" aria-current={dragMode === 'off'} onClick={() => chooseDrag('off')}>off</button>
               <button type="button" role="menuitem" className="drag-item" aria-current={dragMode === 'select'} onClick={() => chooseDrag('select')}>box select</button>
               <button type="button" role="menuitem" className="drag-item" aria-current={dragMode === 'paintselect'} onClick={() => chooseDrag('paintselect')}>paint select</button>
+              <button type="button" role="menuitem" className="drag-item" aria-current={dragMode === 'transcribe'} onClick={() => chooseDrag('transcribe')}>transcribe path</button>
               <div className="drag-menu-label">Paint</div>
               {PAINT_TARGETS.map((t) => (
                 <button type="button" role="menuitem" key={t.key} className="drag-item drag-item--indent" aria-current={dragMode === 'paint' && paintTarget === t.key} onClick={() => choosePaint(t.key)}>{t.label}</button>
@@ -1212,6 +1247,7 @@ export function Workspace({ tutorial }: { tutorial?: TutorialHandle } = {}) {
               onSelectTiles={setSelectedIds}
               onDeselect={() => setSelectedIds((cur) => (cur.length ? [] : cur))}
               onPaint={paint}
+              onTranscribe={handleTranscribe}
               fitSignal={fitNonce}
               spotlightTileId={tutorial?.spotlightTileId}
               onSpotlightRect={tutorial?.onTileRect}
@@ -1256,6 +1292,16 @@ export function Workspace({ tutorial }: { tutorial?: TutorialHandle } = {}) {
             </div>
           )}
           {dropNote && <div className="canvas-drop-note">{dropNote}</div>}
+          {/* Quick "transcribe a drag into a path" button — one-shot (arms the next drag, then reverts).
+              Bottom-left, just above the tile/FPS HUD; hidden in the guided tutorial + the image viewer. */}
+          {!isTutorial && !(viewing && viewing.fullUrl) && (
+            <TranscribeButton
+              className="canvas-transcribe-btn"
+              active={dragMode === 'transcribe'}
+              onClick={armTranscribeOnce}
+              label="Transcribe a drag into a path — drag tile to tile, get the DSL path (Ctrl+M)"
+            />
+          )}
           {/* Always-present affordance for the hidden reopen-from-PNG feature: drop a saved image here,
               or click to pick one (the only import path on touch). Shown whenever the live canvas is up
               (hidden only while the image viewer has replaced it); pins to the very bottom-left, under

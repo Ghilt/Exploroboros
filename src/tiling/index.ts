@@ -43,6 +43,7 @@ export {
   headingArrowDir,
   edgeToLocalSide,
   localSideToEdge,
+  sharedEdgeNumbers,
   nearestEdge,
   edgeNormalAngle,
 } from './graph'

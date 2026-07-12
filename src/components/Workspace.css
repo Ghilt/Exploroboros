@@ -121,6 +121,30 @@
   color: var(--accent);
   border-color: var(--accent);
 }
+/* The quick transcribe-a-drag button — bottom-left, just ABOVE the tile/FPS HUD (bottom 2.6rem, itself
+   above the import hint at 0.6rem). Compound selector so it wins over .icon-btn's base sizing regardless
+   of stylesheet order; highlighted while transcribe mode is active. */
+.icon-btn.canvas-transcribe-btn {
+  position: absolute;
+  left: 0.5rem;
+  bottom: 4.3rem;
+  z-index: 30;
+  width: 1.9rem;
+  height: 1.9rem;
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+}
+.icon-btn.canvas-transcribe-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.icon-btn.canvas-transcribe-btn.is-active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+}
 /* Big "Share to the gallery" CTA shown while viewing an exported image (the live canvas + its FPS/tile
    HUD are hidden then, so the bottom-left is free). Reuses .btn.btn-primary for colour; this just sizes
    + anchors it. */

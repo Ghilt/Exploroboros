@@ -114,6 +114,22 @@ export function localSideToEdge(node: TileNode, localSide: number): number {
   return clockwiseEdgeOrder(node).indexOf(localSide)
 }
 
+// Every user-facing edge NUMBER on `tile` whose far side is `neighbor`. Usually one; a two-edge
+// adjacency (a kalleboda octagon+wedge pair shares TWO edges) yields two, and the caller picks which was
+// physically crossed. Empty when the two tiles aren't adjacent. (Used to invert a canvas drag gesture
+// into a DSL path — see src/canvas/transcribe.ts.)
+export function sharedEdgeNumbers(tiling: Tiling, tile: string, neighbor: string): number[] {
+  const node = nodeById(tiling, tile)
+  if (!node) return []
+  const n = node.sides.length
+  const out: number[] = []
+  for (let e = 0; e < n; e += 1) {
+    const end = across(tiling, tile, edgeToLocalSide(node, e))
+    if (end && end.tile === neighbor) out.push(e)
+  }
+  return out
+}
+
 // The clockwise-from-top edge number whose outward normal is closest to `angle`. Used once, at the
 // serialisation boundary, to turn a seed's stored aim ANGLE into the edge-index heading the engine runs on.
 export function nearestEdge(node: TileNode, angle: number): number {

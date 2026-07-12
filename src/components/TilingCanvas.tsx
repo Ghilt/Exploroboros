@@ -21,8 +21,9 @@ import {
   flattenColor,
   inflatePolygon,
   FLUSH_OVERLAP_PX,
+  transcribeGesture,
 } from '../canvas'
-import type { View, Size, TileState } from '../canvas'
+import type { View, Size, TileState, TranscribeResult } from '../canvas'
 
 // The interactive Konva plane (CLAUDE.md §4.1 — resolved: Konva). All tiles draw in ONE
 // Konva.Shape via a custom sceneFunc — one canvas pass, culled to the viewport, so it scales to
@@ -86,9 +87,9 @@ const NO_OVERLAY: ReadonlyMap<string, TileState> = new Map()
 export type DisplayMode = 'edges' | 'none' | 'stats'
 
 // What a one-pointer drag does: paint the current target, box-select tiles, freehand "paint" a
-// selection by dragging over tiles, or nothing (so a touch drag scrolls the mobile page). Tap
-// always inspects; two-finger / wheel always pan+zoom.
-export type DragMode = 'paint' | 'select' | 'paintselect' | 'off'
+// selection by dragging over tiles, transcribe the tiles crossed into a DSL path, or nothing (so a
+// touch drag scrolls the mobile page). Tap always inspects; two-finger / wheel always pan+zoom.
+export type DragMode = 'paint' | 'select' | 'paintselect' | 'transcribe' | 'off'
 
 const NO_SELECTION: ReadonlyArray<string> = []
 
@@ -131,6 +132,9 @@ type Props = {
   // can drop the current selection.
   onDeselect?: () => void
   onPaint?: (ids: ReadonlyArray<string>) => void
+  // A transcribe-mode drag ended: the tiles crossed, turned into a DSL path (relative if the start tile
+  // carries a walker, else absolute) or the start tile's type when no edge was crossed. See transcribe.ts.
+  onTranscribe?: (result: TranscribeResult) => void
   // Bumping this counter (e.g. a Fit button) re-frames the whole tiling.
   fitSignal?: number
   // The tutorial can ask for a tile's on-screen (viewport) rect so its overlay can highlight it. Reported
@@ -155,6 +159,7 @@ export function TilingCanvas({
   onSelectTiles,
   onDeselect,
   onPaint,
+  onTranscribe,
   fitSignal,
   spotlightTileId,
   onSpotlightRect,
@@ -189,6 +194,14 @@ export function TilingCanvas({
   onDeselectRef.current = onDeselect
   const onPaintRef = useRef(onPaint)
   onPaintRef.current = onPaint
+  const onTranscribeRef = useRef(onTranscribe)
+  onTranscribeRef.current = onTranscribe
+  // Mirrored so the once-attached pointer handlers can read a transcribe start tile's walker heading
+  // (hand-placed wins, else a rule-placed ghost, else none = absolute path).
+  const traverserHeadsRef = useRef(traverserHeads)
+  traverserHeadsRef.current = traverserHeads
+  const autoTraverserHeadsRef = useRef(autoTraverserHeads)
+  autoTraverserHeadsRef.current = autoTraverserHeads
   const spotlightTileIdRef = useRef(spotlightTileId)
   spotlightTileIdRef.current = spotlightTileId
   const onSpotlightRectRef = useRef(onSpotlightRect)
@@ -198,6 +211,10 @@ export function TilingCanvas({
   // release. Canvas-local visual feedback only — never touches the overlay.
   const paintFlashRef = useRef<{ ids: Set<string>; alpha: number } | null>(null)
   const fadeRafRef = useRef(0)
+  // The tiles crossed by the in-progress transcribe stroke (ordered, drawn as a live trail); cleared on
+  // release. The floating DSL-path label is a plain DOM node positioned at the cursor.
+  const transcribeRef = useRef<{ tiles: string[] } | null>(null)
+  const transcribeLabelRef = useRef<HTMLDivElement>(null)
   // Pulse phase (0..1) for the debug highlight overlay, driven by a rAF while a log row is hovered.
   const pulseRef = useRef(1)
   const dragModeRef = useRef(dragMode)
@@ -423,6 +440,7 @@ export function TilingCanvas({
     let additive = false // Shift held at gesture start -> box/paint-select ADDS to the selection
     let strokePainted: Set<string> | null = null // tiles painted this stroke (dedupe)
     let strokeSelected: Set<string> | null = null // tiles gathered this freehand-select stroke
+    let strokeTiles: string[] | null = null // ordered tiles crossed this transcribe stroke (consecutive-dedup)
     let lastPaintWorld: Vec2 | null = null
 
     const local = (e: PointerEvent | WheelEvent): Vec2 => {
@@ -497,6 +515,48 @@ export function TilingCanvas({
       if (changed) onSelectTilesRef.current?.([...strokeSelected])
       lastPaintWorld = toWorld
     }
+    // Transcribe: accumulate the ordered tiles the stroke crosses (consecutive-dedup only, so a
+    // back-and-forth reads as two hops — unlike paint's global dedupe), and repaint the live trail.
+    const transcribeTo = (toWorld: Vec2) => {
+      if (!strokeTiles) return
+      const ids = lastPaintWorld
+        ? tilesAlongSegment(tilingRef.current, lastPaintWorld, toWorld)
+        : ([pickTile(tilingRef.current, toWorld)].filter(Boolean) as string[])
+      let changed = false
+      for (const id of ids)
+        if (strokeTiles[strokeTiles.length - 1] !== id) {
+          strokeTiles.push(id)
+          changed = true
+        }
+      if (changed) {
+        transcribeRef.current = { tiles: strokeTiles }
+        uiLayerRef.current?.batchDraw()
+      }
+      lastPaintWorld = toWorld
+    }
+    // The DSL path (or tile type) for the tiles gathered so far: the start tile's walker heading (hand
+    // seed, else rule-placed ghost, else none) decides relative vs absolute — see transcribe.ts.
+    const computeTranscribe = (tiles: string[]): TranscribeResult => {
+      const first = tiles[0]
+      const h = first != null ? traverserHeadsRef.current?.get(first) ?? autoTraverserHeadsRef.current?.get(first) ?? null : null
+      return transcribeGesture(tilingRef.current, tiles, h)
+    }
+    const showTranscribeLabel = (at: Vec2, text: string) => {
+      const el = transcribeLabelRef.current
+      if (!el) return
+      el.textContent = text || '·'
+      el.style.left = `${at.x}px`
+      el.style.top = `${at.y}px`
+      el.style.display = 'block'
+    }
+    const hideTranscribeLabel = () => {
+      if (transcribeLabelRef.current) transcribeLabelRef.current.style.display = 'none'
+    }
+    const endTranscribe = () => {
+      transcribeRef.current = null
+      hideTranscribeLabel()
+      uiLayerRef.current?.batchDraw()
+    }
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
@@ -521,6 +581,7 @@ export function TilingCanvas({
         capture(e.pointerId)
         strokePainted = null
         strokeSelected = null
+        strokeTiles = null
         lastPaintWorld = null
         downAt = null
         moved = false
@@ -548,6 +609,7 @@ export function TilingCanvas({
       middlePan = false
       additive = e.shiftKey // Shift+box / Shift+paint-select adds to the current selection
       strokePainted = null
+      strokeTiles = null
       lastPaintWorld = null
       // "off" mode doesn't capture or preventDefault, so a touch drag scrolls the page; a tap (no
       // move) still selects on pointerup. paint/select own the gesture.
@@ -607,6 +669,21 @@ export function TilingCanvas({
         selectTo(screenToWorld(p, viewRef.current))
         return
       }
+      if (mode === 'transcribe') {
+        if (!moved) {
+          if (dist(p, downAt) > slop) {
+            moved = true
+            strokeTiles = []
+            lastPaintWorld = null
+            transcribeTo(screenToWorld(downAt, viewRef.current)) // the tile the drag started on
+            transcribeTo(screenToWorld(p, viewRef.current)) // fill the gap to here
+          }
+          return
+        }
+        transcribeTo(screenToWorld(p, viewRef.current))
+        showTranscribeLabel(p, computeTranscribe(strokeTiles ?? []).text)
+        return
+      }
       // paint
       if (!moved) {
         if (dist(p, downAt) > slop) {
@@ -636,11 +713,15 @@ export function TilingCanvas({
           const b = screenToWorld(local(e), viewRef.current)
           const rectTiles = tilesInRect(tilingRef.current, a, b)
           onSelectTilesRef.current?.(additive ? [...new Set([...selectedIdsRef.current, ...rectTiles])] : rectTiles)
+        } else if (dragModeRef.current === 'transcribe' && moved && strokeTiles && strokeTiles.length > 0) {
+          // a transcribe stroke ended — hand the crossed tiles up as a DSL path (or the tile type)
+          onTranscribeRef.current?.(computeTranscribe(strokeTiles))
         } else if (moved && strokePainted && strokePainted.size > 0) {
           // a paint stroke just ended — fade its outline out
           startFlashFade()
         }
         hideMarquee()
+        endTranscribe()
         panLast = null
         pinchLast = null
         centerLast = null
@@ -650,6 +731,7 @@ export function TilingCanvas({
         middlePan = false
         strokePainted = null
         strokeSelected = null
+        strokeTiles = null
         lastPaintWorld = null
         host.style.cursor = 'crosshair'
       } else if (vals.length === 1) {
@@ -659,6 +741,8 @@ export function TilingCanvas({
         centerLast = null
         moved = true
         strokePainted = null
+        strokeTiles = null
+        endTranscribe()
         lastPaintWorld = null
       }
     }
@@ -712,10 +796,15 @@ export function TilingCanvas({
               listening={false}
               sceneFunc={(ctx) => drawPaintFlash(ctx, tiling, viewRef.current, paletteRef.current, paintFlashRef.current)}
             />
+            <Shape
+              listening={false}
+              sceneFunc={(ctx) => drawTranscribe(ctx, tiling, viewRef.current, paletteRef.current, transcribeRef.current)}
+            />
           </Layer>
         </Stage>
       )}
       <div ref={marqueeRef} className="canvas-marquee" aria-hidden="true" />
+      <div ref={transcribeLabelRef} className="canvas-transcribe-label" aria-hidden="true" />
       <div className="canvas-hud" aria-hidden="true">
         <span>{tiling.nodes.length.toLocaleString()} tiles</span>
         <span ref={fpsRef}>— fps</span>
@@ -1014,6 +1103,48 @@ function drawPaintFlash(
     if (!node) continue
     traceTile(ctx, node.vertices, view)
     ctx.stroke()
+  }
+  ctx.restore()
+}
+
+// The live transcribe trail: outline every tile the drag has crossed (accent) and draw a directional
+// polyline through their centres, so the ORDER (and any back-and-forth) reads at a glance — the visual
+// companion to the floating path label. A stroke is a handful of tiles, so no culling (like drawPaintFlash).
+function drawTranscribe(ctx: Konva.Context, tiling: Tiling, view: View, pal: Palette, trace: { tiles: string[] } | null): void {
+  if (!trace || trace.tiles.length === 0) return
+  ctx.save()
+  ctx.setAttr('lineJoin', 'round')
+  ctx.setAttr('lineCap', 'round')
+  // Outline each crossed tile.
+  ctx.setAttr('globalAlpha', 0.9)
+  ctx.setAttr('strokeStyle', pal.accentStrong)
+  ctx.setAttr('lineWidth', 2)
+  for (const id of trace.tiles) {
+    const node = nodeById(tiling, id)
+    if (!node) continue
+    traceTile(ctx, node.vertices, view)
+    ctx.stroke()
+  }
+  // The path polyline through the tile centres + a dot on the start tile.
+  if (trace.tiles.length > 1) {
+    const pts: Array<{ x: number; y: number }> = []
+    for (const id of trace.tiles) {
+      const node = nodeById(tiling, id)
+      if (node) pts.push(worldToScreen(node.centroid, view))
+    }
+    if (pts.length > 1) {
+      ctx.beginPath()
+      ctx.moveTo(pts[0].x, pts[0].y)
+      for (let i = 1; i < pts.length; i += 1) ctx.lineTo(pts[i].x, pts[i].y)
+      ctx.setAttr('globalAlpha', 0.95)
+      ctx.setAttr('strokeStyle', pal.accent)
+      ctx.setAttr('lineWidth', 3)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.arc(pts[0].x, pts[0].y, 4, 0, Math.PI * 2)
+      ctx.setAttr('fillStyle', pal.accent)
+      ctx.fill()
+    }
   }
   ctx.restore()
 }
