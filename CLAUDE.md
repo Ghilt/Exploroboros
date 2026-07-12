@@ -1403,6 +1403,19 @@ Hard-won; read before fighting the tooling again.
   emit `.`. **Don't reintroduce `@`.** (One harmless quirk: `.tile 5.e1` lexes `5.` as a decimal so the glued
   `.e1` isn't seen as a hop — but nothing may follow the terminal `.tile N` anyway, so no valid program is
   affected; write a hop BEFORE the tile if you need to prove the "only hop" rule.)
+- **A codebase-wide DSL-syntax sweep must include `tools/*.json` fixtures, not just `src/`.** The original
+  `@`→`.` cutover swept `src/` (gallery recipes, prototype ports, tests) and the live D1, but missed
+  **`tools/sample-creations.json`** — the local-dev seed fixture `npm run dev:local`/`seed:local` inserts
+  verbatim into the local gallery (`tools/seed-local.mjs` does a raw INSERT, no `parseRecipe` validation) —
+  because it lives outside `src/` and isn't a `.ts`/`.tsx` file. Found 2026-07-12 when the owner spot-checked
+  for a literal `visited@target` after the on-read migration was removed: all 8 fixtures were still
+  `schemaVersion: 3` with `@`-syntax traverser text AND the pre-v4 `gridN` shape (no `gridW`/`gridH`, no
+  `numberingScheme`) — so a notation-only fix wouldn't have helped anyway; they'd still refuse as
+  `'unsupported'`. Fixed by hand-applying the same shape the real migration chain would produce (gridN→
+  gridW/gridH, `.` in traverser text, `numberingScheme: 'left-to-right'`, `schemaVersion: 11`), verified
+  against the app's actual `parseRecipe` via a throwaway Vitest file (all 8 parse clean, no `@`, no
+  migration needed). **When sweeping DSL syntax again, grep `tools/*.json`/`*.mjs` too — anywhere a recipe
+  is authored as data rather than through the app's own export path can drift silently.**
 - Edge numbering has **two layers**: internal **local CCW side index** (geometry/winding) vs the
   user-facing **clockwise-from-top** number (`clockwiseEdgeOrder`). Don't conflate them.
   **The 0/360 seam is at north**, so `clockwiseEdgeOrder` **anchors edge 0 on the most-north edge** then
