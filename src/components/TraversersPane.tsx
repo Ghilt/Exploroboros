@@ -103,12 +103,12 @@ export function TraversersPane({
             lines (a bare action always fires).
           </p>
           <p>
-            <strong>Move</strong> by edge: <code>move straight</code>, <code>move r1</code> (weak right),{' '}
-            <code>move l2</code> (stronger left), <code>move e3</code> (the numbered edge), or{' '}
-            <code>move nearest-unvisited</code> (step to the closest-by-heading unvisited neighbour — the
-            built-in walker). <code>move [r1, l1]</code> splits (capped by <code>max-split</code>); a range{' '}
-            <code>move [e1..e3]</code> splits over every edge between; <code>move straight -&gt; r1</code> hops
-            twice in one tick.
+            <strong>Move</strong> by edge: <code>move straight</code>, <code>move back</code> (reverse),{' '}
+            <code>move r1</code> (weak right), <code>move l2</code> (stronger left), <code>move e3</code> (the
+            numbered edge), or <code>move nearest-unvisited</code> (step to the closest-by-heading unvisited
+            neighbour — the built-in walker). <code>move [r1, l1]</code> splits (capped by{' '}
+            <code>max-split</code>); a range <code>move [e1..e3]</code> splits over every edge between;{' '}
+            <code>move straight.r1</code> hops twice in one tick.
           </p>
           <p>
             <strong>Registries:</strong> <code>put [A] = [A] + 1</code>, <code>increase P</code>. A/B/C live on
@@ -360,7 +360,7 @@ function TraverserEditor({
 if <predicate> { … } else { … }  a block (else optional; else if chains)
 <action>                         a bare action always fires
 
-move straight | r1 | l2 | e3 | nearest-unvisited
+move straight | back | r1 | l2 | e3 | nearest-unvisited
 move [r1, l1]                    split — capped by max-split
 move e0.e4                       two hops in one tick (dot chains)
 put A = A + 1                    write a tile registry (A/B/C, bare)
@@ -382,9 +382,9 @@ find-highest-tile [A] > 0        highest-numbered match → f2`}</pre>
                 neighbour with a <code>.</code>-path: <code>visited.r1</code>.
               </li>
               <li>
-                <strong>edges</strong> — <code>straight</code>, <code>r1</code>/<code>l1</code> (turn),{' '}
-                <code>e3</code> (numbered edge), <code>nearest-unvisited</code>. Chain hops with{' '}
-                <code>.</code>: <code>e0.e4</code>.
+                <strong>edges</strong> — <code>straight</code>, <code>back</code> (reverse),{' '}
+                <code>r1</code>/<code>l1</code> (turn), <code>e3</code> (numbered edge),{' '}
+                <code>nearest-unvisited</code>. Chain hops with <code>.</code>: <code>e0.e4</code>.
               </li>
               <li>
                 <strong>registries</strong> — <code>A</code>/<code>B</code>/<code>C</code> sit on the tile

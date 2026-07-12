@@ -17,7 +17,7 @@ const WORDS: ReadonlyArray<string> = [
   // predicate DSL keywords + the shape test
   'and', 'or', 'not', 'of', 'tile', 'default', 'tile-type', 'exists',
   // .-path / edge words shared by the predicate paths and traverser moves
-  'straight', 's', 'nearest-unvisited', 'target', 'e', 'r', 'l',
+  'straight', 's', 'back', 'nearest-unvisited', 'target', 'e', 'r', 'l',
   // traverser DSL — settings
   'max-split', 'heading', 'movement', 'max-steps',
   // traverser DSL — actions + statement keywords

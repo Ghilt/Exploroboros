@@ -12,6 +12,9 @@ describe('traverser program serialization', () => {
   it('round-trips canonically (serialize ∘ parse is stable)', () => {
     const samples = [
       'move straight',
+      'move back',
+      'move straight.back',
+      'if visited.back > 0 then move back',
       'max-split = 2\nif visited.r1 == 1 then move l1\nincrease P',
       'move [r1, l1]',
       'move straight.r2.e3',

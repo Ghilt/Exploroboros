@@ -5,6 +5,7 @@
 // behave identically on EVERY tile, the concave wedge included:
 //
 //   straight -> heading        r{k} -> heading + k        l{k} -> heading - k     (mod side-count)
+//   back     -> straightPartner(heading)   (the reverse of straight — the edge you'd have entered by)
 //   edge k   -> k              (absolute — ignores the heading)
 //   nearest-unvisited -> the unvisited neighbour reached by the least turn (smallest edge-number
 //                        distance) from the heading
@@ -93,7 +94,8 @@ function targetEdge(n: number, heading: number, movement: Movement, ref: EdgeRef
     case 'turn':
       return wrap(base + (ref.dir === 'r' ? ref.n : -ref.n))
     case 'unvisited':
-      return null
+    case 'back':
+      return null // both need the tiling/node (overlay, straight-through pairing) — handled in resolveRef
   }
 }
 
@@ -108,6 +110,13 @@ export function resolveRef(
   if (ref.kind === 'unvisited') return resolveUnvisited(tiling, overlay, tile, heading)
   const node = nodeById(tiling, tile)
   if (!node) return null
+  if (ref.kind === 'back') {
+    // The reverse of straight: exit the straight-through PARTNER of the reference edge (heading, or
+    // north in absolute movement) — the edge a walker would have entered by. Reuses the shape's arrival
+    // pairing, so it crosses the concave wedge cleanly.
+    const base = movement === 'absolute' ? 0 : heading
+    return stepLocal(tiling, tile, edgeToLocalSide(node, straightPartner(tiling, node, base)))
+  }
   const edge = targetEdge(node.sides.length, heading, movement, ref)
   if (edge === null) return null
   return stepLocal(tiling, tile, edgeToLocalSide(node, edge))

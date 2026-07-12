@@ -9,6 +9,7 @@ import { ReorderableList, type DragHandleProps } from './ReorderableList'
 import { ColorField } from './ColorField'
 import { TrashButton } from './TrashButton'
 import { EyeButton } from './EyeButton'
+import { DuplicateButton } from './DuplicateButton'
 import { HelpButton } from './HelpButton'
 import { DslInput } from './DslTextarea'
 import { buildDslCompletions, type DslCompletion } from './dslCompletions'
@@ -109,6 +110,7 @@ export function ColoringPane({
               completions={completions}
               handle={handle}
               onChange={(next) => store.replace(rule.id, next)}
+              onDuplicate={() => store.duplicate(rule.id)}
               onRemove={() => store.remove(rule.id)}
             />
           )}
@@ -137,6 +139,7 @@ function ColoringRuleRow({
   completions,
   handle,
   onChange,
+  onDuplicate,
   onRemove,
 }: {
   rule: ColoringRule
@@ -145,6 +148,7 @@ function ColoringRuleRow({
   completions: DslCompletion[]
   handle: DragHandleProps
   onChange: (next: ColoringRule) => void
+  onDuplicate: () => void
   onRemove: () => void
 }) {
   const predValue = rule.predicate.kind === 'ref' ? rule.predicate.id : INLINE
@@ -190,6 +194,7 @@ function ColoringRuleRow({
           onToggle={() => onChange({ ...rule, enabled: !enabled })}
           label={enabled ? 'switch this rule off' : 'switch this rule on'}
         />
+        <DuplicateButton label="duplicate rule" onClick={onDuplicate} />
         <TrashButton label="delete rule" onClick={onRemove} />
       </div>
 

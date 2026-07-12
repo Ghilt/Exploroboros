@@ -24,7 +24,7 @@ import { boundsCenter, tileOffset } from './remap'
 //     this version, and refuses one that's NEWER than this build (with reason 'too-new' → "update the app").
 //   APP_VERSION — a human-readable stamp of the build that made the image, for display + bug tracing
 //     only; never branched on. Bump freely.
-export const RECIPE_SCHEMA_VERSION = 10
+export const RECIPE_SCHEMA_VERSION = 11
 export const APP_VERSION = '0.1.0'
 export const RECIPE_KEYWORD = 'exploroboros:recipe'
 
@@ -235,6 +235,14 @@ const MIGRATIONS: ReadonlyArray<Migration> = [
   // compile `@`-syntax DSL text (which no longer lexes). This intentionally breaks reopening any
   // already-exported PNG from before the change — see recipe.test.ts's "refuses" case for the accepted
   // failure mode. Do not "fix" this gap without checking with the owner first.
+  // v10 → v11: the traverser/path DSL gained the `back` edge (the reverse of `straight`). ADDITIVE new
+  // syntax — a v10 recipe's programs don't use it and reproduce unchanged — so the step is a no-op that
+  // just advances the version, stamping any image that USES `back` as v11 so an older build refuses it
+  // cleanly ("update the app") rather than failing to compile the traverser (same rationale as v6 → v7).
+  {
+    from: 10,
+    migrate: (r) => r,
+  },
 ]
 
 function migrateNamesV5(r: AnyRecipe): AnyRecipe {

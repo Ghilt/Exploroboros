@@ -73,6 +73,14 @@ describe('ColoringPane', () => {
     expect(screen.getByText(/no rules yet/i)).toBeTruthy()
   })
 
+  it('duplicates a rule, inserting a second copy', () => {
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: '+ Add rule' }))
+    expect(screen.getAllByRole('combobox', { name: 'rule predicate' })).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'duplicate rule' }))
+    expect(screen.getAllByRole('combobox', { name: 'rule predicate' })).toHaveLength(2)
+  })
+
   it('the eye toggle switches a rule off (dims the row) and back on', () => {
     const { container } = render(<Harness />)
     fireEvent.click(screen.getByRole('button', { name: '+ Add rule' }))

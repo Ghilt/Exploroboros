@@ -112,9 +112,10 @@ function delegate<T>(line: Line, from: number, to: number, what: 'pred' | 'expr'
 }
 
 function parseEdgeRef(line: Line): EdgeRef {
-  const t = line.word('expected an edge, e.g. straight, r1, l2, or e3')
+  const t = line.word('expected an edge, e.g. straight, back, r1, l2, or e3')
   const text = t.text
   if (text === 'straight' || text === 's') return { kind: 'straight' }
+  if (text === 'back') return { kind: 'back' }
   if (text === 'nearest-unvisited') return { kind: 'unvisited' }
   const turn = /^([rl])([0-9]+)$/.exec(text)
   if (turn) {
@@ -124,7 +125,7 @@ function parseEdgeRef(line: Line): EdgeRef {
   }
   const edge = /^e([0-9]+)$/.exec(text)
   if (edge) return { kind: 'edge', index: Number(edge[1]) }
-  throw new ParseFail(`"${text}" is not an edge — use straight, r1/l1…, eN, or nearest-unvisited`, {
+  throw new ParseFail(`"${text}" is not an edge — use straight, back, r1/l1…, eN, or nearest-unvisited`, {
     start: t.start,
     end: t.end,
   })

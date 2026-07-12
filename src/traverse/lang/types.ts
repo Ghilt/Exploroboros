@@ -10,12 +10,16 @@ import type { Expr, Pred, RegLetter, TilePath } from '../../dsl'
 export type Movement = 'relative' | 'absolute'
 
 // One adjacent edge, resolved per-tile at exec time (see edges.ts):
-//  - straight: continue the heading (least turn)
+//  - straight: continue the heading (the heading edge itself)
+//  - back: the reverse of straight — the heading edge's straight-through PARTNER (the edge you'd have
+//    entered by). A U-turn: `move back` then `move straight` keeps going the reversed way. Crosses the
+//    concave wedge cleanly (same shape pairing as arrival).
 //  - turn r{n}/l{n}: the n-th edge turning right (clockwise) / left from straight
 //  - edge {index}: the absolute clockwise-from-top edge number
 //  - nearest-unvisited: the least-turn UNVISITED neighbour (the built-in walker move)
 export type EdgeRef =
   | { kind: 'straight' }
+  | { kind: 'back' }
   | { kind: 'turn'; dir: 'r' | 'l'; n: number }
   | { kind: 'edge'; index: number }
   | { kind: 'unvisited' }

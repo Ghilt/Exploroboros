@@ -35,6 +35,19 @@ describe('edge resolution on a square (heading = edge number)', () => {
     expect(resolveRef(tiling, empty, 'sq:2,2', 1, 'absolute', { kind: 'turn', dir: 'r', n: 1 })?.tile).toBe('sq:2,3')
   })
 
+  it('back is the reverse of straight — exits the straight-through (opposite) edge', () => {
+    // facing north (0): back -> south (sq:1,2); facing east (1): back -> west (sq:2,1).
+    expect(resolveRef(tiling, empty, 'sq:2,2', NORTH, 'relative', { kind: 'back' })?.tile).toBe('sq:1,2')
+    expect(resolveRef(tiling, empty, 'sq:2,2', 1, 'relative', { kind: 'back' })?.tile).toBe('sq:2,1')
+    // absolute: the reference edge is north, so back is south regardless of heading.
+    expect(resolveRef(tiling, empty, 'sq:2,2', 1, 'absolute', { kind: 'back' })?.tile).toBe('sq:1,2')
+  })
+
+  it('straight then back returns to the start (a U-turn)', () => {
+    const hop = resolveChain(tiling, empty, 'sq:2,2', NORTH, 'relative', [{ kind: 'straight' }, { kind: 'back' }])
+    expect(hop?.tile).toBe('sq:2,2')
+  })
+
   it('returns null at a boundary', () => {
     expect(resolveRef(tiling, empty, 'sq:2,4', 1, 'relative', { kind: 'straight' })).toBeNull()
   })
@@ -129,6 +142,15 @@ describe('edge resolution on the concave wedge', () => {
       const l1 = resolveRef(t, empty, wedge.id, k, 'relative', { kind: 'turn', dir: 'l', n: 1 })
       const edgeDown = resolveRef(t, empty, wedge.id, k, 'relative', { kind: 'edge', index: (k - 1 + n) % n })
       expect(l1?.tile, `l1 off edge ${k} == edge ${(k - 1 + n) % n}`).toBe(edgeDown?.tile)
+    }
+  })
+
+  it('back on the wedge exits the straight-through partner of the heading (crosses cleanly)', () => {
+    const n = wedge.sides.length
+    for (let k = 0; k < n; k += 1) {
+      const back = resolveRef(t, empty, wedge.id, k, 'relative', { kind: 'back' })
+      const viaPartner = resolveRef(t, empty, wedge.id, k, 'relative', { kind: 'edge', index: straightPartner(t, wedge, k) })
+      expect(back?.tile, `back off edge ${k}`).toBe(viaPartner?.tile)
     }
   })
 

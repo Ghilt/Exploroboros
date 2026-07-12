@@ -9,6 +9,8 @@ function edgeRef(r: EdgeRef): string {
   switch (r.kind) {
     case 'straight':
       return 'straight'
+    case 'back':
+      return 'back'
     case 'unvisited':
       return 'nearest-unvisited'
     case 'turn':

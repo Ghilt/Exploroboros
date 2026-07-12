@@ -63,6 +63,7 @@ export type AttrScope = 'tile' | 'traverser'
 // (coloring) resolve it to nothing → default.
 export type PathSeg =
   | { kind: 'straight' }
+  | { kind: 'back' } // the reverse of straight (the heading edge's straight-through partner) — needs a walker
   | { kind: 'turn'; dir: 'r' | 'l'; n: number }
   | { kind: 'edge'; index: number }
   | { kind: 'unvisited' }

@@ -71,6 +71,8 @@ export function segToEdgeRef(seg: PathSeg): EdgeRef | null {
   switch (seg.kind) {
     case 'straight':
       return { kind: 'straight' }
+    case 'back':
+      return { kind: 'back' }
     case 'unvisited':
       return { kind: 'unvisited' }
     case 'turn':

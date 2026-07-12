@@ -246,6 +246,7 @@ move straight                  # a bare action — always runs`}</pre>
           </thead>
           <tbody>
             <tr><td><code>straight</code></td><td>The edge you're heading at — the heading edge itself. (<code>s</code> for short.)</td></tr>
+            <tr><td><code>back</code></td><td>The <strong>reverse</strong> of <code>straight</code> — the edge behind you (a U-turn). On the concave wedge it follows the straight-through pairing, so it crosses cleanly.</td></tr>
             <tr><td><code>r1</code>, <code>r2</code>, …</td><td>Turn <strong>right</strong> (clockwise): heading <strong>+1</strong>, +2, … around the edge ring.</td></tr>
             <tr><td><code>l1</code>, <code>l2</code>, …</td><td>Turn <strong>left</strong> (counter-clockwise): heading <strong>−1</strong>, −2, … around the ring.</td></tr>
             <tr><td><code>eN</code> (<code>e0</code>, <code>e3</code>…)</td><td>The <strong>absolute</strong> edge by its <em>clockwise-from-top</em> number (0 at the top), regardless of heading.</td></tr>
@@ -288,6 +289,7 @@ move straight                  # a bare action — always runs`}</pre>
           </thead>
           <tbody>
             <tr><td><code>move straight</code></td><td>Step forward one tile.</td></tr>
+            <tr><td><code>move back</code></td><td>Reverse direction and step — a U-turn.</td></tr>
             <tr><td><code>move r1</code></td><td>Turn right and step.</td></tr>
             <tr><td><code>move l2</code></td><td>Take the second edge to the left.</td></tr>
             <tr><td><code>move e0</code></td><td>Cross the top edge, whatever your heading.</td></tr>
@@ -299,9 +301,9 @@ move straight                  # a bare action — always runs`}</pre>
           </tbody>
         </table>
         <p className="guide-note">
-          <code>straight</code>/<code>r</code>/<code>l</code> are framed by your heading; <code>eN</code> is
-          always absolute. Set <code>movement = absolute</code> in the header to frame <em>all</em> of them by
-          north instead.
+          <code>straight</code>/<code>back</code>/<code>r</code>/<code>l</code> are framed by your heading;{' '}
+          <code>eN</code> is always absolute. Set <code>movement = absolute</code> in the header to frame{' '}
+          <em>all</em> of them by north instead.
         </p>
       </section>
 
@@ -345,7 +347,7 @@ move straight                  # a bare action — always runs`}</pre>
             <tr><th>Path</th><th>Reads the attribute on…</th></tr>
           </thead>
           <tbody>
-            <tr><td><code>.e0</code>, <code>.r1</code>, <code>.straight</code>…</td><td>The neighbour across that edge — any <a href="#moving">edge name</a> (<code>eN</code>, <code>r</code>/<code>l</code>, <code>straight</code>, <code>nearest-unvisited</code>).</td></tr>
+            <tr><td><code>.e0</code>, <code>.r1</code>, <code>.straight</code>…</td><td>The neighbour across that edge — any <a href="#moving">edge name</a> (<code>eN</code>, <code>r</code>/<code>l</code>, <code>straight</code>, <code>back</code>, <code>nearest-unvisited</code>).</td></tr>
             <tr><td><code>.e0.e0.e3</code>, <code>.r1.e5</code></td><td>Follow several edges in turn (re-aiming at each) and read the tile you land on.</td></tr>
             <tr><td><code>.target</code></td><td>The tile a move is <strong>heading to</strong>. Dynamic: with a split it's tested <em>per branch</em>, so it filters which branches survive. This is how a <a href="#directives">directive</a> gates moves.</td></tr>
             <tr><td><code>.tile N</code></td><td>The tile with absolute number <code>N</code>.</td></tr>

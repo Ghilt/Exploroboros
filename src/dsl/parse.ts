@@ -338,7 +338,7 @@ class Parser {
     // A bare direction is not a value: `straight` / `s` / `nearest-unvisited`, or a letter e/r/l followed
     // by a number (the lexer splits `r1` into `r` + `1`). Nudge to reading an attribute across it.
     if (t.kind === 'ident') {
-      if (t.text === 'straight' || t.text === 's' || t.text === 'nearest-unvisited' || /^[erl][0-9]+$/.test(t.text)) {
+      if (t.text === 'straight' || t.text === 's' || t.text === 'back' || t.text === 'nearest-unvisited' || /^[erl][0-9]+$/.test(t.text)) {
         throw new ParseFail(`"${t.text}" is a direction, not a value — read an attribute across it, e.g. visited.${t.text}`, span)
       }
       // Defensive: also catch a letter + a separate number token, should the lexer ever split `r1`.
@@ -490,6 +490,10 @@ class Parser {
       this.next()
       return { kind: 'straight' }
     }
+    if (word === 'back') {
+      this.next()
+      return { kind: 'back' }
+    }
     if (word === 'nearest-unvisited') {
       this.next()
       return { kind: 'unvisited' }
@@ -516,7 +520,7 @@ class Parser {
       if (n < 1) throw new ParseFail('a turn must be r1/l1 or higher', t.span)
       return { kind: 'turn', dir: m[1] as 'r' | 'l', n }
     }
-    throw new ParseFail(`"${word}" is not an edge — use .e0, .r1/.l1…, .straight, .nearest-unvisited, .fN, or .target`, t.span)
+    throw new ParseFail(`"${word}" is not an edge — use .e0, .r1/.l1…, .straight, .back, .nearest-unvisited, .fN, or .target`, t.span)
   }
 
   private isKeyword(word: string): boolean {
