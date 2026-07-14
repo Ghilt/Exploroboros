@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { fetchCreation, fetchRecipe } from './api'
+import { RECIPE_SCHEMA_VERSION } from '../export'
 import type { CreationItem } from './types'
 
 function fakeResponse(body: unknown, ok = true): Response {
@@ -43,11 +44,11 @@ describe('fetchRecipe', () => {
     vi.unstubAllGlobals()
   })
 
-  it('throws a friendly error for a creation stored under a schema below v10 (the @→. migration bridge was removed)', async () => {
+  it('migrates a creation stored under an old schema (v3) so it opens on import', async () => {
     // A row uploaded back when v3 (gridN, no gridW/gridH) was current — the server stores the recipe
     // as-normalised-at-upload-time and never re-migrates it, so this is what an old row's GET returns.
-    // The v9→v10 bridge was intentionally dropped (see recipe.ts's MIGRATIONS comment), so a pre-v10 row
-    // now fails to read instead of silently migrating — the same friendly error as any corrupt recipe.
+    // fetchRecipe runs it through parseRecipe, which walks the migration chain (incl. the restored v9→v10
+    // @→. bridge) up to the current schema — so an old gallery creation opens instead of erroring.
     const stored = {
       app: 'exploroboros',
       schemaVersion: 3,
@@ -62,7 +63,8 @@ describe('fetchRecipe', () => {
       initialState: '',
     }
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(fakeResponse({ recipe: stored })))
-    await expect(fetchRecipe('abc')).rejects.toThrow(/could not be read/i)
+    const recipe = await fetchRecipe('abc')
+    expect(recipe.schemaVersion).toBe(RECIPE_SCHEMA_VERSION)
   })
 
   it('throws a friendly error when the stored recipe is corrupt rather than handing back a broken object', async () => {

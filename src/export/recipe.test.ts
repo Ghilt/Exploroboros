@@ -182,16 +182,20 @@ describe('migrateRecipe (the upgrade chain that keeps old images readable)', () 
     expect(migrateRecipe({ schemaVersion: 8, numberingScheme: 'normal' }, 9)).toMatchObject({ schemaVersion: 9, numberingScheme: 'left-to-right' })
   })
 
-  it('refuses to open a pre-v10 recipe — the v9→v10 (@→.) migration was intentionally removed', () => {
-    // The DSL path separator changed @ → . at v10; the migration that used to bridge v9 recipes was
-    // deliberately dropped once the live gallery's stored text had already been rewritten at rest
-    // (tools/migrate-paths.mjs, since removed). The chain now has a gap at v9, so ANY recipe below the
-    // current version — not just v9 itself — fails to reach v10 and parseRecipe reports 'unsupported'
-    // rather than silently trying to compile leftover `@`-syntax DSL text (which no longer lexes). This
-    // is an accepted, owner-approved break: a PNG exported before the change no longer reopens.
-    expect(migrateRecipe({ schemaVersion: 9 }, 10)).toBeNull()
-    expect(parseRecipe(JSON.stringify({ ...buildRecipe(input()), schemaVersion: 9 }))).toEqual({ ok: false, reason: 'unsupported' })
-    expect(parseRecipe(JSON.stringify({ ...buildRecipe(input()), schemaVersion: 6 }))).toEqual({ ok: false, reason: 'unsupported' })
+  it('v9→v10 rewrites the DSL path separator @ → . so a pre-v10 recipe opens again', () => {
+    // The DSL path separator changed @ → . at v10. This step rewrites every DSL-bearing text field, so an
+    // older recipe migrates on read. (Restored 2026-07-14: the step had been dropped as "cleanup", which
+    // silently broke every pre-refactor GALLERY creation — their stored recipes are still v3–v9, so
+    // parseRecipe rejected them at the version gate regardless of their already-`.` text.)
+    const traversers = [{ id: 't1', name: 'W', text: 'move e0@e4' }]
+    const out = migrateRecipe({ schemaVersion: 9, traversers }, 10)
+    expect(out).toMatchObject({ schemaVersion: 10, traversers: [{ text: 'move e0.e4' }] })
+    // A whole recipe stamped at an old version now migrates up to the current schema, not 'unsupported'.
+    for (const v of [9, 6]) {
+      const res = parseRecipe(JSON.stringify({ ...buildRecipe(input()), schemaVersion: v }))
+      expect(res.ok).toBe(true)
+      if (res.ok) expect(res.recipe.schemaVersion).toBe(RECIPE_SCHEMA_VERSION)
+    }
   })
 
   it('v10→v11 is additive — it just advances the version (the `back` edge is new syntax, old text unchanged)', () => {

@@ -626,6 +626,26 @@ still needed into this doc **before** then; do not rely on the path persisting.
   (`parsePath`), preview mirror (`scanPaths`/`resolveWalk`), and `PathSeg` docs updated; serializer already
   handled multi-segment paths. Recipe **schema v11 → v12** (additive no-op — a v11 recipe reproduces
   unchanged; stamps a chaining image v12 so an older build refuses it cleanly). Guide + §9 gotchas updated.
+- **Fix — old gallery creations wouldn't open ("This creation's data could not be read"); restored the
+  v9→v10 recipe migration (2026-07-14):** the owner reported almost none of the OLD gallery creations would
+  open. It was **NOT** a cache or image problem (images serve + decode fine) and **NOT** the owner's browser
+  (it failed in incognito / another browser / after clearing) — the stored **recipes** are the issue. 20 of
+  the 26 live creations are at schemaVersion 3–9; the migration chain had a **deliberate gap at v9→v10**
+  (introduced when the `@`→`.` DSL-separator migration + `tools/migrate-paths.mjs` were removed as cleanup),
+  so `parseRecipe` returned `'unsupported'` for anything below v10 and `fetchRecipe` threw that exact message
+  on **"Import to canvas"** (the spotlight still shows the image — only *opening* it reads the recipe). The
+  removal was meant to purge old syntax system-wide, including a one-time rewrite of the live gallery text —
+  but that rewrite changed only the stored DSL **text**, not each row's **schemaVersion**, so the rows stayed
+  at v3–v9 and kept hitting the version gate. **Fix: restored the v9→v10 step** (`rewritePathsV10` in
+  `recipe.ts` — a per-field `@`→`.` swap, idempotent on already-`.` text) so old recipes migrate **on read**
+  again. **Old-syntax handling stays contained** to `recipe.ts`'s MIGRATIONS chain — the migration converts
+  old→current before any parser sees it, so nothing else in the codebase knows about `@`. Non-destructive
+  (the DB is untouched; upgrades happen on read). Proven: all **26** live recipes now parse to the current
+  schema (build / lint / full suite green + a throwaway test against the 26 fetched from production). Also
+  reopens old exported PNGs. **The owner's longer-term goal is still to PURGE** — properly migrate the live
+  gallery rows to the current schema (fixing the rewrite that failed to bump the version), after which the
+  on-read code could be removed again; deferred. Set aside from this commit: a recipe-embedded-in-the-WebP
+  feature + an image-cache tweak (both built, held for a separate decision). See §7/§9.
 - **Next up:** **`exploroboros.io` custom domain** (register + attach — §8) → more **tutorial chapters**
   (initial-state / export-share next) → **DSL-driven traversers** (custom rules in the Traversers pane —
   paint/move/visit/split/guards/state, §5; reuses the predicate DSL) → **persist user exports across
@@ -737,6 +757,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-07-12 | **Transcribe a canvas drag into a DSL path.** A `'transcribe'` drag mode turns a drag across tiles into a ready-to-paste traverser path (the INVERSE of the path-preview `walkChain`): a **grid-arrow button** (bottom-left, above the tile/FPS HUD) + **`Ctrl+M`** arm a **one-shot** capture; a **"transcribe path"** drag-menu item turns it on **persistently**. Dragging tile-to-tile spells the path out in a label above the cursor as it grows (with a live accent trail) and drops it on the clipboard on release — **relative** off a walker tile (`straight.r1.r1.l2`, heading threaded via the same arrival re-aim as the engine), **absolute** otherwise (`e0.e3.e3.e6`), the tile's **type** when no edge is crossed; a plain tap still inspects. Pure `src/canvas/transcribe.ts` (`transcribeGesture`, mirrors edges.ts/serialize.ts locally to avoid a canvas→traverse cycle) + `sharedEdgeNumbers` (`graph.ts`, two-edge octagon+wedge disambiguated by centroid direction); new `'transcribe'` DragMode + `onTranscribe`/trail/label in `TilingCanvas`; button/menu/`Ctrl+M`/clipboard + one-shot bookkeeping in `Workspace`; new `TranscribeButton`. No recipe/schema change (an authoring aid, nothing stored). | ✅ yes | owner used it on this worktree's preview (5200) and said "works well" — dragging tile-to-tile copies the path (relative off a walker, absolute otherwise), a single tile copies the type, the one-shot reverts + the menu item persists. Backed by build / lint / **1031 tests** (12 new: the round-trip `transcribeGesture`→`walkChain` brute-forced over EVERY neighbour on square/kalleboda/triangular + multi-hop threading, relative + absolute, the tile-type fallback + a non-adjacent-jump stop) + served-source/DOM checks on 5200 (button + "transcribe path" menu item render; the menu item and `Ctrl+M` switch the mode; `Ctrl+M` is a no-op while typing; console clean). The on-canvas drag itself (growing label, trail, clipboard) is the owner's device pass — the Konva stage doesn't mount on a `document.hidden` tab (§9). | — |
 | 2026-07-13 | **Fix — dragging in the coloring colour picker lagged the UI.** The colour swatch is a native `<input type="color">`; React's `onChange` binds to the DOM `input` event, which streams continuously while dragging in the OS colour dialog, so every intermediate colour hit `store.replace` → re-`colorize` the whole tiling + canvas redraw per frame → stutter. Now the swatch is uncontrolled (`defaultValue`) and commits **only** on the native `change` event (picker dismissed), via a ref-wired listener; an effect syncs the swatch when the colour is set from elsewhere (dice / ramp edits / reopen). So the tiling recolours once, on release — as requested. Covers both `ColorPicker` uses (flat swatch + each ramp stop). `src/components/ColorPicker.tsx`; no recipe/schema/deps change. | ✅ yes | owner verified on this worktree's preview (5588, footer-labelled) — dragging in the picker is smooth, colours apply once on release — and said "commit this!". Backed by build / lint / **1034 tests** (3 new in `ColorPicker.test.tsx`: an `input` event does NOT propagate; a `change` event propagates exactly once with the committed value; an external `value` change syncs the swatch) + served-source confirmation on 5588 (the `change`-listener + `defaultValue` are live, the old real-time `onChange` path is gone) + a clean console. The OS colour-dialog drag can't be scripted headlessly, so the "feels smooth" judgement is the owner's device pass; the event-level fix is the unit test's. | — |
 | 2026-07-14 | **`.target` / `.tile N` became chainable BASE hops (not "only hop" terminals).** A `.`-path can now START with `.target` or `.tile N` and chain edge hops from it (`visited.target.e2.e1`, `[A.tile 5.e0]`), like `.fN` already did — so the owner's `directive if visited.e2.e2 == 1 or visited.target.e2.e1 == 1 always forbid move` compiles. Still rejected as a LATER hop (`visited.e2.target`). A relative hop after them (`.target.r1`) turns from the **walker's current heading** (they're jumps — no arrival heading; shared `chainFrom` in `resolvePathFrom`, `exec.ts`); walker-free coloring resolves a `.tile N` + absolute `.eN` chain, else → default. Needed a 1-line number-lexer fix in BOTH lexers (fractional dot consumed only when a digit follows, so `.tile 5.e0` lexes `5` `.` `e0`). Parser gate, preview mirror (`scanPaths`/`resolveWalk`), `PathSeg` docs updated; serializer already multi-segment. Recipe **schema v11 → v12** (additive no-op). | ✅ yes | owner reviewed the plain-language account + verification and said "looks good please commit". Backed by build / lint / **1041 tests** (updated dsl parse/lex/serialize, traverse scanPaths/resolveWalk/exec/parse, recipe v11→v12) all green; a throwaway headless probe through the REAL compiled engine confirmed the owner's exact `.target.e2.e1` directive reads two absolute hops from the destination (sq:4,3→S→E→sq:3,4) and forbids exactly that candidate (a control tile does not); a **live in-runtime check** on this worktree's preview (5411, footer-labelled) dynamic-imported the app's own `parseProgram` in the real Vite runtime — owner directive + `visited.tile 5.e0` + `visited.target.e2.e1` + `put B.tile 5.e1 = 1` all parse, `visited.e2.target` + `visited.e0.tile 5` both rejected — plus served-source confirmation the branch is live and a clean console. The on-device authoring feel is the owner's to confirm on 5411. | — |
+| 2026-07-14 | **Fix — old gallery creations wouldn't open ("This creation's data could not be read"); restored the v9→v10 recipe migration.** Owner reported almost no OLD gallery creations open. Diagnosed live: NOT a cache/image/browser issue (images serve 200 + decode; fails in incognito too) — the stored **recipes** are at old schema versions (20 of 26 at v3–v9), and the `MIGRATIONS` chain had a **deliberate gap at v9→v10** (from the `@`→`.` cleanup) so `parseRecipe` rejected them as `'unsupported'` and "Import to canvas" threw that message. The earlier purge rewrote the gallery's stored DSL **text** but never bumped each row's `schemaVersion`, so they stayed below the gate. **Restored the v9→v10 `@`→`.` step** (`rewritePathsV10`, idempotent on `.`-only text) so old recipes migrate **on read**; old-syntax handling stays contained to `recipe.ts`. Non-destructive (DB untouched). | ⏳ pending — owner to verify on the LIVE site after deploy | I proved it against real data: fetched all **26** live recipes and a throwaway test confirmed every one now `parseRecipe`s to the current schema (was: 20 rejected). Backed by build / lint / **1041 tests** (rewrote the recipe.test "refuses pre-v10" case to assert it now opens + the v9→v10 `@`→`.` rewrite; updated `gallery/api.test` to assert a v3 row migrates instead of erroring). Deploy is code-only (no `--remote` data change — on-read migration). Owner said "commit it and I test it against the live data." | — |
 
 ## 8. Todo list (working backlog)
 
@@ -961,6 +982,14 @@ in-session task tracker.
       desktop / opens the native share sheet on touch; a shared link opens that exact image even off the loaded
       feed page (new `GET /api/creations/:id` + client `fetchCreation`), a dead link shows a friendly error
       *(verified 2026-07-09)*
+    - [x] **Fix — old gallery creations wouldn't open (recipe migration gap)** *(built + proven 2026-07-14;
+      owner to verify live post-deploy)* — 20 of 26 live creations are stored at schemaVersion 3–9; the
+      migration chain's **deliberate v9→v10 gap** (from the `@`→`.` cleanup) made `parseRecipe` reject them
+      as `'unsupported'`, so "Import to canvas" failed with "This creation's data could not be read." NOT a
+      cache/image/browser problem (fails identically in incognito). Restored the v9→v10 `@`→`.` migration so
+      they migrate **on read**; contained to `recipe.ts`, non-destructive (DB untouched). See §6/§9.
+      *Deferred: PURGE the live gallery rows up to the current schema (the original failed goal) so the
+      on-read code can eventually go; and the recipe-in-image + cache tweaks set aside from this commit.*
 - [x] **Debug features + a run log** — a per-tick traverser **decision log** (Debug pane, behind a
   canvas-bar toggle): per walker, the statements run + each candidate move and why it survived/was
   rejected, a "no move" banner; **hovering a row highlights the tiles it concerns on the grid** (current
@@ -1900,3 +1929,23 @@ the id isn't in `feed.items` — the feed copy still wins when present (its upvo
 `/api/creations/:id` path. The **Share button** (`GallerySpotlight`) opens the native share sheet on a coarse
 pointer (touch) and copies to the clipboard otherwise — both need a **secure context** (HTTPS or localhost),
 which the deployed site + the preview provide (a plain-HTTP LAN IP would silently no-op the copy).
+
+**"A gallery creation won't open / 'This creation's data could not be read'" = the stored recipe is below
+the migration floor — NOT a cache, image, or browser problem.** The image route serves fine and images
+decode (verify with a cache-busted `curl` + a `new Image()` decode); a user's "won't load" usually means
+"won't OPEN". The spotlight shows the image, but **"Import to canvas"** calls `fetchRecipe` → `parseRecipe`,
+which REJECTS any recipe the migration chain can't bring to the current schema (reason `'unsupported'`) and
+surfaces that exact message. It fails identically in incognito / every browser, because it's **server-side
+data**. This bit the whole gallery on 2026-07-14: 20 of 26 live creations were stored at schemaVersion 3–9,
+and `MIGRATIONS` had a deliberate GAP at v9→v10 (from the `@`→`.` cleanup), so they all failed the version
+gate. Fix was to restore the v9→v10 step. **Rules that follow from this:** (1) **Keep the `MIGRATIONS` chain
+in `src/export/recipe.ts` unbroken** — a gap anywhere below the current version silently orphans every older
+stored recipe. (2) The live gallery holds recipes at MANY old versions — they're normalised at upload time
+and **never re-migrated at rest**; `fetchRecipe` migrates only **on read**, so the chain must be able to
+reach the current version from the oldest stored one. (3) If old syntax is "purged" again to drop a
+migration step, **migrate the stored DATA first** (actually run each row up the chain so its `schemaVersion`
+advances) — rewriting only the DSL text (as the removed `migrate-paths.mjs` did) leaves the version field
+behind, and the version gate still rejects the row. That mismatch is exactly why the earlier purge silently
+broke the gallery while looking successful. Old-syntax knowledge stays contained to the migration chain (it
+converts old→current before any lexer/parser runs), so the rest of the codebase only ever sees current
+syntax.

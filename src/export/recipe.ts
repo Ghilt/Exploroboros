@@ -228,13 +228,18 @@ const MIGRATIONS: ReadonlyArray<Migration> = [
     from: 8,
     migrate: (r) => ({ ...r, numberingScheme: r.numberingScheme === 'spiral' ? 'radial' : 'left-to-right' }),
   },
-  // v9 → v10 (the DSL path separator changed `@` to `.`) is DELIBERATELY NOT bridged — the owner chose to
-  // drop the migration after the one-time production rewrite (`tools/migrate-paths.mjs`, since removed)
-  // had already fixed the live gallery's stored text. A v9-or-older recipe now hits this gap and
-  // `migrateRecipe` returns null, so `parseRecipe` reports `'unsupported'` instead of silently trying to
-  // compile `@`-syntax DSL text (which no longer lexes). This intentionally breaks reopening any
-  // already-exported PNG from before the change — see recipe.test.ts's "refuses" case for the accepted
-  // failure mode. Do not "fix" this gap without checking with the owner first.
+  // v9 → v10: the DSL path separator changed from `@` to `.` (`visited@e1` → `visited.e1`, `move e0@e4`
+  // → `move e0.e4`, `@tile N` → `.tile N`, `exists@f0` → `exists.f0`). `@` was ONLY ever the path
+  // separator, so a blind per-field `@`→`.` rewrite of the DSL-bearing text is exact; idempotent (text
+  // already on `.` has no `@` left → no-op). RESTORED 2026-07-14: this step was removed as "cleanup" after
+  // a one-time production text rewrite, but that silently broke every pre-refactor GALLERY creation —
+  // their stored recipes are still schemaVersion 3, so `parseRecipe` rejected them at the version gate
+  // ("This creation's data could not be read") regardless of their (already-`.`) text. Bridging v9→v10
+  // lets those old recipes migrate on read again (and reopens old exported PNGs too).
+  {
+    from: 9,
+    migrate: rewritePathsV10,
+  },
   // v10 → v11: the traverser/path DSL gained the `back` edge (the reverse of `straight`). ADDITIVE new
   // syntax — a v10 recipe's programs don't use it and reproduce unchanged — so the step is a no-op that
   // just advances the version, stamping any image that USES `back` as v11 so an older build refuses it
@@ -253,6 +258,36 @@ const MIGRATIONS: ReadonlyArray<Migration> = [
     migrate: (r) => r,
   },
 ]
+
+// The DSL-text rewrite for v9 → v10 (see the migration entry above). `@` was the old path separator and
+// nothing else, so a per-field `@`→`.` swap of every DSL-bearing string is exact and idempotent.
+function rewritePathsV10(r: AnyRecipe): AnyRecipe {
+  const swap = (s: unknown) => (typeof s === 'string' ? s.replace(/@/g, '.') : s)
+  const traversers = Array.isArray(r.traversers)
+    ? r.traversers.map((t) => {
+        const tr = t as { text?: unknown }
+        return typeof tr.text === 'string' ? { ...tr, text: swap(tr.text) } : t
+      })
+    : r.traversers
+  const predicates = Array.isArray(r.predicates)
+    ? r.predicates.map((p) => {
+        const pr = p as { text?: unknown }
+        return typeof pr.text === 'string' ? { ...pr, text: swap(pr.text) } : p
+      })
+    : r.predicates
+  const coloringRules = Array.isArray(r.coloringRules)
+    ? r.coloringRules.map((rule) => {
+        const rr = rule as { predicate?: { kind?: unknown; text?: unknown } }
+        const pr = rr.predicate
+        // Only an INLINE predicate carries DSL text; a `ref` predicate names a stored predicate by id.
+        return pr && pr.kind === 'inline' && typeof pr.text === 'string'
+          ? { ...rr, predicate: { ...pr, text: swap(pr.text) } }
+          : rule
+      })
+    : r.coloringRules
+  const initialState = typeof r.initialState === 'string' ? swap(r.initialState) : r.initialState
+  return { ...r, traversers, predicates, coloringRules, initialState }
+}
 
 function migrateNamesV5(r: AnyRecipe): AnyRecipe {
   const rename = new Map<string, string>() // old traverser name -> sanitized
