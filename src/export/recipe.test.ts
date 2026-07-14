@@ -206,6 +206,18 @@ describe('migrateRecipe (the upgrade chain that keeps old images readable)', () 
     if (res.ok) expect(res.migratedFrom).toBe(10)
   })
 
+  it('v11→v12 is additive — it just advances the version (chained .target/.tile N is new syntax)', () => {
+    // Like v10→v11: a v11 recipe's programs don't chain after .target/.tile N, so they parse + reproduce
+    // unchanged. The bump only stamps a chaining image v12 so an older build refuses it cleanly.
+    const traversers = [{ id: 't1', name: 'W', text: 'move straight' }]
+    const out = migrateRecipe({ schemaVersion: 11, traversers }, 12)
+    expect(out).toMatchObject({ schemaVersion: 12, traversers })
+    // A current v11 recipe now opens (migrates to 12); below current so migratedFrom is set.
+    const res = parseRecipe(JSON.stringify({ ...buildRecipe(input()), schemaVersion: 11 }))
+    expect(res.ok).toBe(true)
+    if (res.ok) expect(res.migratedFrom).toBe(11)
+  })
+
   it('round-trips a spiral / radial recipe through parseRecipe', () => {
     for (const scheme of ['spiral', 'radial'] as const) {
       const res = parseRecipe(JSON.stringify({ ...buildRecipe(input()), numberingScheme: scheme }))

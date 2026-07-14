@@ -77,6 +77,10 @@ describe('serialize — canonical text', () => {
     expect(canon('visited.target == 0')).toBe('visited.target == 0')
     expect(canon('visited.tile 5 == 0')).toBe('visited.tile 5 == 0')
     expect(canon('visited.nearest-unvisited > 0')).toBe('visited.nearest-unvisited > 0')
+    // a base (.target / .tile N) may lead a chain of edge hops
+    expect(canon('visited.target.e1 == 0')).toBe('visited.target.e1 == 0')
+    expect(canon('visited.target.e2.e1 == 1')).toBe('visited.target.e2.e1 == 1')
+    expect(canon('visited.tile 5.e0 == 0')).toBe('visited.tile 5.e0 == 0')
   })
 
   it('inserts parentheses only where precedence needs them', () => {

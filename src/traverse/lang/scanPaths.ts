@@ -42,29 +42,29 @@ function liftChain(chain: Chain): { base: OccurrenceBase; refs: EdgeRef[] } | nu
   return null // inline find-tile base
 }
 
-// A TilePath lifted to (base, refs) the same way exec.ts:resolvePathFrom splits its first segment. A
-// terminal seg mid-chain (the parser forbids it) makes segToEdgeRef return null → the whole path is dropped.
+// A TilePath lifted to (base, refs) the same way exec.ts:resolvePathFrom splits its first segment.
+// `target`/`tile`/`found` are BASES (the first seg names the anchor tile; the rest chain from it); every
+// other kind is a plain edge chain from the current tile. A base seg mid-chain (the parser forbids it)
+// makes segToEdgeRef return null → the whole path is dropped.
 function liftPath(path: TilePath): { base: OccurrenceBase; refs: EdgeRef[] } | null {
   if (path.length === 0) return null
   const first = path[0]
-  if (first.kind === 'target') return { base: { kind: 'target' }, refs: [] }
-  if (first.kind === 'tile') return { base: { kind: 'tile', index: first.index }, refs: [] }
-  if (first.kind === 'found') {
-    const refs: EdgeRef[] = []
-    for (let i = 1; i < path.length; i += 1) {
-      const r = segToEdgeRef(path[i])
-      if (!r) return null
-      refs.push(r)
-    }
-    return { base: { kind: 'found', index: first.index }, refs }
-  }
+  const isBase = first.kind === 'target' || first.kind === 'tile' || first.kind === 'found'
+  const base: OccurrenceBase =
+    first.kind === 'target'
+      ? { kind: 'target' }
+      : first.kind === 'tile'
+        ? { kind: 'tile', index: first.index }
+        : first.kind === 'found'
+          ? { kind: 'found', index: first.index }
+          : { kind: 'current' }
   const refs: EdgeRef[] = []
-  for (const seg of path) {
-    const r = segToEdgeRef(seg)
+  for (let i = isBase ? 1 : 0; i < path.length; i += 1) {
+    const r = segToEdgeRef(path[i])
     if (!r) return null
     refs.push(r)
   }
-  return { base: { kind: 'current' }, refs }
+  return { base, refs }
 }
 
 // Index of the token matching the opener at `open` (`[`/`]` or `{`/`}`); -1 if unbalanced.

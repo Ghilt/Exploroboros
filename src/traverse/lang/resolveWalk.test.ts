@@ -66,8 +66,19 @@ describe('resolveWalk', () => {
     expect(resolveWalk(tiling, empty, 'sq:2,2', NORTH, 'relative', occ({ kind: 'tile', index: 99999 }, []))).toEqual([])
   })
 
-  it('a target base is not statically resolvable', () => {
+  it('a .tile N base leads a chain; a relative hop uses the WALKER heading (not a fixed 0)', () => {
+    const order = ['sq:2,2'] // .tile 0 -> sq:2,2
+    // heading north -> a relative straight from sq:2,2 goes north (sq:3,2)
+    expect(resolveWalk(tiling, empty, 'sq:0,0', NORTH, 'relative', occ({ kind: 'tile', index: 0 }, [{ kind: 'straight' }]), order)).toEqual(['sq:2,2', 'sq:3,2'])
+    // heading east -> the SAME relative straight goes east (sq:2,3): the chain used the walker's heading
+    expect(resolveWalk(tiling, empty, 'sq:0,0', 1, 'relative', occ({ kind: 'tile', index: 0 }, [{ kind: 'straight' }]), order)).toEqual(['sq:2,2', 'sq:2,3'])
+    // an absolute edge hop after .tile N is heading-independent (edge 0 = north regardless)
+    expect(resolveWalk(tiling, empty, 'sq:0,0', 1, 'relative', occ({ kind: 'tile', index: 0 }, [{ kind: 'edge', index: 0 }]), order)).toEqual(['sq:2,2', 'sq:3,2'])
+  })
+
+  it('a target base is not statically resolvable (even leading a chain)', () => {
     expect(resolveWalk(tiling, empty, 'sq:2,2', NORTH, 'relative', occ({ kind: 'target' }, []))).toEqual([])
+    expect(resolveWalk(tiling, empty, 'sq:2,2', NORTH, 'relative', occ({ kind: 'target' }, [{ kind: 'edge', index: 0 }]))).toEqual([])
   })
 
   it('a found base yields nothing without a found array', () => {

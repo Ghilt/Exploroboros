@@ -89,9 +89,10 @@ export function segToEdgeRef(seg: PathSeg): EdgeRef | null {
 // Walker-FREE resolution of an `.`-path from a starting tile — for the coloring / predicate context,
 // which has no walker (so no heading/movement/destination). Only heading-INDEPENDENT segments resolve:
 // a chain of absolute `edge N` hops (`edge k` always lands on local edge k regardless of heading), or a
-// single terminal `tile N`. Any relative segment (`straight` / `r`/`l` turns / `nearest-unvisited`) or
-// `.target` needs a walker, so the whole path resolves to null — the reading attribute then falls back to
-// its default, exactly as when no resolver is supplied at all. Used by the colorizer's `nodeForPath`.
+// `tile N` base optionally followed by more absolute `edge` hops (`visited.tile 5.e0`). Any relative
+// segment (`straight` / `r`/`l` turns / `nearest-unvisited` / `back`) or `.target` needs a walker, so the
+// whole path resolves to null — the reading attribute then falls back to its default, exactly as when no
+// resolver is supplied at all. Used by the colorizer's `nodeForPath`.
 export function resolveAbsolutePath(
   tiling: Tiling,
   overlay: ReadonlyMap<string, TileState>,
@@ -102,10 +103,20 @@ export function resolveAbsolutePath(
 ): TileNode | null {
   if (path.length === 0) return nodeById(tiling, startId) ?? null
   const first = path[0]
+  // A `tile N` base anchors an absolute tile; trailing hops must be absolute `edge` refs (relative ones
+  // need a walker). `startId` is irrelevant once we've jumped to the named tile.
   if (first.kind === 'tile') {
-    if (path.length !== 1) return null
-    const id = order ? order[first.index] : tiling.nodes[first.index]?.id
-    return id ? nodeById(tiling, id) ?? null : null
+    const anchor = order ? order[first.index] : tiling.nodes[first.index]?.id
+    if (!anchor || !nodeById(tiling, anchor)) return null
+    const rest: EdgeRef[] = []
+    for (let i = 1; i < path.length; i += 1) {
+      const seg = path[i]
+      if (seg.kind !== 'edge') return null
+      rest.push({ kind: 'edge', index: seg.index })
+    }
+    if (rest.length === 0) return nodeById(tiling, anchor) ?? null
+    const hop = resolveChain(tiling, overlay, anchor, 0, 'relative', rest)
+    return hop ? nodeById(tiling, hop.tile) ?? null : null
   }
   const refs: EdgeRef[] = []
   for (const seg of path) {
@@ -184,33 +195,43 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
   // starting from an arbitrary ROOT tile + heading (the walker's own for a normal guard; a frontier tile
   // during a find-tile search). No path -> the root tile. `.target` -> the move destination under
   // consideration (`dest`), or the root tile outside a move context. `.tile N` -> the absolute tile.
-  // `.fN` -> the tile a find-tile located this tick, from which any trailing edge hops chain (an absolute
-  // anchor — the root doesn't affect it). Otherwise chain the edge hops from the root tile/heading.
+  // `.fN` -> the tile a find-tile located this tick. Each of those three is a BASE: trailing edge hops
+  // then chain from it (`.target.e1`, `.tile 5.e0`, `.f1.e0`) — target/tile from the walker's current
+  // heading (a jump has no arrival heading), fN from the find's arrival heading. Otherwise (a plain edge
+  // chain) chain the edge hops from the root tile/heading.
+  // Chain a BASE tile's trailing edge hops (path[1..]) from an anchor tile + heading; no trailing hops ->
+  // the anchor itself. A base seg appearing mid-chain (the parser forbids it) or an off-grid hop -> null.
+  // Shared by the target/tile/found bases below — only the seed heading differs.
+  const chainFrom = (anchorTile: string, anchorHeading: number, path: TilePath): TileNode | null => {
+    const rest: EdgeRef[] = []
+    for (let i = 1; i < path.length; i += 1) {
+      const ref = segToEdgeRef(path[i])
+      if (!ref) return null
+      rest.push(ref)
+    }
+    if (rest.length === 0) return nodeById(tiling, anchorTile) ?? null
+    const h = resolveChain(tiling, overlay, anchorTile, anchorHeading, self.movement, rest)
+    return h ? nodeById(tiling, h.tile) ?? null : null
+  }
   const resolvePathFrom = (rootTile: string, rootHeading: number, dest: string | null, path: TilePath): TileNode | null => {
     if (path.length === 0) return nodeById(tiling, rootTile) ?? null
     const first = path[0]
-    if (first.kind === 'target') return nodeById(tiling, dest ?? rootTile) ?? null
+    // `.target` / `.tile N` name a tile directly, then chain any trailing edge hops from it. They're
+    // JUMPS (no edge crossed to reach them), so relative hops chain from the WALKER'S current heading.
+    if (first.kind === 'target') return chainFrom(dest ?? rootTile, rootHeading, path)
     if (first.kind === 'tile') {
       const id = tileByIndex[first.index]
-      return id ? nodeById(tiling, id) ?? null : null
+      return id ? chainFrom(id, rootHeading, path) : null
     }
+    // `.fN`: chain from the tile the find located this tick, using its ARRIVAL heading.
     if (first.kind === 'found') {
       const start = found[first.index]
-      if (!start) return null // find-tile found nothing / hasn't run this tick -> off-grid
-      const rest: EdgeRef[] = []
-      for (let i = 1; i < path.length; i += 1) {
-        const ref = segToEdgeRef(path[i])
-        if (!ref) return null
-        rest.push(ref)
-      }
-      if (rest.length === 0) return nodeById(tiling, start.tile) ?? null
-      const h = resolveChain(tiling, overlay, start.tile, start.heading, self.movement, rest)
-      return h ? nodeById(tiling, h.tile) ?? null : null
+      return start ? chainFrom(start.tile, start.heading, path) : null
     }
     const refs: EdgeRef[] = []
     for (const seg of path) {
       const ref = segToEdgeRef(seg)
-      if (!ref) return null // a terminal seg mid-chain (the parser forbids it) -> no tile
+      if (!ref) return null // a base seg mid-chain (the parser forbids it) -> no tile
       refs.push(ref)
     }
     const hop = resolveChain(tiling, overlay, rootTile, rootHeading, self.movement, refs)

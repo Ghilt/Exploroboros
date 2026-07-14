@@ -215,25 +215,31 @@ describe('parse — attribute .-paths', () => {
     expect(ok('tile-type.e0 == wedge')).toEqual({ kind: 'shape', op: '==', shape: 'wedge', path: [{ kind: 'edge', index: 0 }] })
   })
 
-  it('parses the terminal .target and .tile N', () => {
+  it('parses .target and .tile N as bases, alone or leading a chain of edge hops', () => {
     const t = ok('visited.target == 0')
     if (t.kind !== 'compare' || t.left.kind !== 'attr') throw new Error('expected an attr comparison')
     expect(t.left.path).toEqual([{ kind: 'target' }])
     const n = ok('visited.tile 5 == 0')
     if (n.kind !== 'compare' || n.left.kind !== 'attr') throw new Error('expected an attr comparison')
     expect(n.left.path).toEqual([{ kind: 'tile', index: 5 }])
+    // …and each may LEAD a chain of edge hops (a base, like .fN)
+    const tc = ok('visited.target.e2.e1 == 1')
+    if (tc.kind !== 'compare' || tc.left.kind !== 'attr') throw new Error('expected an attr comparison')
+    expect(tc.left.path).toEqual([{ kind: 'target' }, { kind: 'edge', index: 2 }, { kind: 'edge', index: 1 }])
+    // `.tile 5.e0` also exercises the lexer fix (the `5.` no longer swallows the trailing dot separator)
+    const nc = ok('visited.tile 5.e0 == 0')
+    if (nc.kind !== 'compare' || nc.left.kind !== 'attr') throw new Error('expected an attr comparison')
+    expect(nc.left.path).toEqual([{ kind: 'tile', index: 5 }, { kind: 'edge', index: 0 }])
   })
 
   it('rejects a bare number after . (edges are .eN)', () => {
     expect(errOf('visited.1 == 0')).toContain('.')
   })
 
-  it('rejects a hop after a terminal target/tile', () => {
-    expect(errOf('visited.target.e1 == 0')).toMatch(/only hop/)
-    // A terminal `.tile N` can't be combined with another hop either. Test it BEFORE the tile (a hop
-    // then `.tile`), so the number stays at the end — writing `.tile 5.e1` would instead lex `5.` as a
-    // decimal and swallow the trailing `.`, which is a harmless quirk on already-invalid input.
-    expect(errOf('visited.e0.tile 5 == 0')).toMatch(/only hop/)
+  it('rejects a base (.target / .tile N) sitting after another hop', () => {
+    expect(errOf('visited.e2.target == 0')).toMatch(/first hop/)
+    // A `.tile N` after a hop is illegal too (write `.e0.tile 5` so the number stays at the end).
+    expect(errOf('visited.e0.tile 5 == 0')).toMatch(/first hop/)
   })
 
   it('rejects a path on a walker (traverser-scoped) attribute', () => {

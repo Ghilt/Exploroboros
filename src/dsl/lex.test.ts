@@ -81,6 +81,16 @@ describe('lex', () => {
     expect(kinds('visited.e1')).toEqual(['ident', 'dot', 'ident', 'eof'])
   })
 
+  it('a trailing . after an integer is a path separator when no digit follows (so .tile N.eN chains)', () => {
+    // `5.e1` must split into the number `5` + a `.e1` hop, not lex the `5.` as one number and swallow the
+    // separator — that's what lets `.tile 5.e0` chain an edge hop after the tile base.
+    expect(texts('5.e1')).toEqual(['5', '.', 'e1'])
+    expect(kinds('5.e1')).toEqual(['number', 'dot', 'ident', 'eof'])
+    expect(texts('visited.tile 5.e0')).toEqual(['visited', '.', 'tile', '5', '.', 'e0'])
+    // a real decimal still stays one number
+    expect(texts('3.5')).toEqual(['3.5'])
+  })
+
   it('rejects @ — it is no longer a DSL character (the path separator is now .)', () => {
     const r = lex('visited@e1')
     expect(r.ok).toBe(false)

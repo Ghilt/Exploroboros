@@ -112,11 +112,15 @@ describe('scanPaths — attribute / write .-paths', () => {
     expect(one(occ, 'tile-type.e0').refs).toEqual([{ kind: 'edge', index: 0 }])
   })
 
-  it('.target is a terminal base', () => {
+  it('.target base, alone or leading edge hops', () => {
     const occ = scanPaths('if visited.target > 0 then move straight')
     const t = one(occ, 'visited.target')
     expect(t.base).toEqual({ kind: 'target' })
     expect(t.refs).toEqual([])
+    const occ2 = scanPaths('if visited.target.e2.e1 > 0 then move straight')
+    const t2 = one(occ2, 'visited.target.e2.e1')
+    expect(t2.base).toEqual({ kind: 'target' })
+    expect(t2.refs).toEqual([{ kind: 'edge', index: 2 }, { kind: 'edge', index: 1 }])
   })
 
   it('.fN base then edge hops', () => {
@@ -126,11 +130,15 @@ describe('scanPaths — attribute / write .-paths', () => {
     expect(f.refs).toEqual([{ kind: 'edge', index: 0 }])
   })
 
-  it('.tile N terminal base', () => {
+  it('.tile N base, alone or leading edge hops', () => {
     const occ = scanPaths('if visited.tile 3 > 0 then move straight')
     const t = one(occ, 'visited.tile 3')
     expect(t.base).toEqual({ kind: 'tile', index: 3 })
     expect(t.refs).toEqual([])
+    const occ2 = scanPaths('if visited.tile 3.e0 > 0 then move straight')
+    const t2 = one(occ2, 'visited.tile 3.e0')
+    expect(t2.base).toEqual({ kind: 'tile', index: 3 })
+    expect(t2.refs).toEqual([{ kind: 'edge', index: 0 }])
   })
 
   it('a multi-hop attribute path re-aims across hops', () => {

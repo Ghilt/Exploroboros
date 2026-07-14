@@ -52,7 +52,10 @@ export function lex(src: string): Result<Token[]> {
     if (isDigit(c) || (c === '.' && isDigit(src[i + 1] ?? ''))) {
       i += 1
       while (i < n && isDigit(src[i])) i += 1
-      if (src[i] === '.') {
+      // A fractional dot is part of the number ONLY when a digit follows it, so `5.e1` splits into the
+      // number `5` + a `.e1` hop (a `.tile 5.e1` chain) instead of eating the `.` path separator; `3.5`
+      // stays one number.
+      if (src[i] === '.' && isDigit(src[i + 1] ?? '')) {
         i += 1
         while (i < n && isDigit(src[i])) i += 1
       }

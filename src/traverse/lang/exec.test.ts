@@ -292,6 +292,19 @@ describe('traverser program execution', () => {
     // (sq:0,0 having no SOUTH neighbour, per the resolveAbsolutePath test below, confirms this framing).
     expect(run('if exists.e0 then increase P', 'sq:4,2').next.p).toBe(0)
   })
+
+  it('a directive reads a CHAIN from .target (absolute + relative-from-walker-heading)', () => {
+    // walker on sq:2,2 facing EAST; `move straight` heads to the east neighbour sq:2,3.
+    // `.target.e0` = the tile NORTH of that destination = sq:3,3 (absolute, heading-independent).
+    const northOfDest = addVisits(new Map<string, TileState>(), ['sq:3,3'], 0)
+    expect(run('directive if visited.target.e0 == 1 always forbid move\nmove straight', 'sq:2,2', northOfDest).branches).toHaveLength(0)
+    // with nothing visited, nothing is forbidden and the move fires
+    expect(run('directive if visited.target.e0 == 1 always forbid move\nmove straight').branches.map((b) => b.tile)).toEqual(['sq:2,3'])
+    // `.target.r1`: from the destination, turn right RELATIVE to the WALKER's heading (EAST) -> south ->
+    // sq:1,3 (a fixed-0 heading would instead point east, so this pins the heading source).
+    const rightOfDest = addVisits(new Map<string, TileState>(), ['sq:1,3'], 0)
+    expect(run('directive if visited.target.r1 == 1 always forbid move\nmove straight', 'sq:2,2', rightOfDest).branches).toHaveLength(0)
+  })
 })
 
 describe('resolveAbsolutePath — walker-free .-paths (the coloring context)', () => {
@@ -309,8 +322,12 @@ describe('resolveAbsolutePath — walker-free .-paths (the coloring context)', (
     expect(idOf([{ kind: 'edge', index: 0 }, { kind: 'edge', index: 0 }])).toBe('sq:4,2')
   })
 
-  it('resolves a terminal .tile N to the tile with that absolute number', () => {
+  it('resolves a .tile N base, alone or leading ABSOLUTE edge hops', () => {
     expect(idOf([{ kind: 'tile', index: 7 }])).toBe(tiling.nodes[7].id)
+    const k = tiling.nodes.findIndex((n) => n.id === 'sq:2,2')
+    // `.tile k.e0` jumps to sq:2,2 then crosses north -> sq:3,2 (heading-independent, no walker needed)
+    expect(idOf([{ kind: 'tile', index: k }, { kind: 'edge', index: 0 }])).toBe('sq:3,2')
+    expect(idOf([{ kind: 'tile', index: k }, { kind: 'edge', index: 0 }, { kind: 'edge', index: 0 }])).toBe('sq:4,2')
   })
 
   it('an empty path is the starting tile', () => {
@@ -330,5 +347,8 @@ describe('resolveAbsolutePath — walker-free .-paths (the coloring context)', (
     expect(idOf([{ kind: 'found', index: 0 }])).toBeNull()
     // a relative seg ANYWHERE in the chain disqualifies the whole path
     expect(idOf([{ kind: 'edge', index: 0 }, { kind: 'straight' }])).toBeNull()
+    // a `.tile N` base can lead only ABSOLUTE edge hops walker-free; a relative hop after it needs a walker
+    expect(idOf([{ kind: 'tile', index: 7 }, { kind: 'straight' }])).toBeNull()
+    expect(idOf([{ kind: 'tile', index: 7 }, { kind: 'turn', dir: 'r', n: 1 }])).toBeNull()
   })
 })

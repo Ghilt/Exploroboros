@@ -359,11 +359,13 @@ move straight                  # a bare action — always runs`}</pre>
             <tr><td><code>.e0.e0.e3</code>, <code>.r1.e5</code></td><td>Follow several edges in turn (re-aiming at each) and read the tile you land on.</td></tr>
             <tr><td><code>.target</code></td><td>The tile a move is <strong>heading to</strong>. Dynamic: with a split it's tested <em>per branch</em>, so it filters which branches survive. This is how a <a href="#directives">directive</a> gates moves.</td></tr>
             <tr><td><code>.tile N</code></td><td>The tile with absolute number <code>N</code>.</td></tr>
+            <tr><td><code>.target.e1</code>, <code>.tile 5.e0</code></td><td>Chain edge hops <em>from</em> a <code>.target</code> / <code>.tile N</code> tile (a relative hop like <code>.r1</code> turns from your walker's current heading).</td></tr>
           </tbody>
         </table>
         <p className="guide-note">
-          <code>.target</code> and <code>.tile N</code> name a tile directly, so nothing can follow them; edge
-          hops (<code>.e0</code>, <code>.r1</code>…) chain freely.
+          <code>.target</code> and <code>.tile N</code> name a tile directly, so each must be the{' '}
+          <strong>first</strong> hop — but edge hops can then chain from it (<code>.target.e2.e1</code>,{' '}
+          <code>.tile 5.e0</code>). A base like these can't sit <em>after</em> another hop.
         </p>
         <DecorationDiagram />
         <pre className="guide-code">{`if visited.r1 > 0 then move l1                          # if the tile to my right is visited, turn left

@@ -448,26 +448,24 @@ class Parser {
     return node
   }
 
-  // One or more `.`-segments after a leaf: `.e1`, `.r1.e5`, `.target`. Called only when the next token
-  // is a `dot`. Edge/turn/straight/unvisited segments chain; `target`/`tile N` are terminal (they name
-  // a tile directly) and must be a path's only hop. Public so parsePathFragment can parse a standalone
-  // `.`-path (the path-preview scanner slices one out of a program and re-parses it).
+  // One or more `.`-segments after a leaf: `.e1`, `.r1.e5`, `.target.e2`. Called only when the next token
+  // is a `dot`. Edge/turn/straight/unvisited segments chain freely. `target`/`tile N`/`fN` are BASES —
+  // each NAMES a tile directly, so it must come FIRST, but edge hops may then chain from it
+  // (`.target.e1`, `.tile 5.e0`, `.f1.e0`); none may sit after another hop (`.e0.target`, `.e0.f1`).
+  // Relative hops after `.target`/`.tile N` resolve against the walker's current heading (see exec.ts —
+  // they're jumps, so there's no arrival heading to continue from). Public so parsePathFragment can parse
+  // a standalone `.`-path (the path-preview scanner slices one out of a program and re-parses it).
   parsePath(): TilePath {
     const segs: PathSeg[] = []
     while (this.peek().kind === 'dot') {
       this.next() // consume '.'
       const segTok = this.peek()
       const seg = this.parseSegment()
-      if (seg.kind === 'target' || seg.kind === 'tile') {
-        // Terminal: it names a tile directly, so it must be the ONLY hop in the path (no hops before
-        // or after) — there's no defined heading to continue from.
-        if (segs.length > 0 || this.peek().kind === 'dot') {
-          throw new ParseFail('".target" / ".tile N" names a tile directly — it must be the only hop', segTok.span)
-        }
-        return [seg]
+      if ((seg.kind === 'target' || seg.kind === 'tile') && segs.length > 0) {
+        throw new ParseFail('".target" / ".tile N" name a tile directly — they must be the first hop, e.g. .target.e1 or .tile 5.e0', segTok.span)
       }
-      // `.fN` is a BASE: it names the found tile the chain starts from, so it must come first; edge hops
-      // may follow it (`.f1.e0`) but it can never sit after another hop (`.e0.f1`).
+      // `.fN` is a BASE too: it names the found tile the chain starts from, so it must come first; edge
+      // hops may follow it (`.f1.e0`) but it can never sit after another hop (`.e0.f1`).
       if (seg.kind === 'found' && segs.length > 0) {
         throw new ParseFail('a found-tile reference "fN" must be the first hop, e.g. .f1 or .f1.e0', segTok.span)
       }

@@ -53,7 +53,10 @@ export function lexProgram(src: string): Result<Tok[]> {
     if (isDigit(c) || (c === '.' && isDigit(src[i + 1] ?? ''))) {
       i += 1
       while (i < n && isDigit(src[i])) i += 1
-      if (src[i] === '.') {
+      // A fractional dot is part of the number ONLY when a digit follows it, so `5.e1` splits into `5` +
+      // a `.e1` hop (a bare `put B.tile 5.e1` write-target chain) rather than eating the `.` separator;
+      // `3.5` stays one number and `e1..3` still ranges (the `..` is matched before the number scan).
+      if (src[i] === '.' && isDigit(src[i + 1] ?? '')) {
         i += 1
         while (i < n && isDigit(src[i])) i += 1
       }

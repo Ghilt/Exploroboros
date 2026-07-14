@@ -52,8 +52,9 @@ export function resolveWalk(
   if (base.kind === 'tile') {
     const id = order ? order[base.index] : tiling.nodes[base.index]?.id
     if (!id || !nodeById(tiling, id)) return []
-    // `.tile N` is terminal (no trailing hops), but walk any refs defensively — heading is irrelevant.
-    return walkChain(tiling, overlay, id, 0, movement, occurrence.refs)
+    // `.tile N` is a base; trailing hops chain from it. Absolute `eN` hops ignore the heading, but a
+    // relative hop (`.tile 5.r1`) uses the WALKER'S current heading — matching exec.ts:resolvePathFrom.
+    return walkChain(tiling, overlay, id, startHeading, movement, occurrence.refs)
   }
   if (!nodeById(tiling, startTile)) return []
   return walkChain(tiling, overlay, startTile, startHeading, movement, occurrence.refs)

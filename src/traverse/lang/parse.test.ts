@@ -314,6 +314,22 @@ describe('traverser DSL parser', () => {
     expect(parseProgram('find-tile A == 5 { move straight }\nmove e0.f0').ok).toBe(false)
   })
 
+  it('parses the owner directive that chains edge hops after .target', () => {
+    // `.target.e2.e1` is a base (.target) leading two absolute edge hops — previously rejected as terminal.
+    expect(parseProgram('directive if visited.e2.e2 == 1 or visited.target.e2.e1 == 1 always forbid move\nmove [e0, e1, e2, e3]').ok).toBe(true)
+  })
+
+  it('parses a bare write target that chains after .tile N (exercises the number-dot lexer fix)', () => {
+    // `put B.tile 5.e1` — the bare write-target scanner walks the `.`-run on TRAVERSER tokens, so `5.e1`
+    // must split into `5` + `.e1` rather than lexing `5.` as a decimal that swallows the separator.
+    expect(parseProgram('put B.tile 5.e1 = 1').ok).toBe(true)
+  })
+
+  it('rejects a base (.target / .tile N) sitting after another hop in a guard', () => {
+    expect(parseProgram('if visited.e2.target == 1 then move straight').ok).toBe(false)
+    expect(parseProgram('if visited.e0.tile 5 == 1 then move straight').ok).toBe(false)
+  })
+
   it('rejects a non-move statement inside a find-tile body', () => {
     const r = parseProgram('find-tile A == 5 {\n  put A = 1\n}')
     expect(r.ok).toBe(false)

@@ -51,16 +51,16 @@ export type AttrScope = 'tile' | 'traverser'
 // An attribute's edge-hop PATH: how to walk from the current tile to the tile the attribute is read
 // from. `visited.e1` reads across edge 1; `visited.r1.e5` turns weak-right then crosses edge 5;
 // `visited.target` reads the move's candidate destination. Empty/absent path = the current tile.
-// Segments mirror the move EdgeRef vocabulary (edge/turn/straight/unvisited), plus two TERMINAL forms
-// that name a tile directly and cannot be followed by more hops: `target` (the move destination,
-// resolved per candidate) and `tile N` (the tile with absolute number N). The traverser layer resolves
-// these against a walker (heading/movement/dest); in a walker-free context (coloring) a path resolves
-// to nothing and the attribute falls back to its default.
-// `found N` (`.fN`) names a tile a `find-tile` search located this tick — it's a BASE hop: it must come
-// FIRST in a path (it establishes the starting tile + heading) and may be followed by chainable edge
-// hops (`tile-type.f1`, `visited.f1.e0`), but never appear after another hop (`.e0.f1` is illegal). It
-// only resolves in the traverser layer (which owns the per-tick found list); walker-free contexts
-// (coloring) resolve it to nothing → default.
+// Segments mirror the move EdgeRef vocabulary (edge/turn/straight/unvisited), plus three BASE forms that
+// each NAME a tile directly, so each must come FIRST in a path — but edge hops may then chain from it
+// (`visited.target.e1`, `visited.tile 5.e0`, `visited.f1.e0`); none may sit after another hop
+// (`.e0.target`, `.e0.f1` are illegal). The bases: `target` (the move destination, resolved per
+// candidate), `tile N` (the tile with absolute number N), and `found N` / `.fN` (a tile a `find-tile`
+// search located this tick — it establishes the starting tile + its arrival heading). The traverser
+// layer resolves these against a walker (heading/movement/dest, plus the per-tick found list); relative
+// hops after `target`/`tile N` use the WALKER'S current heading (a jump has no arrival heading). In a
+// walker-free context (coloring) `target`/`fN` and relative hops resolve to nothing → the attribute
+// falls back to its default; an ABSOLUTE `tile N` + `edge` chain (`visited.tile 5.e0`) still resolves.
 export type PathSeg =
   | { kind: 'straight' }
   | { kind: 'back' } // the reverse of straight (the heading edge's straight-through partner) — needs a walker

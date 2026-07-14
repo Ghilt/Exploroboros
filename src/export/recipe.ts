@@ -24,7 +24,7 @@ import { boundsCenter, tileOffset } from './remap'
 //     this version, and refuses one that's NEWER than this build (with reason 'too-new' → "update the app").
 //   APP_VERSION — a human-readable stamp of the build that made the image, for display + bug tracing
 //     only; never branched on. Bump freely.
-export const RECIPE_SCHEMA_VERSION = 11
+export const RECIPE_SCHEMA_VERSION = 12
 export const APP_VERSION = '0.1.0'
 export const RECIPE_KEYWORD = 'exploroboros:recipe'
 
@@ -241,6 +241,15 @@ const MIGRATIONS: ReadonlyArray<Migration> = [
   // cleanly ("update the app") rather than failing to compile the traverser (same rationale as v6 → v7).
   {
     from: 10,
+    migrate: (r) => r,
+  },
+  // v11 → v12: `.target` / `.tile N` became chainable BASE hops (`.target.e1`, `.tile 5.e0`) instead of
+  // "only hop" terminals. ADDITIVE — a v11 recipe's programs don't chain after them and reproduce
+  // unchanged — so the step is a no-op that just advances the version, stamping any image that USES a
+  // chained `.target`/`.tile N` as v12 so an older build refuses it cleanly rather than failing to compile
+  // the traverser (same rationale as v6 → v7 / v10 → v11).
+  {
+    from: 11,
     migrate: (r) => r,
   },
 ]

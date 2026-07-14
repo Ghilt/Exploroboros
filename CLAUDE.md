@@ -611,6 +611,21 @@ still needed into this doc **before** then; do not rely on the path persisting.
   set from **elsewhere** (the dice button, ramp-stop edits, reopening a creation — all one-step, not drags).
   Covers both `ColorPicker` uses (the flat swatch + each ramp stop, both routing through `store.replace`). No
   recipe/schema change (a UI-only fix). See §9.
+- **`.target` / `.tile N` became chainable BASE hops, not "only hop" terminals (2026-07-14):** a `.`-path
+  can now START with `.target` or `.tile N` and then chain edge hops from it — `visited.target.e2.e1`,
+  `[A.tile 5.e0]` — exactly like `.fN` already did. Both were terminal before, so the owner's guard
+  `directive if visited.e2.e2 == 1 or visited.target.e2.e1 == 1 always forbid move` wouldn't compile. They
+  stay rejected as a LATER hop (`visited.e2.target` errors — "must be the first hop"). A **relative** hop
+  after them (`.target.r1`, `.tile 5.straight`) turns from the **walker's current heading** (owner's call —
+  they're jumps with no arrival heading), threaded via a shared `chainFrom` helper in `resolvePathFrom`
+  (`src/traverse/lang/exec.ts`); subsequent hops re-aim normally. The walker-free coloring context resolves
+  a `.tile N` + ABSOLUTE `.eN` chain (`resolveAbsolutePath`); its relative hops / `.target` still → default.
+  Needed a **one-line number-lexer fix in BOTH lexers** (`src/dsl/lex.ts`, `src/traverse/lang/lex.ts`): the
+  fractional dot is now consumed only when a digit follows, so `.tile 5.e0` lexes `5` `.` `e0` instead of a
+  `5.` decimal that ate the separator (`.target.<hop>` needed no lexer change — no number). Parser gate
+  (`parsePath`), preview mirror (`scanPaths`/`resolveWalk`), and `PathSeg` docs updated; serializer already
+  handled multi-segment paths. Recipe **schema v11 → v12** (additive no-op — a v11 recipe reproduces
+  unchanged; stamps a chaining image v12 so an older build refuses it cleanly). Guide + §9 gotchas updated.
 - **Next up:** **`exploroboros.io` custom domain** (register + attach — §8) → more **tutorial chapters**
   (initial-state / export-share next) → **DSL-driven traversers** (custom rules in the Traversers pane —
   paint/move/visit/split/guards/state, §5; reuses the predicate DSL) → **persist user exports across
@@ -721,6 +736,7 @@ still needed into this doc **before** then; do not rely on the path persisting.
 | 2026-07-12 | **Tutorial Chapter 2 "Colorings" + a global ramp-default change, §6.** The second guided chapter (11 steps: place-free start with a pre-placed **`forest_gump`** `move straight` walker shown open in its editor → open Coloring → add a rule → pick a color → Play the line → `+` to make a fade → Play → on Stop, two branching fill walkers `softie-A`/`softie-B` are added and the run **plays live** while two **`latest-step`** fades (top rule opaque, second at 50%) sit under an opaque covering rule → delete the cover to reveal the overlapping fades → fireworks). **Global:** turning a flat color into a ramp now defaults to **`latest-step` mod 10** (was `visited`/6). New reusable tutorial seams: per-step **`SceneSetup`** (`openLeft`/`editTraverser`/`defs`/`seeds`/`coloring`/`stop`/`prefill`/`play`), four new signals (`runEnded`/`coloringRuleCount`/`firstRuleColorHex`/`firstRuleIsRamp`), Coloring-pane `data-tut` anchors, and a per-bubble **"N/total" step badge**. The coloring-control bubbles emanate from the whole Coloring pane (ring still marks swatch/`+`/Play). | ✅ yes | owner iterated across several rounds on this worktree's fresh preview (**5405**, footer-labelled) — asked for the step badge, `color` spelling, the `forest_gump` rename, editor-open on welcome, bubbles emanating from the pane, `latest-step` fades, the top rule at 100% opacity, and playing the run live — then said **"it looks good!"** and to commit. Backed by build / lint / **1019 tests** (chapter-2 shape/setup/advance suite + the global `toRamp` default). Headless drove the DOM-drivable half (step badge `1/11`→`4/11`, `forest_gump`/`move straight` visible in the editor, pick-color's bubble past the pane's right edge with the ring on the swatch); the on-canvas colors, the live fill at the ordering step, and the fireworks are the owner's device pass (Konva + the run clock don't animate on a `document.hidden` tab, §9). | — |
 | 2026-07-12 | **Transcribe a canvas drag into a DSL path.** A `'transcribe'` drag mode turns a drag across tiles into a ready-to-paste traverser path (the INVERSE of the path-preview `walkChain`): a **grid-arrow button** (bottom-left, above the tile/FPS HUD) + **`Ctrl+M`** arm a **one-shot** capture; a **"transcribe path"** drag-menu item turns it on **persistently**. Dragging tile-to-tile spells the path out in a label above the cursor as it grows (with a live accent trail) and drops it on the clipboard on release — **relative** off a walker tile (`straight.r1.r1.l2`, heading threaded via the same arrival re-aim as the engine), **absolute** otherwise (`e0.e3.e3.e6`), the tile's **type** when no edge is crossed; a plain tap still inspects. Pure `src/canvas/transcribe.ts` (`transcribeGesture`, mirrors edges.ts/serialize.ts locally to avoid a canvas→traverse cycle) + `sharedEdgeNumbers` (`graph.ts`, two-edge octagon+wedge disambiguated by centroid direction); new `'transcribe'` DragMode + `onTranscribe`/trail/label in `TilingCanvas`; button/menu/`Ctrl+M`/clipboard + one-shot bookkeeping in `Workspace`; new `TranscribeButton`. No recipe/schema change (an authoring aid, nothing stored). | ✅ yes | owner used it on this worktree's preview (5200) and said "works well" — dragging tile-to-tile copies the path (relative off a walker, absolute otherwise), a single tile copies the type, the one-shot reverts + the menu item persists. Backed by build / lint / **1031 tests** (12 new: the round-trip `transcribeGesture`→`walkChain` brute-forced over EVERY neighbour on square/kalleboda/triangular + multi-hop threading, relative + absolute, the tile-type fallback + a non-adjacent-jump stop) + served-source/DOM checks on 5200 (button + "transcribe path" menu item render; the menu item and `Ctrl+M` switch the mode; `Ctrl+M` is a no-op while typing; console clean). The on-canvas drag itself (growing label, trail, clipboard) is the owner's device pass — the Konva stage doesn't mount on a `document.hidden` tab (§9). | — |
 | 2026-07-13 | **Fix — dragging in the coloring colour picker lagged the UI.** The colour swatch is a native `<input type="color">`; React's `onChange` binds to the DOM `input` event, which streams continuously while dragging in the OS colour dialog, so every intermediate colour hit `store.replace` → re-`colorize` the whole tiling + canvas redraw per frame → stutter. Now the swatch is uncontrolled (`defaultValue`) and commits **only** on the native `change` event (picker dismissed), via a ref-wired listener; an effect syncs the swatch when the colour is set from elsewhere (dice / ramp edits / reopen). So the tiling recolours once, on release — as requested. Covers both `ColorPicker` uses (flat swatch + each ramp stop). `src/components/ColorPicker.tsx`; no recipe/schema/deps change. | ✅ yes | owner verified on this worktree's preview (5588, footer-labelled) — dragging in the picker is smooth, colours apply once on release — and said "commit this!". Backed by build / lint / **1034 tests** (3 new in `ColorPicker.test.tsx`: an `input` event does NOT propagate; a `change` event propagates exactly once with the committed value; an external `value` change syncs the swatch) + served-source confirmation on 5588 (the `change`-listener + `defaultValue` are live, the old real-time `onChange` path is gone) + a clean console. The OS colour-dialog drag can't be scripted headlessly, so the "feels smooth" judgement is the owner's device pass; the event-level fix is the unit test's. | — |
+| 2026-07-14 | **`.target` / `.tile N` became chainable BASE hops (not "only hop" terminals).** A `.`-path can now START with `.target` or `.tile N` and chain edge hops from it (`visited.target.e2.e1`, `[A.tile 5.e0]`), like `.fN` already did — so the owner's `directive if visited.e2.e2 == 1 or visited.target.e2.e1 == 1 always forbid move` compiles. Still rejected as a LATER hop (`visited.e2.target`). A relative hop after them (`.target.r1`) turns from the **walker's current heading** (they're jumps — no arrival heading; shared `chainFrom` in `resolvePathFrom`, `exec.ts`); walker-free coloring resolves a `.tile N` + absolute `.eN` chain, else → default. Needed a 1-line number-lexer fix in BOTH lexers (fractional dot consumed only when a digit follows, so `.tile 5.e0` lexes `5` `.` `e0`). Parser gate, preview mirror (`scanPaths`/`resolveWalk`), `PathSeg` docs updated; serializer already multi-segment. Recipe **schema v11 → v12** (additive no-op). | ✅ yes | owner reviewed the plain-language account + verification and said "looks good please commit". Backed by build / lint / **1041 tests** (updated dsl parse/lex/serialize, traverse scanPaths/resolveWalk/exec/parse, recipe v11→v12) all green; a throwaway headless probe through the REAL compiled engine confirmed the owner's exact `.target.e2.e1` directive reads two absolute hops from the destination (sq:4,3→S→E→sq:3,4) and forbids exactly that candidate (a control tile does not); a **live in-runtime check** on this worktree's preview (5411, footer-labelled) dynamic-imported the app's own `parseProgram` in the real Vite runtime — owner directive + `visited.tile 5.e0` + `visited.target.e2.e1` + `put B.tile 5.e1 = 1` all parse, `visited.e2.target` + `visited.e0.tile 5` both rejected — plus served-source confirmation the branch is live and a clean console. The on-device authoring feel is the owner's to confirm on 5411. | — |
 
 ## 8. Todo list (working backlog)
 
@@ -1112,8 +1128,13 @@ Hard-won; read before fighting the tooling again.
   — does a guard read `.target`? drives per-branch move filtering), `edit.ts` (`replaceAt` for the visual
   editor). Reused by the visual editor + traversers, so keep it pure. **Path-placement gotcha:** the registry
   path goes INSIDE the brackets — `[A.e2]`, NOT `[A].e2` (the latter errors "expected a comparison"); a bare
-  attribute suffixes it (`visited.e2`), and `tile-type.e0 == wedge`. `.target`/`.tile N` must be a path's
-  **only** hop (they name a tile directly); edge hops chain. `reserved.ts` (`reservedNameError` +
+  attribute suffixes it (`visited.e2`), and `tile-type.e0 == wedge`. `.target`/`.tile N` (like `.fN`) are
+  **BASES**: each names a tile directly, so it must be the **first** hop — then edge hops chain from it
+  (`visited.target.e2.e1`, `[A.tile 5.e0]`); a base can't sit AFTER another hop (`visited.e2.target` errors).
+  A **relative** hop after `.target`/`.tile N` (`.r1`/`.straight`/…) resolves against the WALKER'S current
+  heading — they're jumps, so there's no arrival heading (see `resolvePathFrom`'s `chainFrom` in exec.ts);
+  in the walker-free coloring context only a `.tile N` + ABSOLUTE `.eN` chain resolves, the rest → default.
+  `reserved.ts` (`reservedNameError` +
   `RESERVED_WORDS`) forbids naming a predicate/traverser a grammar word (every keyword across all three
   DSLs + attribute/registry names) or a positional reference (`t1`/`e3`/`r1`/`l2`) — the Predicate &
   Traversers editors show it as a red inline error (uniqueness vs other predicates/traversers is checked
@@ -1265,7 +1286,11 @@ Hard-won; read before fighting the tooling again.
     migration is a no-op that just advances the version (same rationale as v6→v7 — it stamps a `back`-using
     image v11 so an older/cached build refuses it cleanly instead of failing to compile the traverser). It
     bridges v10, so a current v10 recipe opens again; the deliberate GAP that blocks reopening pre-`.`-separator
-    recipes stays at `from: 9` (untouched). Current exports are **`schemaVersion: 11`**. **The live gallery's stored `recipe_json`
+    recipes stays at `from: 9` (untouched). **v11 → v12 (2026-07-14) is another ADDITIVE no-op step** —
+    `.target`/`.tile N` became chainable BASE hops (`.target.e2.e1`, `.tile 5.e0`) instead of "only hop"
+    terminals; a v11 recipe doesn't chain after them and reproduces unchanged, so the step just advances the
+    version, stamping a chaining image v12 so an older build refuses it cleanly (same rationale as v10→v11).
+    Current exports are **`schemaVersion: 12`**. **The live gallery's stored `recipe_json`
     was ALSO rewritten once for names** via `tools/migrate-names.mjs --apply` (idempotent; a name-only
     transform, leaving each row's schema version for on-read migration — that tool is unrelated and still
     present) — do the same if names ever need another sweep. **Don't re-add a v9→v10 step without checking
@@ -1415,14 +1440,15 @@ Hard-won; read before fighting the tooling again.
   another tile — `visited.e1`, `tile-type.target`, `move e0.e4`, `.tile N`, `exists.f0`, `put [B.e1] = 1`.
   `@` is no longer a DSL character at all (the lexer rejects it). It lexes unambiguously even though `.` is
   also the decimal point and half of the `..` range operator, thanks to precedence that already exists in
-  both lexers: (1) a `.` only starts/continues a NUMBER when a digit follows (`c === '.' && isDigit(src[i+1])`),
-  so `.5`/`3.5` are numbers but `.e1`/`.tile`/`.f0` are hops; (2) the traverser lexer matches the two-char `..`
-  (range) BEFORE a lone `.`, so `e1..e3` is a range while `e0.e4` is a hop. Mechanically: the `src/dsl` lexer
-  emits a **`dot`** token (renamed from `at`); the traverser lexer has `.` in its single-char `SINGLE` set
-  (`..` stays in `MULTI`, matched first); the parsers test `kind === 'dot'` / `isSym('.')`; both serializers
-  emit `.`. **Don't reintroduce `@`.** (One harmless quirk: `.tile 5.e1` lexes `5.` as a decimal so the glued
-  `.e1` isn't seen as a hop — but nothing may follow the terminal `.tile N` anyway, so no valid program is
-  affected; write a hop BEFORE the tile if you need to prove the "only hop" rule.)
+  both lexers: (1) a `.` is part of a NUMBER only when a digit follows it — at the START (`c === '.' &&
+  isDigit(src[i+1])`, so `.5` is a number) AND as the FRACTIONAL dot after the integer digits (same
+  `isDigit(src[i+1])` guard, added 2026-07-14), so `3.5` is a number but `5.e1` splits into `5` + a `.e1`
+  hop; (2) the traverser lexer matches the two-char `..` (range) BEFORE a lone `.`, so `e1..e3` is a range
+  while `e0.e4` is a hop. Mechanically: the `src/dsl` lexer emits a **`dot`** token (renamed from `at`); the
+  traverser lexer has `.` in its single-char `SINGLE` set (`..` stays in `MULTI`, matched first); the parsers
+  test `kind === 'dot'` / `isSym('.')`; both serializers emit `.`. **Don't reintroduce `@`.** (The fractional-
+  dot guard is what lets a `.tile N` base chain a hop — `visited.tile 5.e0` now lexes as `tile` `5` `.` `e0`,
+  not the old `5.` decimal that swallowed the separator. Reverting it re-breaks `.tile N.<hop>` chaining.)
 - **A codebase-wide DSL-syntax sweep must include `tools/*.json` fixtures, not just `src/`.** The original
   `@`→`.` cutover swept `src/` (gallery recipes, prototype ports, tests) and the live D1, but missed
   **`tools/sample-creations.json`** — the local-dev seed fixture `npm run dev:local`/`seed:local` inserts
