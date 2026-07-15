@@ -190,6 +190,10 @@ export function Workspace({ tutorial }: { tutorial?: TutorialHandle } = {}) {
   }, [selectedIds])
   // Tile display: edged outline / no outline / outline + printed stats (number + visited + counters).
   const [displayMode, setDisplayMode] = useState<DisplayMode>('edges')
+  // Canvas colour scheme: false = white plane + black grid lines (default); true = inverted (black
+  // plane + white grid lines). A live-view preference only — like displayMode it's ephemeral (not
+  // persisted, not in the recipe); the export dialog has its own separate background control.
+  const [invertColors, setInvertColors] = useState(false)
   // Board numbering scheme: the number drawn on tiles (stats mode) + shown in Inspect, the `tile-number`
   // attribute, `.tile N`, and what find-lowest/highest-tile search by. 'left-to-right' = reading order;
   // 'spiral' = a true winding spiral from the centre; 'radial' = concentric rings. Saved in the recipe.
@@ -1234,6 +1238,7 @@ export function Workspace({ tutorial }: { tutorial?: TutorialHandle } = {}) {
             <TilingCanvas
               tiling={tiling}
               displayMode={displayMode}
+              inverted={invertColors}
               dragMode={dragMode}
               selectedIds={selectedIds}
               overlay={displayOverlay}
@@ -1406,6 +1411,19 @@ export function Workspace({ tutorial }: { tutorial?: TutorialHandle } = {}) {
                 { value: 'edges', label: 'edges', title: 'tile edges drawn' },
                 { value: 'none', label: 'none', title: 'flush fills, no edges' },
                 { value: 'stats', label: 'stats', title: 'numbers + heading arrows inside tiles' },
+              ]}
+            />
+          </div>
+          <div className="cs-row">
+            <span className="cs-label">background</span>
+            <SegmentedControl
+              ariaLabel="canvas background"
+              value={invertColors ? 'black' : 'white'}
+              onChange={(v) => setInvertColors(v === 'black')}
+              size="md"
+              options={[
+                { value: 'white', label: 'white', title: 'white background, black grid lines' },
+                { value: 'black', label: 'black', title: 'black background, white grid lines' },
               ]}
             />
           </div>

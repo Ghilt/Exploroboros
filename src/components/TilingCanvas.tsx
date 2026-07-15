@@ -79,6 +79,18 @@ const FALLBACK: Palette = {
   mono: 'ui-monospace, SFMono-Regular, Menlo, monospace',
 }
 
+// Inverted colour scheme (the "background" toggle in canvas settings): a black plane with white grid
+// lines instead of white tiles with black edges. Only the colours that are tuned FOR the white plane
+// need flipping — the tile fill, the edges, the printed numbers, and the traverser arrows (all dark by
+// default); the themed accents (visited/selection) read fine on either. Spread over the base palette.
+const INVERTED: Partial<Palette> = {
+  tile: '#000',
+  edge: '#fff',
+  num: '#ccc',
+  traverser: '#fff',
+  traverserAuto: 'rgba(255, 255, 255, 0.32)',
+}
+
 // Reused empty overlay so drawTiles can treat "no overlay" uniformly without per-frame allocation.
 const NO_OVERLAY: ReadonlyMap<string, TileState> = new Map()
 
@@ -107,6 +119,8 @@ export type HighlightGroups = ReadonlyArray<{ role: HighlightRole; ids: Readonly
 type Props = {
   tiling: Tiling
   displayMode?: DisplayMode
+  // Flip the plane to a dark scheme: black background + white grid lines (default is white + black).
+  inverted?: boolean
   dragMode?: DragMode
   selectedIds?: ReadonlyArray<string>
   overlay?: ReadonlyMap<string, TileState>
@@ -146,6 +160,7 @@ type Props = {
 export function TilingCanvas({
   tiling,
   displayMode = 'edges',
+  inverted = false,
   dragMode = 'paint',
   selectedIds = NO_SELECTION,
   overlay,
@@ -339,6 +354,8 @@ export function TilingCanvas({
         accent2: v('--accent-2', FALLBACK.accent2),
         accent3: v('--accent-3', FALLBACK.accent3),
         mono: v('--mono', FALLBACK.mono),
+        // Dark-scheme overrides win over the themed reads above (see INVERTED).
+        ...(inverted ? INVERTED : null),
       }
       redraw()
     }
@@ -346,7 +363,7 @@ export function TilingCanvas({
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     mq.addEventListener('change', read)
     return () => mq.removeEventListener('change', read)
-  }, [])
+  }, [inverted])
 
   // A new tiling (e.g. a grid-size change) re-frames from scratch.
   useEffect(() => {
