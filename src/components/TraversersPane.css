@@ -73,6 +73,24 @@
   border-radius: 50%;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3);
 }
+/* Compile-error marker in the text box's top-right corner (shown only when the program doesn't compile).
+   Matches the list's .pred-badge-err pill; non-interactive so it can't block editing the text beneath it,
+   with a soft shadow so it reads clearly above the code. */
+.trav-edit-badge {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.5rem;
+  pointer-events: none;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-pill);
+  background: var(--accent-strong, var(--accent));
+  color: var(--on-accent, #fff);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
 .trav-edit .pred-status {
   flex: 0 0 auto;
 }

@@ -35,6 +35,24 @@ describe('TraversersPane editor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Hide' }))
     expect(container.querySelector('.trav-syntax-code')).toBeNull()
   })
+
+  it('shows a compile-error badge on the text box only while the program does not compile', () => {
+    const { container } = render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: '+ New' }))
+    // A fresh definition is the valid built-in walker → no badge.
+    expect(container.querySelector('.trav-edit-badge')).toBeNull()
+
+    const ta = screen.getByRole('textbox', { name: 'traverser DSL' }) as HTMLTextAreaElement
+    // An undefined predicate name → compile error → the corner badge appears.
+    fireEvent.change(ta, { target: { value: 'if ghost then move l1' } })
+    const badge = container.querySelector('.trav-edit-badge')
+    expect(badge).not.toBeNull()
+    expect(badge?.textContent).toBe('error')
+
+    // Fix it → the badge goes away.
+    fireEvent.change(ta, { target: { value: 'move nearest-unvisited' } })
+    expect(container.querySelector('.trav-edit-badge')).toBeNull()
+  })
 })
 
 describe('TraversersPane autocomplete (Ctrl+Space)', () => {

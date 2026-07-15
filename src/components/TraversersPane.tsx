@@ -328,6 +328,14 @@ function TraverserEditor({
             <span key={s.line} className="trav-swatch" style={{ top: s.top, background: s.color }} />
           ))}
         </div>
+        {/* An at-a-glance "doesn't compile" marker pinned to the box's top-right corner. Purely visual —
+            the always-visible status line below carries the message + the a11y alert — so it's aria-hidden
+            and non-interactive (never intercepts clicks/typing in the textarea beneath it). */}
+        {!result.ok && (
+          <span className="trav-edit-badge" aria-hidden="true">
+            error
+          </span>
+        )}
       </div>
       <p className="dsl-hint">
         <kbd>Ctrl</kbd>+<kbd>Space</kbd> — suggest attributes &amp; predicates
