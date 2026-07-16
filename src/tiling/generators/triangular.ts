@@ -20,8 +20,9 @@ const META: TilingMeta = {
   chiral: false,
   edgeToEdge: true,
   // Each rhombus (i, j) holds an up- and a down-triangle, so row+column alone collide; the
-  // orientation dimension (0=up, 1=down) makes the coordinate unique.
-  latticeLabels: ['i', 'j', 'orientation'],
+  // `facing` dimension (0=up, 1=down) makes the coordinate unique. (Not called "orientation" —
+  // that name is reserved for the geometry-derived DSL `orientation` attribute shown in Inspect.)
+  latticeLabels: ['i', 'j', 'facing'],
 }
 
 // Triangular lattice point (i, j): rows are sheared right by half a step each.

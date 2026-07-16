@@ -21,9 +21,11 @@ const META: TilingMeta = {
   vertexConfig: 'rhombi (dual 3.6.3.6)',
   chiral: false,
   edgeToEdge: true,
-  // Each up-triangle cell (i, j) owns the three rhombi on its edges; the orientation dimension
-  // (0=bottom edge, 1=right edge, 2=left edge) separates them into the three rhombus directions.
-  latticeLabels: ['i', 'j', 'orientation'],
+  // Each up-triangle cell (i, j) owns the three rhombi on its edges; the `face` dimension
+  // (0=bottom edge, 1=right edge, 2=left edge) separates them into the three rhombus directions
+  // (the three visible faces of a tumbling-block cube). (Not called "orientation" — that name is
+  // reserved for the geometry-derived DSL `orientation` attribute shown in Inspect.)
+  latticeLabels: ['i', 'j', 'face'],
 }
 
 // Triangular lattice point (i, j), edge length L.

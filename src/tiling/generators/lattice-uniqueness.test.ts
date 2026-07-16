@@ -60,4 +60,17 @@ describe.each(TILINGS)('lattice coordinates: $name', ({ build }) => {
     expect(t.meta.latticeLabels.length).toBeGreaterThan(0)
     expect(t.nodes.every((n) => n.lattice.length === t.meta.latticeLabels.length)).toBe(true)
   })
+
+  // The Inspect pane shows fixed rows ("orientation" = the geometry-derived DSL attribute, "tile
+  // type") ALONGSIDE the per-tiling lattice coordinates. A lattice label reusing one of those words
+  // would put two identically-named rows on one tile (rhombille + triangular did — they numbered a
+  // coordinate "orientation" that disagreed with the DSL attribute, silently breaking directives
+  // that read `orientation`). Reserve those names for the fixed rows so it can't recur.
+  it('do not collide with a fixed Inspect field name', () => {
+    const RESERVED = ['orientation', 'tile type']
+    const t = build()
+    for (const label of t.meta.latticeLabels) {
+      expect(RESERVED, `lattice label "${label}" collides with a fixed Inspect row`).not.toContain(label.toLowerCase())
+    }
+  })
 })
