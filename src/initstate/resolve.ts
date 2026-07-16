@@ -4,7 +4,7 @@
 // is no walker): they read the CURRENT tile's attributes (tile-type / orientation / coordinate /
 // hand-painted visited); walker-relative `.`-paths have nothing to resolve and fall back to defaults.
 
-import type { Tiling } from '../tiling'
+import type { Tiling, TileNode } from '../tiling'
 import type { TileState } from '../canvas'
 import { applyRegistryWrites, setVisits } from '../canvas'
 import { evalPredicate, type EvalContext } from '../dsl'
@@ -20,10 +20,14 @@ export type InitWrite =
 
 export type InitResolved = { seeds: Traverser[]; writes: InitWrite[]; unknownRefs: string[] }
 
-function shapeTiles(tiling: Tiling, shape: Shape) {
+// `accept` (only meaningful for a blob) makes the blob snap its anchor to the nearest tile that passes
+// the guard, so a guarded blob does its best to land on a matching tile near the point rather than
+// giving up when the exact nearest tile doesn't match. A line already spans many tiles, so it just
+// picks the ones it crosses and lets the caller's guard filter them.
+function shapeTiles(tiling: Tiling, shape: Shape, accept?: (node: TileNode) => boolean) {
   return shape.kind === 'line'
     ? lineTiles(tiling, shape.angle, shape.percent)
-    : blobTiles(tiling, shape.x, shape.y, shape.radius)
+    : blobTiles(tiling, shape.x, shape.y, shape.radius, accept)
 }
 
 // After compile every guard is inline (named refs resolved); a lingering 'named' guard means the
@@ -61,7 +65,13 @@ export function resolveInitialState(
   const seededTiles = new Set<string>()
   const unknownRefs = new Set<string>()
   for (const stmt of doc) {
-    const tiles = shapeTiles(tiling, stmt.shape)
+    // A guarded blob anchors on the nearest tile that passes the guard (does its best to place one);
+    // the per-tile guard below still filters the rest of the set (and a line's whole swath).
+    const guard = stmt.guard
+    const accept = guard
+      ? (node: TileNode) => guardPasses(guard, { node, tiling, overlay: base, indexById })
+      : undefined
+    const tiles = shapeTiles(tiling, stmt.shape, accept)
     if (stmt.what.kind === 'traverser') {
       const name = resolveRef(stmt.what.ref, order, defs)
       if (name === null) {

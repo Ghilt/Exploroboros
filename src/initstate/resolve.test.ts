@@ -62,6 +62,40 @@ describe('resolveInitialState — traversers', () => {
   })
 })
 
+describe('resolveInitialState — a guarded blob does its best to place a matching tile', () => {
+  const t = buildTiling('trihexagonal', 12) // hexagons + triangles
+  const defs = new Map([['walker', def('move nearest-unvisited')]])
+
+  it('places one walker on the nearest hexagon even when the exact nearest tile is a triangle', () => {
+    // Aim at a triangle's centre — pre-fix this placed nothing (nearest tile failed the guard).
+    const tri = t.nodes.find((n) => n.shape === 'triangle')!
+    const xPct = (((tri.centroid.x - t.bounds.minX) / (t.bounds.maxX - t.bounds.minX)) * 100).toFixed(4)
+    const yPct = (((t.bounds.maxY - tri.centroid.y) / (t.bounds.maxY - t.bounds.minY)) * 100).toFixed(4)
+    const res = resolveInitialState(
+      doc(`auto-place blob {t1, ${xPct}, ${yPct}, 1, 0} if tile-type == hexagon`),
+      t,
+      ['walker'],
+      defs,
+      EMPTY,
+      EMPTY,
+    )
+    expect(res.seeds).toHaveLength(1)
+    expect(nodeById(t, res.seeds[0].tile)!.shape).toBe('hexagon')
+  })
+
+  it('places nothing when no tile matches (a shape absent from the tiling)', () => {
+    const res = resolveInitialState(
+      doc('auto-place blob {t1, 50, 50, 1, 0} if tile-type == octagon'),
+      t,
+      ['walker'],
+      defs,
+      EMPTY,
+      EMPTY,
+    )
+    expect(res.seeds).toHaveLength(0)
+  })
+})
+
 describe('resolveInitialState — registry / visited set-writes', () => {
   const t = buildTiling('square', 6)
 

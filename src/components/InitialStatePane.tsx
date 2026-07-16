@@ -70,8 +70,11 @@ export function InitialStatePane({
           </p>
           <p>
             Add <code>if &lt;predicate&gt;</code> to filter (the ordinary tile predicates, e.g.{' '}
-            <code>tile-type == octagon</code>). Init-placed walkers show <strong>ghostly</strong> and are
-            changed by editing the rule, not from the canvas; a hand-placed walker wins a shared tile.
+            <code>tile-type == octagon</code>). A guarded <strong>blob</strong> snaps to the{' '}
+            <strong>nearest matching</strong> tile, so it still places one even when the tile right at the
+            point is the wrong type (nothing lands only if no tile matches at all). Init-placed walkers show{' '}
+            <strong>ghostly</strong> and are changed by editing the rule, not from the canvas; a hand-placed
+            walker wins a shared tile.
           </p>
           <p className="help-readmore">
             <a href="#/guide" target="_blank" rel="noopener noreferrer">

@@ -55,13 +55,29 @@ export function lineTiles(tiling: Tiling, angleDeg: number, percent: number): Ti
 // is y-up so 0% y = the top = max y), then BFS out `radius - 1` rings over the neighbour graph. radius
 // <= 1 → just that one tile; radius 2 → it + its direct neighbours; and so on. Contiguous and
 // tiling-agnostic (a two-edge neighbour counts once via uniqueNeighbors).
-export function blobTiles(tiling: Tiling, xPct: number, yPct: number, radius: number): TileNode[] {
+//
+// `accept` (optional) makes the ANCHOR guard-aware: the blob is grown from the nearest tile that
+// PASSES `accept`, not just the nearest tile outright. So `blob {…} if tile-type == hexagon` snaps to
+// the nearest hexagon to the point even when the exact nearest tile is some other shape — it does its
+// best to place at least one. If NO tile passes (a predicate nothing satisfies, e.g. a shape absent
+// from the tiling), it returns [] (nothing placed). Without `accept`, behaviour is unchanged. The rings
+// themselves are returned unfiltered here; the caller (resolve.ts) applies the guard to the whole set,
+// so expansion still reaches accepting tiles THROUGH non-accepting ones (e.g. hexagons two hops apart
+// across triangles on kagome).
+export function blobTiles(
+  tiling: Tiling,
+  xPct: number,
+  yPct: number,
+  radius: number,
+  accept?: (node: TileNode) => boolean,
+): TileNode[] {
   const b = tiling.bounds
   const px = b.minX + (clampPct(xPct) / 100) * (b.maxX - b.minX)
   const py = b.maxY - (clampPct(yPct) / 100) * (b.maxY - b.minY)
   let start: TileNode | null = null
   let best = Infinity
   for (const node of tiling.nodes) {
+    if (accept && !accept(node)) continue
     const dx = node.centroid.x - px
     const dy = node.centroid.y - py
     const d = dx * dx + dy * dy

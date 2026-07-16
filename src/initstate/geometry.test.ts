@@ -51,3 +51,53 @@ describe('blobTiles geometry', () => {
     }
   })
 })
+
+describe('blobTiles guard-aware anchor (accept)', () => {
+  const t = buildTiling('trihexagonal', 12) // hexagons + triangles
+
+  const point = (xPct: number, yPct: number) => ({
+    x: t.bounds.minX + (xPct / 100) * (t.bounds.maxX - t.bounds.minX),
+    y: t.bounds.maxY - (yPct / 100) * (t.bounds.maxY - t.bounds.minY),
+  })
+  const nearest = (pt: { x: number; y: number }, ok: (n: (typeof t.nodes)[number]) => boolean) => {
+    let best = Infinity
+    let node: (typeof t.nodes)[number] | null = null
+    for (const n of t.nodes) {
+      if (!ok(n)) continue
+      const d = (n.centroid.x - pt.x) ** 2 + (n.centroid.y - pt.y) ** 2
+      if (d < best) {
+        best = d
+        node = n
+      }
+    }
+    return node
+  }
+
+  it('without accept, still returns the raw nearest tile (unchanged behaviour)', () => {
+    const [raw] = blobTiles(t, 50, 50, 1)
+    expect(raw.id).toBe(nearest(point(50, 50), () => true)!.id)
+  })
+
+  it('snaps the anchor to the nearest tile that PASSES accept', () => {
+    const [anchor] = blobTiles(t, 50, 50, 1, (n) => n.shape === 'hexagon')
+    expect(anchor.shape).toBe('hexagon')
+    expect(anchor.id).toBe(nearest(point(50, 50), (n) => n.shape === 'hexagon')!.id) // the NEAREST hexagon
+  })
+
+  it('finds a matching tile even when the exact nearest tile is a different type', () => {
+    // Aim the point AT a triangle's centre → the raw nearest is that triangle, not a hexagon.
+    const tri = t.nodes.find((n) => n.shape === 'triangle')!
+    const xPct = ((tri.centroid.x - t.bounds.minX) / (t.bounds.maxX - t.bounds.minX)) * 100
+    const yPct = ((t.bounds.maxY - tri.centroid.y) / (t.bounds.maxY - t.bounds.minY)) * 100
+    const [raw] = blobTiles(t, xPct, yPct, 1)
+    expect(raw.shape).toBe('triangle') // exact nearest is the targeted triangle
+    const [anchor] = blobTiles(t, xPct, yPct, 1, (n) => n.shape === 'hexagon')
+    expect(anchor.shape).toBe('hexagon') // still places — snapped to the nearest hexagon
+    expect(anchor.id).not.toBe(raw.id)
+  })
+
+  it('returns [] only when nothing passes (a ridiculous predicate)', () => {
+    expect(blobTiles(t, 50, 50, 1, () => false)).toEqual([])
+    expect(blobTiles(t, 50, 50, 1, (n) => n.shape === 'octagon')).toEqual([]) // no octagons here
+  })
+})

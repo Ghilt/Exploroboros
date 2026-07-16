@@ -677,6 +677,13 @@ auto-place blob {[A], 50, 50, 3, 1}`}</pre>
           <code>coordinate</code>.
         </p>
         <p className="guide-note">
+          A guarded <code>blob</code> does its best to land on a match: it anchors on the <strong>nearest tile
+          that matches</strong>, not just the exact nearest tile. So{' '}
+          <code>blob {'{'}t1, 0, 0, 1, 0{'}'} if tile-type == hexagon</code> snaps to the nearest hexagon to the
+          corner even when the tile right at the corner is a different shape — it places nothing only if no tile
+          anywhere matches (e.g. a shape the tiling doesn't have).
+        </p>
+        <p className="guide-note">
           Rule-placed walkers appear <strong>ghostly</strong> on the canvas and can't be removed with the
           canvas controls — edit the line to change them. Where a hand-placed walker shares a tile, the
           hand-placed one wins; a registry / <code>visited</code> set overwrites hand-paint. Comment a line
