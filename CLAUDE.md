@@ -203,12 +203,11 @@ concept is generalized to an **array**: even-sided polygons have 1 opposite; odd
   route back) so behavior depends on the tile under the traverser ("sierpinski octagon-fan relay").
 - Owner's taste: **each pattern should be a different mechanism** — never "same structure, different color".
 
-**Origins (TEMPORARY local path — WILL BE DELETED):** prototype repo root
-`E:\Files\photoshop\boardgame creative\tiling_experiment\nandeck-script`; full design doc
-`…\tiling-experiment\tools\visualizer\ARCHITECTURE.md`; engine in that `visualizer/` folder (`tiling.py` =
-geometry, `render_tiling.py` = static DSL + render, `traverse.py` = traverse engine). A fresh session may
-read these **early on only** — the owner removes this repo once Exploroboros has progressed. Copy anything
-still needed into this doc **before** then; do not rely on the path persisting.
+**Origins (a local Python prototype, since removed):** the prototype was a separate local repo (the
+"nandeck octagon visualizer") — geometry (`tiling.py`), a static coloring DSL + render
+(`render_tiling.py`), and the traverse engine (`traverse.py`), with a design doc `ARCHITECTURE.md`. Its
+hard-won lessons are captured **self-contained in §5 above**, so nothing here depends on that repo still
+existing.
 
 ## 6. Roadmap
 
@@ -1794,7 +1793,7 @@ from Vite. It's a *static* render, so it shows even when the headless tab's Reac
 
 **Phone tunnel (develop on the go).** Use **ngrok** — the one that actually works here. In a terminal *the
 owner keeps open*: `ngrok http <port>` (e.g. `5173` for the Vite dev server). It comes up on the account's
-**reserved static domain `https://makeover-backless-helpline.ngrok-free.dev`** (same URL every run — nice for
+**reserved ngrok domain** (a fixed `*.ngrok-free.dev` URL, same every run — nice for
 on-the-go); on the phone, tap ngrok's one-time **"Visit Site"** button. ngrok's interstitial gates only the top
 document, *not* the JS, so the SPA loads. Gotchas hit in practice:
 - `vite.config.ts` needs `server: { allowedHosts: true }` or Vite returns "Blocked request" for the tunnel's

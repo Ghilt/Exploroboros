@@ -81,8 +81,8 @@ ngrok http 5173     # tunnels `npm run dev` (frontend only, gallery won't work)
 ngrok http 8788     # tunnels `npm run dev:local` (full app, gallery works with local sample data)
 ```
 
-It comes up on the reserved address **`https://makeover-backless-helpline.ngrok-free.dev`** (same URL
-every time). On your phone, tap ngrok's one-time **"Visit Site"** button and the app loads normally.
+It prints a public HTTPS URL in the terminal (with a reserved ngrok domain it's the same URL every
+time). On your phone, tap ngrok's one-time **"Visit Site"** button and the app loads normally.
 
 Keep the `ngrok` command running in its own terminal window while you're using it.
 

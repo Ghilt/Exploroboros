@@ -23,8 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 
-# Claude Code local preview launcher (machine-specific Node path)
-.claude/launch.json
+# Claude Code local session state (preview launcher, settings, logs, worktrees)
+.claude/
 
 # Cloudflare Wrangler local state (local D1/R2 emulation) + local secrets
 .wrangler
