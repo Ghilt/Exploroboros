@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { squareTiling, stitch, makeShapeDef, SQUARE, nodeById, type Tiling } from '../tiling'
+import { squareTiling, stitch, makeShapeDef, SQUARE, nodeById, type Tiling, type TileNode } from '../tiling'
 import { addVisit, bumpRegistry, type TileState } from '../canvas'
 import { parseExpr, parsePredicate } from './parse'
 import { evalNumber, evalPredicate } from './eval'
 import type { EvalContext } from './attributes'
+import type { TilePath } from './types'
 
 type Overlay = ReadonlyMap<string, TileState>
 
@@ -219,5 +220,36 @@ describe('eval — an unresolved predref is defensive, not a throw', () => {
   it('a named-predicate reference that reaches eval without being resolved first evaluates false', () => {
     // resolvePredRefs always inlines these before eval; this only guards against one slipping through.
     expect(pred('isCrowded', ctxFor(sq, 'sq:0,0'))).toBe(false)
+  })
+})
+
+describe('eval — tile-identity comparison (tilecmp)', () => {
+  // Resolve each operand by its first path-segment kind so `target` and `straight` can point at DIFFERENT
+  // tiles (the shared ctxWithPath stub sends every path to one tile, which can't test identity).
+  function ctxIdent(map: { target?: string | null; straight?: string | null }): EvalContext {
+    const node = nodeById(sq, 'sq:0,0')
+    if (!node) throw new Error('no base tile')
+    const resolve = (path: TilePath): TileNode | null => {
+      const kind = path[0]?.kind
+      const id = kind === 'target' ? map.target : kind === 'straight' ? map.straight : null
+      return id ? nodeById(sq, id) ?? null : null
+    }
+    return { node, tiling: sq, overlay: new Map(), indexById: new Map(), nodeForPath: resolve }
+  }
+
+  it('== is true only when both operands resolve to the SAME tile', () => {
+    expect(pred('target == straight', ctxIdent({ target: 'sq:1,1', straight: 'sq:1,1' }))).toBe(true)
+    expect(pred('target != straight', ctxIdent({ target: 'sq:1,1', straight: 'sq:1,1' }))).toBe(false)
+    expect(pred('target == straight', ctxIdent({ target: 'sq:1,1', straight: 'sq:2,2' }))).toBe(false)
+    expect(pred('target != straight', ctxIdent({ target: 'sq:1,1', straight: 'sq:2,2' }))).toBe(true)
+  })
+
+  it('is FALSE for both == and != when an operand is off-grid (the "vacuous" rule)', () => {
+    // straight runs off the grid edge -> null; target is a real tile.
+    expect(pred('target == straight', ctxIdent({ target: 'sq:1,1', straight: null }))).toBe(false)
+    expect(pred('target != straight', ctxIdent({ target: 'sq:1,1', straight: null }))).toBe(false)
+    // both unresolved -> still false either op.
+    expect(pred('target == straight', ctxIdent({ target: null, straight: null }))).toBe(false)
+    expect(pred('target != straight', ctxIdent({ target: null, straight: null }))).toBe(false)
   })
 })

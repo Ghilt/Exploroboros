@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parsePredicate, predReadsTarget } from './index'
+import { parsePredicate, predReadsTarget, predIsAbsolute, predFoundIndices } from './index'
 
 function pred(src: string) {
   const r = parsePredicate(src)
@@ -25,5 +25,26 @@ describe('predReadsTarget', () => {
   it('is false for a named-predicate reference (resolved before this ever sees it)', () => {
     expect(predReadsTarget(pred('isCrowded'))).toBe(false)
     expect(predReadsTarget(pred('isCrowded and visited.target == 0'))).toBe(true)
+  })
+
+  it('is true when either operand of a tile comparison is .target', () => {
+    expect(predReadsTarget(pred('target != straight'))).toBe(true)
+    expect(predReadsTarget(pred('straight == target'))).toBe(true)
+    expect(predReadsTarget(pred('e0 == e3'))).toBe(false)
+    expect(predReadsTarget(pred('straight != back'))).toBe(false)
+  })
+})
+
+describe('predIsAbsolute / predFoundIndices — tile comparison', () => {
+  it('a tile comparison is absolute only when BOTH terms are absolute (edge / tile N)', () => {
+    expect(predIsAbsolute(pred('e0 == e3'))).toBe(true)
+    expect(predIsAbsolute(pred('tile 3 == e0'))).toBe(true)
+    expect(predIsAbsolute(pred('target != straight'))).toBe(false)
+    expect(predIsAbsolute(pred('straight == e0'))).toBe(false)
+  })
+
+  it('collects .fN indices from both operands', () => {
+    expect(predFoundIndices(pred('f0 == f1')).sort()).toEqual([0, 1])
+    expect(predFoundIndices(pred('f2 == target'))).toEqual([2])
   })
 })

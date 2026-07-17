@@ -37,6 +37,7 @@ function nPred(p: Pred): Pred {
     case 'listcmp':
     case 'shapecmp':
     case 'exists':
+    case 'tilecmp':
       return p
   }
 }

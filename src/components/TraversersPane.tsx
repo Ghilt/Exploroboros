@@ -399,7 +399,8 @@ find-highest-tile [A] > 0        highest-numbered match → f2`}</pre>
               <li>
                 <strong>predicate</strong> — a tile test (<code>visited-neighbors == 1</code>), a saved
                 predicate by name, or a mix with <code>and</code>/<code>or</code>/<code>not</code>. Read a
-                neighbour with a <code>.</code>-path: <code>visited.r1</code>.
+                neighbour with a <code>.</code>-path: <code>visited.r1</code>. Compare two tile references by
+                identity with <code>target == straight</code>.
               </li>
               <li>
                 <strong>edges</strong> — <code>straight</code>, <code>back</code> (reverse),{' '}

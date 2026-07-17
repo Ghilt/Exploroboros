@@ -24,6 +24,8 @@ export function resolvePredRefs(
     // Lists hold Exprs, not nested Preds, so they can't contain a predref — return them unchanged.
     case 'listcmp':
     case 'shapecmp':
+    // A tile comparison holds only TilePaths (no nested Pred), so likewise nothing to inline.
+    case 'tilecmp':
       return { ok: true, value: pred }
     case 'not': {
       const r = resolvePredRefs(pred.operand, names, stack)

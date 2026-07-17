@@ -141,6 +141,27 @@ describe('traverser program execution', () => {
     expect(res.branches.map((b) => b.tile).sort()).toEqual(['sq:2,3', 'sq:3,2'])
   })
 
+  it('a tile-identity directive forbids every non-straight move (target != straight)', () => {
+    // Facing east from the centre: straight=sq:2,3, l1=sq:3,2, r1=sq:1,2. Only the straight candidate has
+    // target == straight, so `target != straight` forbids the other two — the headline use case.
+    const src = 'max-split = 3\ndirective if target != straight always forbid move\nmove [l1, r1, straight]'
+    expect(run(src).branches.map((b) => b.tile)).toEqual(['sq:2,3'])
+  })
+
+  it('a move own-guard that reads target filters per candidate (target == straight)', () => {
+    // The own guard reads .target (via the tile comparison), so predReadsTarget switches it to per-candidate
+    // evaluation instead of a single up-front check against the current tile.
+    const src = 'max-split = 3\nif target == straight then move [l1, r1, straight]'
+    expect(run(src).branches.map((b) => b.tile)).toEqual(['sq:2,3'])
+  })
+
+  it('a tile-identity comparison goes vacuous (forbids nothing) at a grid edge', () => {
+    // sq:2,4 is the east boundary; facing east `straight` runs off-grid, so `target != straight` is false
+    // for BOTH ops and forbids nothing — l1 (north) and r1 (south) both survive.
+    const src = 'max-split = 2\ndirective if target != straight always forbid move\nmove [l1, r1]'
+    expect(run(src, 'sq:2,4').branches.map((b) => b.tile).sort()).toEqual(['sq:1,4', 'sq:3,4'])
+  })
+
   it('forbid wins when an allow and a forbid directive both match the destination', () => {
     const overlay = addVisits(new Map(), ['sq:2,3'], 0)
     const src = 'directive if visited.target > 0 always allow move\ndirective if visited.target > 0 always forbid move\nmove straight'

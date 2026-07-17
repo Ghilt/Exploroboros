@@ -697,6 +697,22 @@ existing.
   are untouched), leaving exactly one "orientation" in Inspect (the DSL attribute). A new guard in
   `lattice-uniqueness.test.ts` asserts no tiling's `latticeLabels` collides with a fixed Inspect row
   (`orientation` / `tile type`) so it can't recur. No recipe/schema change. See §7 + the §9 orientation note.
+- **Tile-identity comparison in the DSL — `target != straight` (2026-07-17):** the shared tile-predicate DSL
+  can now compare two tile REFERENCES by identity — `<tileterm> == <tileterm>` / `!=`, where a tile term is a
+  bare (dotless-first) path resolved to a tile (`target`, `straight`, `back`, `nearest-unvisited`,
+  `eN`/`rN`/`lN`, `tile N`, `fN`; chainable, `target.e1`). So `directive if target != straight always forbid
+  move` keeps only the straight move, and `e0 == e3` asks whether two edges reach the same neighbour. Identity
+  has no ordering → only `==`/`!=`. An unresolved operand (a relative hop off the grid edge, or a
+  relative/`target` hop in the walker-free coloring context) is **false for BOTH ops** — the same "missing
+  tile → false" rule `tile-type`/`shapecmp` use, so at a boundary the constraint goes *vacuous* (forbids
+  nothing) rather than forbidding everything (owner's call; compose `exists.straight and target != straight`
+  to halt there). New pure `TileCompare` leaf (`kind:'tilecmp'`, operands reuse `TilePath`) threaded through
+  parse (a `looksLikeTileTerm` dispatch + `parseTileTerm`, sharing a new `parseDotHops` with `parsePath`) /
+  serialize (`tileTermStr` drops the first segment's dot) / eval / the four `target.ts` analysis walkers /
+  `resolveRefs` — TypeScript exhaustiveness caught every logic site; the one SILENT site is
+  `PredicateVisualEditor.renderPred` (a static read-only chip, like `exists`). Recipe **schema v12 → v13**
+  (additive no-op — stamps a using-image so an older build refuses it cleanly). Guide + Traversers/Predicate
+  pane help updated. See §9.
 - **Next up:** **`exploroboros.io` custom domain** (register + attach — §8) → more **tutorial chapters**
   (initial-state / export-share next) → **DSL-driven traversers** (custom rules in the Traversers pane —
   paint/move/visit/split/guards/state, §5; reuses the predicate DSL) → **persist user exports across
@@ -813,6 +829,7 @@ existing.
 | 2026-07-15 | **Traverser editor — compile-error badge on the text box.** When the program in the maximised Traversers editor doesn't compile, a small orange **"error"** pill now sits in the **top-right corner of the code textarea** (shown only while `!result.ok`), complementing the red badge the list already shows on a non-compiling definition. Purely a visual at-a-glance marker: `aria-hidden` (the always-visible status line below the box still carries the message + its `role="alert"`) and `pointer-events: none` (follows the swatch-gutter precedent, so it never intercepts clicks/typing in the textarea beneath it), styled to match the list's `.pred-badge-err`. `TraverserEditor` already computed the live `compileProgram` result, so it's one guarded `<span>` inside the existing `position: relative` `.trav-edit-textwrap` + a `.trav-edit-badge` rule. `TraversersPane.tsx` + `.css`; no new deps, no recipe/schema change. | ✅ yes | owner reviewed on this worktree's preview (5568, footer-labelled) and said "looks good please commit"; backed by build / lint / **1042 tests** (1 new: the badge shows only while the program doesn't compile — appears on an undefined-predicate program, clears when fixed) + a live DOM/computed-style check on 5568 confirming the badge renders inside `.trav-edit-textwrap` at the textarea's top-right corner (6px down, 8px in from the right, within bounds), `position:absolute` / `pointer-events:none`, background `#c9551c` (`--accent-strong`), `aria-hidden`, and vanishes when the code is made valid (status flips to `✓ 1 rule(s)`). The on-screen visual is the owner's device pass — this preview tab is `document.hidden` (§9), so the Konva stage never mounts for a screenshot. | — |
 | 2026-07-16 | **Initial-state presets (Corners / Midpoints) + a guard-aware blob anchor.** Two new presets in the Initial-state pane's dropdown — **Corners** (a size-1 blob of `t1` in each corner) and **Midpoints** (one at each outer-edge midpoint) — each aimed inward via the square grid's heading numbering (owner chose square-oriented + accepted approximate on non-square tilings; a corner can't be a true diagonal on a square, so it uses the nearest straight direction). Plus a behaviour fix a guarded blob needed: `blobTiles` gained an optional `accept` predicate and `resolveInitialState` feeds it the statement's guard, so `blob {t1, 0, 0, 1, 0} if tile-type == hexagon` **anchors on the nearest matching tile** (searching all tiles nearest-first) instead of testing only the single nearest tile and giving up — it places one whenever a match exists, and nothing only if the tiling has no matching tile at all. No recipe/schema change. Guide + pane help updated. | ✅ yes | owner said "looks good please commit" (twice, across a session boundary). Backed by build / lint / **1050 tests** (8 new: 2 preset-placement — Corners one-per-corner top↓/bottom↑, Midpoints one-per-inward-cardinal on a square grid; 4 `blobTiles` `accept` — unchanged-without-accept, snaps-to-nearest-matching, finds-a-match-when-the-exact-nearest-is-a-different-type on trihexagonal, and []-on-a-predicate-nothing-satisfies; 2 `resolveInitialState` end-to-end — a guarded blob aimed at a triangle's centre still places one hexagon, and places nothing when the shape is absent). Also verified in the **live browser runtime** on this worktree's preview (5508, footer `traverser-state-presets`): dynamic-imported the app's own `resolveInitialState` and confirmed the dropdown order + Corners (4 inward, top↓/bottom↑) + Midpoints (4 inward cardinals). The on-canvas visual (ghost walkers in the corners / on the nearest hexagon) is the owner's device pass — the preview tab is `document.hidden` (§9), so the Konva stage never mounts headlessly. | — |
 | 2026-07-16 | **Fix — a tile showed two "orientation" fields in Inspect (naming collision).** The owner's rhombille directive `if orientation != 0 and orientation.target != 0 always forbid move` wasn't blocking an apparent orientation-1 → orientation-2 move. Root-caused (no guessing) with a headless engine trace: the directive is CORRECT — a walker whose real DSL `orientation` is 1 is blocked from every orientation-2 destination. The bug was that Inspect showed the word "orientation" TWICE with different values — the geometry-derived DSL `orientation` attribute (what rules read) AND a per-tiling lattice-discriminator coordinate that the rhombille + triangular generators also labelled "orientation" (rhombille lattice `0/1/2` = DSL orientation `2/0/1`), so the owner read one and the rule read the other. Fix: renamed the two colliding lattice labels (rhombille → `face`, triangular → `facing`); `latticeLabels` is display-only (`coordinate[n]` reads by INDEX), so tile ids / recipes / gallery are untouched. New guard test asserts no tiling's `latticeLabels` collides with a fixed Inspect row. No recipe/schema change. | ✅ yes | owner reviewed the plain-language diagnosis + fix on this worktree's preview (5588, footer `confident-gates-713283`) and said "looks good please commit". Backed by build / lint / **1068 tests** (+18: the reserved-Inspect-label guard across all 18 tilings) + a throwaway headless engine probe that proved the class→DSL-orientation map (`0/1/2`→`2/0/1`) and that the directive forbids every orientation-2 destination from a real DSL-orientation-1 tile, and a served-source check on 5588 confirming the renamed labels are live. The on-canvas Inspect rendering is the owner's device pass — the preview tab is `document.hidden` (§9), so the Konva stage never mounts headlessly. | — |
+| 2026-07-17 | **Tile-identity comparison — compare two tile references by identity (`target != straight`).** Bare tile terms (`target` / `straight` / `back` / `nearest-unvisited` / `eN` / `rN` / `lN` / `tile N` / `fN`, chainable like `target.e1`) compared with `==` / `!=` only; `e0 == e3` asks whether two edges reach the same neighbour. An unresolved operand (a relative hop off the grid edge, or a relative/`target` hop in walker-free coloring) → **false for BOTH ops**, so a directive goes *vacuous* at a boundary rather than forbidding everything (owner's call; `exists.straight and target != straight` halts there). New pure `tilecmp` `Pred` leaf (operands reuse `TilePath`) threaded through parse / serialize / eval / the four `target.ts` analysis walkers / `resolveRefs` + the visual-editor static chip; recipe schema v12→v13 (additive no-op). | ✅ yes | owner verified on this worktree's preview (5386, footer `sleepy-goldwasser-b35522`) and said "looks good please commit! verified". Backed by build / lint / **1082 tests** (new: parse round-trip + no-hijack + rejections, eval same/different/off-grid-vacuous, `predReadsTarget`/`predIsAbsolute`/`predFoundIndices` on tilecmp, 3 live exec directives, v12→v13 migration) + a live in-runtime check on 5386 that dynamic-imported the app's own DSL: all 5 forms parse to `tilecmp` and serialize byte-stable, `visited.target == 0` / `tile-number.target != …` stay `compare` (no hijack), the three rejections give the right messages, AND driving the real engine confirmed `target != straight` keeps only the straight move, the `target == straight` own-guard filters per candidate, and the east-boundary case goes vacuous (both turns survive). The on-canvas visual (a walker going straight-only) was the owner's device pass — the preview tab is `document.hidden` (§9), so the Konva stage doesn't mount headlessly. | — |
 
 ## 8. Todo list (working backlog)
 
@@ -947,6 +964,10 @@ in-session task tracker.
   - [x] **`back` edge keyword** — the reverse of `straight` (a U-turn; the heading edge's straight-through
     partner), valid everywhere `straight` is: moves / chains / guards / `.`-paths, on any tiling including the
     concave wedge. Added to `EdgeRef` + `PathSeg`; recipe schema v10→v11 (additive) *(verified 2026-07-12)*
+  - [x] **Tile-identity comparison** — compare two tile REFERENCES by identity (`target != straight`,
+    `e0 == e3`) with `==`/`!=` only; a `tilecmp` Pred leaf whose operands reuse `TilePath`; an unresolved
+    operand → false for both ops (so a directive goes *vacuous* at a grid edge — owner's call). Recipe schema
+    v12→v13 (additive) *(verified 2026-07-17)*
   - [x] **Initial-state DSL (its own pane)** — `auto-place` moved OUT of the traverser DSL into a right-dock
     **Initial state** pane that seeds the whole starting state: traversers **+** per-tile registries
     `[A]/[B]/[C]` **+** `visited`. `auto-place line {what, angle, percent, param}` (tiles a line crosses) /
@@ -1260,6 +1281,29 @@ Hard-won; read before fighting the tooling again.
   allow-as-gate idiom (see the `src/data/galleryRecipes.ts` header). A move rule's own non-`.target` guard
   is still gate-skipped up front ONLY when no `allow` directive is active (else it's evaluated per candidate,
   so an `allow` can resurrect it). Trace reject `by:'per-target'` was renamed `by:'own-guard'`.
+- **Tile-identity comparison (`tilecmp`) compares two tile REFERENCES, not attributes** (2026-07-17,
+  `target != straight`). A new `Pred` leaf `{ kind: 'tilecmp'; op: '=='|'!='; left: TilePath; right:
+  TilePath }` (`src/dsl/types.ts`): each operand is a "tile term" — a bare (dotless-first) path resolved via
+  `nodeForPath`, compared by `node.id`. It is DISTINCT from reading a neighbour's attribute — `target !=
+  straight` asks "different tile?", whereas `visited.target != visited.straight` compares visit counts and
+  `tile-number.target != …` compares (unique) numbers (the old identity-by-proxy workaround). **Parser
+  disambiguation** (`parse.ts`): `parseComparison` peeks for a bare tile-ref keyword (`looksLikeTileTerm`:
+  target / straight / s / back / nearest-unvisited / tile, or `/^[erlf][0-9]+$/`) and commits to
+  `parseTileComparison` BEFORE the numeric fall-through — safe because none of those are attributes or
+  predicate names, so each was a hard error on the numeric path before. `parseTileTerm` reads a dotless first
+  segment then shares a new `parseDotHops` with `parsePath` (the same base-must-be-first rule). The
+  serializer's `tileTermStr` drops the leading dot on the first segment (the inverse). **Eval (owner's call):
+  an unresolved operand → FALSE for BOTH ops** (`if (!a || !b) return false`, `eval.ts`), matching
+  `shape`/`shapecmp` — so `target != straight` goes *vacuous* at a grid edge (forbids nothing) rather than
+  forbidding everything; compose `exists.straight and target != straight` to halt there. **Threading:** the
+  four `target.ts` walkers each got a `tilecmp` arm — `predReadsTarget` is load-bearing (a move OWN-guard
+  reading `target` must switch to per-candidate eval; directives are per-candidate anyway), `predIsAbsolute`
+  gates use in find-lowest/highest (`target`/relative → not absolute → rejected), `predFoundIndices`
+  validates `fN` — plus `resolveRefs` (pass-through) and `PredicateVisualEditor.renderPred` (a static chip —
+  the ONE non-exhaustive site, so it won't fail to compile; remember it by hand). Works in coloring too but
+  only ABSOLUTE terms (`e0 == e3`, `tile N` + `.eN` chains) resolve there — relative/`target` → default →
+  false, like every `.`-path in coloring. Recipe **schema v13** (additive no-op migration `{from:12}`, same
+  rationale as v10→v11 / v11→v12).
 - **Move chains join with `.`, registries can be bare, `if {}` blocks, `find-tile` search, `exists.path`**
   (2026-07-06, `726b28f`). `Chain` (`src/traverse/lang/types.ts`) is now `{base?: ChainBase; refs:
   EdgeRef[]}` — `base` is absent (the walker's current tile), `{kind:'found', index}` (a prior `find-tile`'s

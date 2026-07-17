@@ -24,6 +24,7 @@ export type {
   PredRef,
   ListNumCompare,
   ListShapeCompare,
+  TileCompare,
   Pred,
   PathSeg,
   TilePath,

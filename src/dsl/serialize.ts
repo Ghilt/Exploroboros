@@ -36,6 +36,13 @@ export function serializePath(path: TilePath | undefined): string {
 }
 const pathStr = serializePath
 
+// A tile TERM back to text: the first segment bare, the rest dotted (`target`, `e3`, `target.e1`,
+// `tile 5.e0`) — the inverse of parseTileTerm. (A path serialized as an attribute suffix, above, keeps
+// every segment dotted; a term is the same segments written as a standalone value, so its head loses the dot.)
+function tileTermStr(path: TilePath): string {
+  return path.map((s, i) => (i === 0 ? segStr(s) : `.${segStr(s)}`)).join('')
+}
+
 function attrStr(a: AttrRef): string {
   let s: string = a.name
   if (a.index !== undefined) s += `[${a.index}]`
@@ -107,6 +114,8 @@ function predText(p: Pred): Texted {
       const inner = p.paths.map((path) => `tile-type${pathStr(path)}`).join(', ')
       return { s: `[${inner}]:${p.reducer} ${p.op} ${p.shape}`, prec: 4 }
     }
+    case 'tilecmp':
+      return { s: `${tileTermStr(p.left)} ${p.op} ${tileTermStr(p.right)}`, prec: 4 }
     case 'not':
       return { s: `not ${wrapPred(p.operand, 3)}`, prec: 3 }
     case 'bool': {

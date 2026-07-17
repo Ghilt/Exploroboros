@@ -150,5 +150,16 @@ export function evalPredicate(pred: Pred, ctx: EvalContext): boolean {
           return pred.op === '==' ? matches : !matches
         }),
       )
+    case 'tilecmp': {
+      // Compare two tile references by identity (same node id). An unresolved operand — a relative hop off
+      // the grid edge, or a relative/target hop with no walker (coloring) — makes it false for BOTH ops,
+      // the same "missing tile → false" rule as shape/shapecmp. So `target != straight` stops constraining
+      // at a boundary rather than forbidding everything (compose `exists.straight and …` to halt instead).
+      const a = ctxForLeaf(ctx, pred.left)
+      const b = ctxForLeaf(ctx, pred.right)
+      if (!a || !b) return false
+      const same = a.node.id === b.node.id
+      return pred.op === '==' ? same : !same
+    }
   }
 }

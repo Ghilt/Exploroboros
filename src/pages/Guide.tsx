@@ -367,6 +367,17 @@ move straight                  # a bare action — always runs`}</pre>
           <strong>first</strong> hop — but edge hops can then chain from it (<code>.target.e2.e1</code>,{' '}
           <code>.tile 5.e0</code>). A base like these can't sit <em>after</em> another hop.
         </p>
+        <p>
+          You can also compare two tile <strong>references</strong> by identity — do they name the{' '}
+          <em>same tile</em>? Write each reference bare (no leading <code>.</code>) around <code>==</code> /{' '}
+          <code>!=</code>: <code>target == straight</code>, <code>e0 != e3</code>,{' '}
+          <code>nearest-unvisited == target</code>. Either side is any tile reference (<code>target</code>,{' '}
+          <code>straight</code>, <code>back</code>, <code>eN</code>, <code>rN</code>/<code>lN</code>,{' '}
+          <code>tile N</code>, <code>fN</code>, <code>nearest-unvisited</code>), optionally chained{' '}
+          (<code>target.e1</code>). If either reference runs off the grid the comparison is{' '}
+          <strong>false either way</strong> — the same "a missing tile matches nothing" rule{' '}
+          <code>tile-type</code> uses.
+        </p>
         <DecorationDiagram />
         <pre className="guide-code">{`if visited.r1 > 0 then move l1                          # if the tile to my right is visited, turn left
 if visited.target == 0 then move [r1, l1, straight]    # split, but only onto unvisited tiles`}</pre>
@@ -490,6 +501,13 @@ move straight`}</pre>
           (<code>visited.target &gt; 0</code>). Reach for <code>allow</code> only to carve an exception out of a
           broader <code>forbid</code>. A directive constrains the <code>move</code>/<code>morph</code> lines that{' '}
           <em>follow</em> it — never the ones above.
+        </p>
+        <p className="guide-note">
+          A directive can also compare tile <a href="#predicates">references</a> by identity:{' '}
+          <code>directive if target != straight always forbid move</code> keeps <em>only</em> the straight
+          move (it forbids any candidate whose destination isn't the tile straight ahead). At the grid edge,
+          where <code>straight</code> runs off-plane, the comparison matches nothing and forbids nothing —
+          write <code>exists.straight and target != straight</code> if you'd rather the walker stop there.
         </p>
       </section>
 

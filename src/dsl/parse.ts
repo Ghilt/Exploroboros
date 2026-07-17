@@ -85,6 +85,11 @@ class Parser {
     }
     if (this.isKeyword('tile-type')) return this.parseShapeTest()
     if (this.isKeyword('exists')) return this.parseExistsTest()
+    // A bare tile-ref keyword (target / straight / eN / tile N / fN …) opens a tile-IDENTITY comparison
+    // (`target != straight`). None of these are attributes or predicate names, and each is a hard error on
+    // the numeric path today, so claiming them here only makes previously-invalid input valid. Must sit
+    // before the bare-predicate-ref check so a lone `target` gives a tile-comparison hint, not a predref.
+    if (this.looksLikeTileTerm()) return this.parseTileComparison()
     if (this.looksLikeBarePredicateRef()) {
       const t = this.next()
       return { kind: 'predref', name: t.text }
@@ -149,6 +154,43 @@ class Parser {
       throw new ParseFail('"exists" needs a path — the current tile always exists, e.g. exists.f0 or exists.e0', head.span)
     }
     return { kind: 'exists', path: this.parsePath() }
+  }
+
+  // A tile-IDENTITY comparison: `<tileterm> == <tileterm>` / `… != …` — do the two references name the same
+  // tile? A "tile term" is a bare (dotless-first) path resolved to a tile: target / straight / back /
+  // nearest-unvisited / eN / rN / lN / tile N / fN, optionally chained (`target.e1`, `tile 5.e0`). Only
+  // == / != (identity has no ordering). Committed to when the comparison starts with a tile-ref keyword.
+  private looksLikeTileTerm(): boolean {
+    const t = this.peek()
+    if (t.kind !== 'ident') return false
+    const w = t.text
+    return (
+      w === 'target' ||
+      w === 'straight' ||
+      w === 's' ||
+      w === 'back' ||
+      w === 'nearest-unvisited' ||
+      w === 'tile' || // bare `tile N`; `tile-type`/`tile-number` lex as their own single idents (no clash)
+      /^[erlf][0-9]+$/.test(w) // eN / rN / lN / fN
+    )
+  }
+  private parseTileComparison(): Pred {
+    const left = this.parseTileTerm()
+    const cmp = this.peek()
+    if (cmp.kind !== 'cmp' || (cmp.text !== '==' && cmp.text !== '!=' && cmp.text !== '=')) {
+      throw new ParseFail('a tile reference is compared by identity — use == or != to another tile reference, e.g. target != straight', cmp.span)
+    }
+    this.next()
+    const op: '==' | '!=' = cmp.text === '!=' ? '!=' : '==' // bare `=` normalises to `==`, as elsewhere
+    const right = this.parseTileTerm()
+    return { kind: 'tilecmp', op, left, right }
+  }
+  // A tile term: a first DOTLESS segment, then the same `.`-chained hops (with the base-must-be-first rule)
+  // as an attribute path — so `target`, `e3`, `tile 5.e0`, `target.e1` all parse; `straight.target` doesn't.
+  private parseTileTerm(): TilePath {
+    const segs: PathSeg[] = [this.parseSegment()]
+    this.parseDotHops(segs)
+    return segs
   }
 
   private parenIsPredicate(): boolean {
@@ -457,6 +499,14 @@ class Parser {
   // a standalone `.`-path (the path-preview scanner slices one out of a program and re-parses it).
   parsePath(): TilePath {
     const segs: PathSeg[] = []
+    this.parseDotHops(segs)
+    return segs
+  }
+
+  // Read `.`-prefixed hops onto `segs`, enforcing the base-must-be-first rule (target/tile/found each name a
+  // tile directly, so only ever the first segment). Shared by parsePath (every segment dotted) and
+  // parseTileTerm, which pre-seeds `segs` with a dotless first segment so its bases are rejected here too.
+  private parseDotHops(segs: PathSeg[]): void {
     while (this.peek().kind === 'dot') {
       this.next() // consume '.'
       const segTok = this.peek()
@@ -471,7 +521,6 @@ class Parser {
       }
       segs.push(seg)
     }
-    return segs
   }
 
   // One path segment (the token(s) after a `.`): straight/s, nearest-unvisited, target, tile N, or an

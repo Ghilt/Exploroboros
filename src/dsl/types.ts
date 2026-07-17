@@ -129,7 +129,15 @@ export type PredRef = { kind: 'predref'; name: string }
 // otherwise indistinguishable from "this path didn't resolve at all". A path is required — the current
 // tile always exists, so a bare `exists` would be trivially true and is rejected as a likely mistake.
 export type Exists = { kind: 'exists'; path: TilePath }
-export type Pred = Compare | ShapeTest | Not | BoolBin | PredGroup | PredRef | ListNumCompare | ListShapeCompare | Exists
+// Compare two tile REFERENCES by identity — do they name the same tile? Each operand is a "tile term": a
+// bare (dotless-first) path resolved to a tile — `target`, `straight`, `e3`, `tile 5`, `f0`, `target.e1`.
+// So `target != straight` forbids any move whose destination isn't the tile straight ahead. Identity has no
+// ordering, so only == / !=. An unresolved operand (a relative hop off the grid edge, or a relative/target
+// hop in a walker-free context) makes the comparison FALSE for BOTH ops — the same "missing tile → false"
+// rule ShapeTest/ListShapeCompare use — so at a grid edge `target != straight` simply stops constraining
+// (compose `exists.straight and target != straight` if you want the walker to halt there instead).
+export type TileCompare = { kind: 'tilecmp'; op: '==' | '!='; left: TilePath; right: TilePath }
+export type Pred = Compare | ShapeTest | Not | BoolBin | PredGroup | PredRef | ListNumCompare | ListShapeCompare | Exists | TileCompare
 
 // ---- parse results (errors never thrown across the module boundary) ----
 export type Span = { start: number; end: number }

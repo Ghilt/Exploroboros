@@ -170,6 +170,55 @@ describe('parse — precedence & structure', () => {
   })
 })
 
+describe('parse — tile-identity comparison', () => {
+  it('parses bare tile terms compared by identity', () => {
+    expect(ok('target != straight')).toEqual({
+      kind: 'tilecmp',
+      op: '!=',
+      left: [{ kind: 'target' }],
+      right: [{ kind: 'straight' }],
+    })
+    expect(ok('e0 == r1')).toEqual({
+      kind: 'tilecmp',
+      op: '==',
+      left: [{ kind: 'edge', index: 0 }],
+      right: [{ kind: 'turn', dir: 'r', n: 1 }],
+    })
+    expect(ok('f0 == target')).toMatchObject({ kind: 'tilecmp', op: '==' })
+  })
+
+  it('parses chained tile terms and a `tile N` base (first segment is dotless)', () => {
+    expect(ok('target.e1 == straight')).toEqual({
+      kind: 'tilecmp',
+      op: '==',
+      left: [{ kind: 'target' }, { kind: 'edge', index: 1 }],
+      right: [{ kind: 'straight' }],
+    })
+    expect(ok('tile 5.e0 == target')).toEqual({
+      kind: 'tilecmp',
+      op: '==',
+      left: [{ kind: 'tile', index: 5 }, { kind: 'edge', index: 0 }],
+      right: [{ kind: 'target' }],
+    })
+  })
+
+  it('normalizes a bare = and composes with and/or', () => {
+    expect(ok('target = straight')).toMatchObject({ kind: 'tilecmp', op: '==' })
+    expect(ok('target == straight and visited > 0').kind).toBe('bool')
+  })
+
+  it('does NOT hijack an attribute path that merely reads .target / .straight (stays numeric)', () => {
+    expect(ok('visited.target == 0').kind).toBe('compare')
+    expect(ok('tile-number.target != tile-number.straight').kind).toBe('compare')
+  })
+
+  it('rejects ordering, a missing right term, and a base after a hop', () => {
+    expect(errOf('target < straight')).toMatch(/== or !=/)
+    expect(errOf('target ==')).toMatch(/edge|tile reference/)
+    expect(errOf('straight.target == e0')).toMatch(/first hop/)
+  })
+})
+
 describe('parse — attribute .-paths', () => {
   it('parses an edge hop on an attribute', () => {
     expect(ok('visited.e1 == 0')).toEqual({

@@ -42,6 +42,8 @@ export function predReadsTarget(pred: Pred): boolean {
       return pred.elems.some(exprReadsTarget) || exprReadsTarget(pred.right)
     case 'shapecmp':
       return pred.paths.some(pathHasTarget)
+    case 'tilecmp':
+      return pathHasTarget(pred.left) || pathHasTarget(pred.right)
     case 'not':
       return predReadsTarget(pred.operand)
     case 'bool':
@@ -102,6 +104,10 @@ export function predFoundIndices(pred: Pred, out: number[] = []): number[] {
     case 'shapecmp':
       pred.paths.forEach((p) => pathFoundIndices(p, out))
       break
+    case 'tilecmp':
+      pathFoundIndices(pred.left, out)
+      pathFoundIndices(pred.right, out)
+      break
     case 'not':
       predFoundIndices(pred.operand, out)
       break
@@ -161,6 +167,8 @@ export function predIsAbsolute(pred: Pred): boolean {
       return pred.elems.every(exprIsAbsolute) && exprIsAbsolute(pred.right)
     case 'shapecmp':
       return pred.paths.every(pathIsAbsolute)
+    case 'tilecmp':
+      return pathIsAbsolute(pred.left) && pathIsAbsolute(pred.right)
     case 'not':
       return predIsAbsolute(pred.operand)
     case 'bool':
@@ -219,6 +227,8 @@ export function predPathReach(pred: Pred): PathReach {
       return pred.elems.reduce<PathReach>((r, e) => maxReach(r, exprReach(e)), exprReach(pred.right))
     case 'shapecmp':
       return pred.paths.reduce<PathReach>((r, p) => maxReach(r, pathReach(p)), 'self')
+    case 'tilecmp':
+      return maxReach(pathReach(pred.left), pathReach(pred.right))
     case 'not':
       return predPathReach(pred.operand)
     case 'bool':
