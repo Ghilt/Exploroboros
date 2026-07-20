@@ -36,10 +36,14 @@ export type PathOccurrence = {
 }
 
 // A hop-shaped move Chain lifted to (base, refs). An inline `find-tile { … }` base can't be previewed → null.
+// A COMPUTED `f(expr)` base index also can't be resolved statically (no per-tick value here) → null.
 function liftChain(chain: Chain): { base: OccurrenceBase; refs: EdgeRef[] } | null {
   if (!chain.base) return { base: { kind: 'current' }, refs: [...chain.refs] }
-  if (chain.base.kind === 'found') return { base: { kind: 'found', index: chain.base.index }, refs: [...chain.refs] }
-  return null // inline find-tile base
+  if (chain.base.kind === 'found' && typeof chain.base.index === 'number')
+    return { base: { kind: 'found', index: chain.base.index }, refs: [...chain.refs] }
+  if (chain.base.kind === 'tile' && typeof chain.base.index === 'number')
+    return { base: { kind: 'tile', index: chain.base.index }, refs: [...chain.refs] }
+  return null // inline find-tile base, or a computed f(expr)/t(expr) index
 }
 
 // A TilePath lifted to (base, refs) the same way exec.ts:resolvePathFrom splits its first segment.
@@ -50,12 +54,14 @@ function liftPath(path: TilePath): { base: OccurrenceBase; refs: EdgeRef[] } | n
   if (path.length === 0) return null
   const first = path[0]
   const isBase = first.kind === 'target' || first.kind === 'tile' || first.kind === 'found'
+  // A computed `.t(expr)` / `.f(expr)` base index has no static value in the editor → can't preview.
+  if ((first.kind === 'tile' || first.kind === 'found') && typeof first.index !== 'number') return null
   const base: OccurrenceBase =
     first.kind === 'target'
       ? { kind: 'target' }
-      : first.kind === 'tile'
+      : first.kind === 'tile' && typeof first.index === 'number'
         ? { kind: 'tile', index: first.index }
-        : first.kind === 'found'
+        : first.kind === 'found' && typeof first.index === 'number'
           ? { kind: 'found', index: first.index }
           : { kind: 'current' }
   const refs: EdgeRef[] = []
@@ -88,6 +94,7 @@ function splitElems(toks: ReadonlyArray<Tok>, from: number, endExcl: number): Ar
   let start = from
   let bracket = 0
   let brace = 0
+  let paren = 0 // a computed amount `e([A, B]:max)` has its own commas inside parens — don't split on those
   for (let k = from; k < endExcl; k += 1) {
     const x = toks[k]
     if (x.kind !== 'sym') continue
@@ -95,7 +102,9 @@ function splitElems(toks: ReadonlyArray<Tok>, from: number, endExcl: number): Ar
     else if (x.text === ']') bracket -= 1
     else if (x.text === '{') brace += 1
     else if (x.text === '}') brace -= 1
-    else if (x.text === ',' && bracket === 0 && brace === 0) {
+    else if (x.text === '(') paren += 1
+    else if (x.text === ')') paren -= 1
+    else if (x.text === ',' && bracket === 0 && brace === 0 && paren === 0) {
       out.push([start, k - 1])
       start = k + 1
     }
@@ -133,7 +142,12 @@ function delimitTarget(toks: ReadonlyArray<Tok>, j: number): number {
     const x = toks[k]
     if (x.kind === 'word' || x.kind === 'num') k += 1
     else if (x.kind === 'sym' && (x.text === '.' || x.text === '..')) k += 1
-    else break
+    else if (x.kind === 'sym' && x.text === '(') {
+      // A computed amount `r(steps % 2)` — skip its balanced parens so the ref is captured whole.
+      const close = matchPair(toks, k, '(', ')')
+      if (close === -1) return toks.length
+      k = close + 1
+    } else break
   }
   return k
 }
@@ -209,7 +223,13 @@ export function scanPaths(programText: string): PathOccurrence[] {
         const seg = toks[m]
         if (seg && seg.kind === 'word') {
           m += 1
-          if (seg.text === 'tile' && toks[m] && toks[m].kind === 'num') m += 1 // `.tile N`
+          if (seg.text === 'tile' && toks[m] && toks[m].kind === 'num') {
+            m += 1 // legacy `.tile N`
+          } else if (toks[m] && toks[m].kind === 'sym' && toks[m].text === '(') {
+            // computed `.e(expr)` / `.t(expr)` / `.f(expr)` — skip the balanced parens
+            const close = matchPair(toks, m, '(', ')')
+            m = close === -1 ? toks.length : close + 1
+          }
         } else if (seg && seg.kind === 'num') {
           m += 1 // `.1` — invalid; consume so parsePathFragment rejects it and we skip
         } else {

@@ -235,6 +235,19 @@ describe('migrateRecipe (the upgrade chain that keeps old images readable)', () 
     if (res.ok) expect(res.migratedFrom).toBe(12)
   })
 
+  it('v13→v14 is additive — it just advances the version (computed refs / tN are new syntax)', () => {
+    // Like the prior additive steps: a v13 recipe's programs use only literal refs / legacy `tile N`, so
+    // they still parse and reproduce unchanged. The bump only stamps an image that USES `r(steps % 2)` /
+    // `.tN` as v14 so an older build refuses it cleanly rather than failing to compile the traverser.
+    const traversers = [{ id: 't1', name: 'W', text: 'move straight' }]
+    const out = migrateRecipe({ schemaVersion: 13, traversers }, 14)
+    expect(out).toMatchObject({ schemaVersion: 14, traversers })
+    // A current v13 recipe now opens (migrates to 14); below current so migratedFrom is set.
+    const res = parseRecipe(JSON.stringify({ ...buildRecipe(input()), schemaVersion: 13 }))
+    expect(res.ok).toBe(true)
+    if (res.ok) expect(res.migratedFrom).toBe(13)
+  })
+
   it('round-trips a spiral / radial recipe through parseRecipe', () => {
     for (const scheme of ['spiral', 'radial'] as const) {
       const res = parseRecipe(JSON.stringify({ ...buildRecipe(input()), numberingScheme: scheme }))

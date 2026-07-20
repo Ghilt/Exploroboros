@@ -247,9 +247,10 @@ move straight                  # a bare action — always runs`}</pre>
           <tbody>
             <tr><td><code>straight</code></td><td>The edge you're heading at — the heading edge itself. (<code>s</code> for short.)</td></tr>
             <tr><td><code>back</code></td><td>The <strong>reverse</strong> of <code>straight</code> — the edge behind you (a U-turn). On the concave wedge it follows the straight-through pairing, so it crosses cleanly.</td></tr>
-            <tr><td><code>r1</code>, <code>r2</code>, …</td><td>Turn <strong>right</strong> (clockwise): heading <strong>+1</strong>, +2, … around the edge ring.</td></tr>
-            <tr><td><code>l1</code>, <code>l2</code>, …</td><td>Turn <strong>left</strong> (counter-clockwise): heading <strong>−1</strong>, −2, … around the ring.</td></tr>
+            <tr><td><code>r1</code>, <code>r2</code>, …</td><td>Turn <strong>right</strong> (clockwise): heading <strong>+1</strong>, +2, … around the edge ring. <code>r0</code> is the same as <code>straight</code>.</td></tr>
+            <tr><td><code>l1</code>, <code>l2</code>, …</td><td>Turn <strong>left</strong> (counter-clockwise): heading <strong>−1</strong>, −2, … around the ring. <code>l0</code> is also <code>straight</code>.</td></tr>
             <tr><td><code>eN</code> (<code>e0</code>, <code>e3</code>…)</td><td>The <strong>absolute</strong> edge by its <em>clockwise-from-top</em> number (0 at the top), regardless of heading.</td></tr>
+            <tr><td><code>r(<em>expr</em>)</code>, <code>e(<em>expr</em>)</code>, …</td><td><strong>Computed</strong>: the number can be an expression in parentheses, worked out from state each step — <code>r(steps % 2)</code>, <code>l(A + B.e0)</code>, <code>e(orientation + orientation.e2)</code>. Works for <code>e</code>/<code>r</code>/<code>l</code> (and <code>f</code>/<code>t</code> in paths). Rounds to a whole edge.</td></tr>
             <tr><td><code>nearest-unvisited</code></td><td>The unvisited neighbour the fewest edges around from your heading (great for carving mazes).</td></tr>
           </tbody>
         </table>
@@ -356,16 +357,17 @@ move straight                  # a bare action — always runs`}</pre>
           </thead>
           <tbody>
             <tr><td><code>.e0</code>, <code>.r1</code>, <code>.straight</code>…</td><td>The neighbour across that edge — any <a href="#moving">edge name</a> (<code>eN</code>, <code>r</code>/<code>l</code>, <code>straight</code>, <code>back</code>, <code>nearest-unvisited</code>).</td></tr>
-            <tr><td><code>.e0.e0.e3</code>, <code>.r1.e5</code></td><td>Follow several edges in turn (re-aiming at each) and read the tile you land on.</td></tr>
+            <tr><td><code>.e0.e0.e3</code>, <code>.r1.e5</code></td><td>Follow several edges in turn (re-aiming at each) and read the tile you land on. Any hop's number can be computed: <code>.e(orientation)</code>, <code>.r(steps % 2)</code>.</td></tr>
             <tr><td><code>.target</code></td><td>The tile a move is <strong>heading to</strong>. Dynamic: with a split it's tested <em>per branch</em>, so it filters which branches survive. This is how a <a href="#directives">directive</a> gates moves.</td></tr>
-            <tr><td><code>.tile N</code></td><td>The tile with absolute number <code>N</code>.</td></tr>
-            <tr><td><code>.target.e1</code>, <code>.tile 5.e0</code></td><td>Chain edge hops <em>from</em> a <code>.target</code> / <code>.tile N</code> tile (a relative hop like <code>.r1</code> turns from your walker's current heading).</td></tr>
+            <tr><td><code>.tN</code> (<code>.t5</code>, <code>.t(steps + 1)</code>)</td><td>The tile with absolute number <code>N</code> (a computed number is allowed). <code>.tile N</code> is an older spelling that still works.</td></tr>
+            <tr><td><code>.target.e1</code>, <code>.t5.e0</code></td><td>Chain edge hops <em>from</em> a <code>.target</code> / <code>.tN</code> tile (a relative hop like <code>.r1</code> turns from your walker's current heading).</td></tr>
           </tbody>
         </table>
         <p className="guide-note">
-          <code>.target</code> and <code>.tile N</code> name a tile directly, so each must be the{' '}
+          <code>.target</code> and <code>.tN</code> name a tile directly, so each must be the{' '}
           <strong>first</strong> hop — but edge hops can then chain from it (<code>.target.e2.e1</code>,{' '}
-          <code>.tile 5.e0</code>). A base like these can't sit <em>after</em> another hop.
+          <code>.t5.e0</code>). A base like these can't sit <em>after</em> another hop. (Heads-up: in the
+          Initial-state pane <code>t1</code> means <em>traverser 1</em>; here <code>.t1</code> is <em>tile 1</em>.)
         </p>
         <p>
           You can also compare two tile <strong>references</strong> by identity — do they name the{' '}
@@ -373,7 +375,7 @@ move straight                  # a bare action — always runs`}</pre>
           <code>!=</code>: <code>target == straight</code>, <code>e0 != e3</code>,{' '}
           <code>nearest-unvisited == target</code>. Either side is any tile reference (<code>target</code>,{' '}
           <code>straight</code>, <code>back</code>, <code>eN</code>, <code>rN</code>/<code>lN</code>,{' '}
-          <code>tile N</code>, <code>fN</code>, <code>nearest-unvisited</code>), optionally chained{' '}
+          <code>tN</code>, <code>fN</code>, <code>nearest-unvisited</code>), optionally chained{' '}
           (<code>target.e1</code>). If either reference runs off the grid the comparison is{' '}
           <strong>false either way</strong> — the same "a missing tile matches nothing" rule{' '}
           <code>tile-type</code> uses.
@@ -597,11 +599,19 @@ if visited == 2 then move f0`}</pre>
           <code>A.f1</code>). Because it names a tile, it must come <strong>first</strong> —{' '}
           <code>move e0.f1</code> and <code>visited.e0.f1</code> are not allowed.
         </p>
+        <p>
+          An absolute <strong>tile address</strong> <code>tN</code> is a base the same way — <code>move t5</code>{' '}
+          jumps to the tile numbered 5, <code>move t(steps)</code> to a computed number, and{' '}
+          <code>move t5.e0</code> jumps there then steps across edge 0. (A jump has no arrival edge, so it
+          keeps your current heading.)
+        </p>
         <p className="guide-note">
           Numbering follows the <em>order you wrote them</em>, so <code>fN</code> is stable. If a{' '}
           <code>find-tile</code> didn't run this tick (a guard skipped it) or found nothing, its <code>fN</code>{' '}
           reads as off-grid — a <code>move fN</code> simply does nothing, and <code>tile-type.fN</code> falls
-          back to its default. Referencing an <code>fN</code> with no matching block is an error.
+          back to its default. Referencing an <code>fN</code> with no matching block is an error. You can also
+          pick which one by a computed number — <code>f([A, B]:max)</code> — in which case it's checked while
+          it runs (an out-of-range choice just reads as off-grid) rather than up front.
         </p>
 
         <p className="guide-subhead"><strong>Did it find anything? — <code>exists.path</code></strong></p>

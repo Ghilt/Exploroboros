@@ -48,3 +48,20 @@ describe('predIsAbsolute / predFoundIndices — tile comparison', () => {
     expect(predFoundIndices(pred('f2 == target'))).toEqual([2])
   })
 })
+
+describe('computed amounts inside a `.`-path are seen by the analysis', () => {
+  it('an edge amount reading walker state makes the path NON-absolute (find-lowest rejects it)', () => {
+    expect(predIsAbsolute(pred('visited.e(orientation) == 0'))).toBe(true) // orientation is a tile attr
+    expect(predIsAbsolute(pred('visited.e(steps) == 0'))).toBe(false) // steps is walker state
+    expect(predIsAbsolute(pred('visited.t(orientation) == 0'))).toBe(true)
+  })
+
+  it('an amount reading `.target` makes the guard read the destination', () => {
+    expect(predReadsTarget(pred('visited.e(visited.target) == 0'))).toBe(true)
+    expect(predReadsTarget(pred('visited.e(orientation) == 0'))).toBe(false)
+  })
+
+  it('a literal `.fN` nested inside a computed amount is still collected', () => {
+    expect(predFoundIndices(pred('visited.e(visited.f0) == 0'))).toEqual([0])
+  })
+})

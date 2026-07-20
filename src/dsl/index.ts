@@ -28,6 +28,7 @@ export type {
   Pred,
   PathSeg,
   TilePath,
+  EdgeAmount,
   Span,
   ParseError,
   Result,
@@ -41,7 +42,7 @@ export { ATTRIBUTES, TILE_ATTRIBUTES, RAMP_ATTRIBUTES, attrSpec } from './attrib
 
 export { parsePredicate, parseExpr, parsePathFragment } from './parse'
 export { serialize, serializeExpr, serializePath } from './serialize'
-export { evalNumber, evalPredicate } from './eval'
+export { evalNumber, evalPredicate, amountValue } from './eval'
 export { predReadsTarget, exprReadsTarget, predFoundIndices, exprFoundIndices, predIsAbsolute, predPathReach } from './target'
 export type { PathReach } from './target'
 export { replaceAt, type Path } from './edit'

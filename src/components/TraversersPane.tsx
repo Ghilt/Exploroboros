@@ -120,7 +120,10 @@ export function TraversersPane({
             numbered edge), or <code>move nearest-unvisited</code> (step to the closest-by-heading unvisited
             neighbour — the built-in walker). <code>move [r1, l1]</code> splits (capped by{' '}
             <code>max-split</code>); a range <code>move [e1..e3]</code> splits over every edge between;{' '}
-            <code>move straight.r1</code> hops twice in one tick.
+            <code>move straight.r1</code> hops twice in one tick. Any edge number can be a{' '}
+            <strong>computed expression</strong> in parentheses — <code>move r(steps % 2)</code>,{' '}
+            <code>move e(orientation)</code> — and <code>r0</code>/<code>l0</code> both mean{' '}
+            <code>straight</code>.
           </p>
           <p>
             <strong>Registries:</strong> <code>put [A] = [A] + 1</code>, <code>increase P</code>. A/B/C live on
@@ -383,6 +386,7 @@ if <predicate> { … } else { … }  a block (else optional; else if chains)
 move straight | back | r1 | l2 | e3 | nearest-unvisited
 move [r1, l1]                    split — capped by max-split
 move e0.e4                       two hops in one tick (dot chains)
+move r(steps % 2)                a computed number (e/r/l/f/t); r0 = straight
 put A = A + 1                    write a tile registry (A/B/C, bare)
 increase P                       bump a walker register (P/Q/R)
 directive if <predicate> always forbid move
@@ -392,6 +396,7 @@ find-tile <predicate> {          search outward for a tile → f0
   move [e0, e1, e2, e3]          ghost moves spread the search
 }
 move f0                          then step to the tile it found
+move t5                          jump to the absolute tile #5 (t(expr) too)
 
 find-lowest-tile visited == 0    lowest-numbered match, whole plane → f1
 find-highest-tile [A] > 0        highest-numbered match → f2`}</pre>
@@ -405,7 +410,8 @@ find-highest-tile [A] > 0        highest-numbered match → f2`}</pre>
               <li>
                 <strong>edges</strong> — <code>straight</code>, <code>back</code> (reverse),{' '}
                 <code>r1</code>/<code>l1</code> (turn), <code>e3</code> (numbered edge),{' '}
-                <code>nearest-unvisited</code>. Chain hops with <code>.</code>: <code>e0.e4</code>.
+                <code>nearest-unvisited</code>. Chain hops with <code>.</code>: <code>e0.e4</code>. A number
+                can be computed: <code>r(steps % 2)</code>.
               </li>
               <li>
                 <strong>registries</strong> — <code>A</code>/<code>B</code>/<code>C</code> sit on the tile

@@ -170,8 +170,9 @@ class Parser {
       w === 's' ||
       w === 'back' ||
       w === 'nearest-unvisited' ||
-      w === 'tile' || // bare `tile N`; `tile-type`/`tile-number` lex as their own single idents (no clash)
-      /^[erlf][0-9]+$/.test(w) // eN / rN / lN / fN
+      w === 'tile' || // legacy `tile N`; `tile-type`/`tile-number` lex as their own single idents (no clash)
+      /^[erltf][0-9]+$/.test(w) || // eN / rN / lN / fN / tN
+      (/^[erltf]$/.test(w) && this.toks[this.pos + 1]?.kind === 'lparen') // e(…) / r(…) / t(…) computed
     )
   }
   private parseTileComparison(): Pred {
@@ -523,16 +524,30 @@ class Parser {
     }
   }
 
-  // One path segment (the token(s) after a `.`): straight/s, nearest-unvisited, target, tile N, or an
-  // edge/turn `eN`/`rN`/`lN` (.e5, .r1, .l2). The lexer now yields `e5` as ONE identifier (digits
-  // continue an identifier), so we split it with a regex here — the same way the traverser DSL's
-  // parseEdgeRef reads a move. Bare numbers (`.1`) are rejected — edges are `.eN`.
+  // One path segment (the token(s) after a `.`): straight/s, nearest-unvisited, target, or a numbered
+  // reference `eN`/`rN`/`lN`/`fN`/`tN` (`.e5`, `.r1`, `.l2`, `.f0`, `.t12`). The lexer yields `e5` as ONE
+  // identifier (digits continue an identifier), so we split it with a regex here — the same way the
+  // traverser DSL's parseEdgeRef reads a move. The number may also be a parenthesized EXPRESSION —
+  // `.e(orientation)`, `.r(steps % 2)`, `.t(steps + 1)`, `.f([A, B]:max)` — parsed by the shared expression
+  // grammar and resolved to an integer at eval time. `.tile N` stays accepted as a legacy alias for `.tN`
+  // (re-serialized as `tN`). Bare numbers (`.1`) are rejected — edges are `.eN`.
   private parseSegment(): PathSeg {
     const t = this.peek()
     if (t.kind !== 'ident') {
       throw new ParseFail('expected an edge after ".", e.g. .e1, .r1, .straight, .target', t.span)
     }
     const word = t.text
+    // A computed reference: `e(expr)` / `r(expr)` / `l(expr)` / `f(expr)` / `t(expr)`.
+    if (/^[erltf]$/.test(word) && this.toks[this.pos + 1]?.kind === 'lparen') {
+      this.next() // the letter
+      this.next() // '('
+      const amount = this.parseExpr()
+      this.expect('rparen', 'expected ")" to close the expression, e.g. .r(steps % 2)')
+      if (word === 'e') return { kind: 'edge', index: amount }
+      if (word === 'f') return { kind: 'found', index: amount }
+      if (word === 't') return { kind: 'tile', index: amount }
+      return { kind: 'turn', dir: word as 'r' | 'l', n: amount }
+    }
     if (word === 'straight' || word === 's') {
       this.next()
       return { kind: 'straight' }
@@ -550,24 +565,26 @@ class Parser {
       return { kind: 'target' }
     }
     if (word === 'tile') {
+      // Legacy alias for `tN`: `.tile 12`. Kept so old stored programs still parse; re-serializes as `t12`.
       this.next()
       const num = this.peek()
-      if (num.kind !== 'number') throw new ParseFail('expected a tile number, e.g. .tile 12', num.span)
+      if (num.kind !== 'number') throw new ParseFail('expected a tile number, e.g. .t12', num.span)
       this.next()
       const idx = Number(num.text)
       if (!Number.isInteger(idx) || idx < 0) throw new ParseFail('tile number must be a whole number ≥ 0', num.span)
       return { kind: 'tile', index: idx }
     }
-    const m = /^([erlf])([0-9]+)$/.exec(word)
+    const m = /^([erltf])([0-9]+)$/.exec(word)
     if (m) {
       this.next()
       const n = Number(m[2])
       if (m[1] === 'e') return { kind: 'edge', index: n }
       if (m[1] === 'f') return { kind: 'found', index: n }
-      if (n < 1) throw new ParseFail('a turn must be r1/l1 or higher', t.span)
+      if (m[1] === 't') return { kind: 'tile', index: n }
+      // r0 / l0 are valid — a 0-turn is `straight` (the turn arithmetic collapses to the heading edge).
       return { kind: 'turn', dir: m[1] as 'r' | 'l', n }
     }
-    throw new ParseFail(`"${word}" is not an edge — use .e0, .r1/.l1…, .straight, .back, .nearest-unvisited, .fN, or .target`, t.span)
+    throw new ParseFail(`"${word}" is not an edge — use .e0, .r1/.l1…, .t5, .straight, .back, .nearest-unvisited, .fN, or .target`, t.span)
   }
 
   private isKeyword(word: string): boolean {

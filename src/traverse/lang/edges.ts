@@ -22,11 +22,24 @@
 import type { Tiling, TileNode } from '../../tiling'
 import { across, edgeToLocalSide, localSideToEdge, nodeById, opposite } from '../../tiling'
 import { tileState, visitCount, type TileState } from '../../canvas'
+import { amountValue, type Expr } from '../../dsl'
 import type { EdgeRef, Movement } from './types'
 
 // Where a single hop lands: the destination tile, and the new heading (an edge number on that tile),
 // or null at a boundary / when the ref names no such edge.
 export type Hop = { tile: string; heading: number } | null
+
+// Resolve a computed edge/turn amount (`r(steps % 2)`, `e(orientation)`) to an integer, given the tile +
+// heading the hop acts from. Supplied by whoever owns an EvalContext (exec.ts's walker run, the colorizer,
+// the path preview); when omitted (pure literal resolution) an expression amount degrades to 0.
+export type AmountEval = (expr: Expr, tile: string, heading: number) => number
+
+// The concrete integer for a ref's `edge`/`turn` amount — a literal verbatim, an expression via evalAmount
+// (rounded to nearest), 0 for the non-numeric kinds (straight/back/unvisited ignore it).
+function amountFor(ref: EdgeRef, tile: string, heading: number, evalAmount?: AmountEval): number {
+  const raw = ref.kind === 'turn' ? ref.n : ref.kind === 'edge' ? ref.index : 0
+  return amountValue(raw, (e) => (evalAmount ? evalAmount(e, tile, heading) : 0))
+}
 
 // Distance around the edge ring in [0, floor(n/2)].
 function ringDist(a: number, b: number, n: number): number {
@@ -80,19 +93,20 @@ function resolveUnvisited(
   return bestLocal < 0 ? null : stepLocal(tiling, tile, bestLocal)
 }
 
-// The edge NUMBER a fixed-edge ref resolves to on `node`. straight/turn are relative to the heading;
-// in ABSOLUTE movement they are relative to north (edge 0). `unvisited` returns null (it needs the
-// overlay and is handled separately).
-function targetEdge(n: number, heading: number, movement: Movement, ref: EdgeRef): number | null {
+// The edge NUMBER a fixed-edge ref resolves to on a tile with `sides` sides. straight/turn are relative to
+// the heading; in ABSOLUTE movement they are relative to north (edge 0). `amount` is the pre-resolved
+// integer for edge/turn (see amountFor). `unvisited` returns null (it needs the overlay and is handled
+// separately).
+function targetEdge(sides: number, heading: number, movement: Movement, ref: EdgeRef, amount: number): number | null {
   const base = movement === 'absolute' ? 0 : heading
-  const wrap = (e: number) => ((e % n) + n) % n
+  const wrap = (e: number) => ((e % sides) + sides) % sides
   switch (ref.kind) {
     case 'edge':
-      return wrap(ref.index)
+      return wrap(amount)
     case 'straight':
       return wrap(base)
     case 'turn':
-      return wrap(base + (ref.dir === 'r' ? ref.n : -ref.n))
+      return wrap(base + (ref.dir === 'r' ? amount : -amount))
     case 'unvisited':
     case 'back':
       return null // both need the tiling/node (overlay, straight-through pairing) — handled in resolveRef
@@ -106,6 +120,7 @@ export function resolveRef(
   heading: number,
   movement: Movement,
   ref: EdgeRef,
+  evalAmount?: AmountEval,
 ): Hop {
   if (ref.kind === 'unvisited') return resolveUnvisited(tiling, overlay, tile, heading)
   const node = nodeById(tiling, tile)
@@ -117,7 +132,8 @@ export function resolveRef(
     const base = movement === 'absolute' ? 0 : heading
     return stepLocal(tiling, tile, edgeToLocalSide(node, straightPartner(tiling, node, base)))
   }
-  const edge = targetEdge(node.sides.length, heading, movement, ref)
+  const amount = amountFor(ref, tile, heading, evalAmount)
+  const edge = targetEdge(node.sides.length, heading, movement, ref, amount)
   if (edge === null) return null
   return stepLocal(tiling, tile, edgeToLocalSide(node, edge))
 }
@@ -133,10 +149,13 @@ export function resolveChain(
   heading: number,
   movement: Movement,
   chain: ReadonlyArray<EdgeRef>,
+  evalAmount?: AmountEval,
 ): Hop {
   let cur: { tile: string; heading: number } = { tile, heading }
   for (const ref of chain) {
-    const hop = resolveRef(tiling, overlay, cur.tile, cur.heading, movement, ref)
+    // Amounts resolve per hop, against the tile+heading reached so far (so `orientation` in an amount reads
+    // the current hop's tile, `steps`/`heading` the walker).
+    const hop = resolveRef(tiling, overlay, cur.tile, cur.heading, movement, ref, evalAmount)
     if (!hop) return null
     cur = hop
   }
@@ -155,11 +174,12 @@ export function walkChain(
   heading: number,
   movement: Movement,
   refs: ReadonlyArray<EdgeRef>,
+  evalAmount?: AmountEval,
 ): string[] {
   const tiles: string[] = [tile]
   let cur: { tile: string; heading: number } = { tile, heading }
   for (const ref of refs) {
-    const hop = resolveRef(tiling, overlay, cur.tile, cur.heading, movement, ref)
+    const hop = resolveRef(tiling, overlay, cur.tile, cur.heading, movement, ref, evalAmount)
     if (!hop) break
     cur = hop
     tiles.push(cur.tile)

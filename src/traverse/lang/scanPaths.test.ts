@@ -183,3 +183,29 @@ describe('scanPaths — robustness', () => {
     expect(scanPaths('if visited. > 0 then move straight')).toEqual([expect.objectContaining({ text: 'straight' })])
   })
 })
+
+describe('scanPaths — computed refs (parenthesized amounts)', () => {
+  it('captures a computed move ref whole', () => {
+    const occ = scanPaths('move r(steps % 2)')
+    expect(occ).toHaveLength(1)
+    expect(occ[0].text).toBe('r(steps % 2)')
+    expect(occ[0].refs).toHaveLength(1)
+    expect(occ[0].refs[0]).toMatchObject({ kind: 'turn', dir: 'r' })
+  })
+
+  it('does not choke on parens — other paths in the same program still scan', () => {
+    const occ = scanPaths('move r(steps % 2)\nif visited.e1 > 0 then move straight')
+    // the plain neighbour-read path is still found (the parens didn't swallow it)
+    expect(byText(occ, 'visited.e1')).toHaveLength(1)
+    expect(one(occ, 'visited.e1').refs).toEqual([{ kind: 'edge', index: 1 }])
+    // and the computed move + the plain move are both present
+    expect(byText(occ, 'r(steps % 2)')).toHaveLength(1)
+    expect(byText(occ, 'straight')).toHaveLength(1)
+  })
+
+  it('a computed f(expr) base is not previewable (dropped), leaving other paths intact', () => {
+    const occ = scanPaths('if visited.e1 > 0 then move f([A, B]:max)')
+    expect(byText(occ, 'visited.e1')).toHaveLength(1) // still scanned past the paren'd list
+    expect(byText(occ, 'f([A, B]:max)')).toHaveLength(0) // computed base index → no preview line
+  })
+})

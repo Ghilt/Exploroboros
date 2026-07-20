@@ -11,9 +11,11 @@
 
 import type { Tiling, TileNode } from '../../tiling'
 import { nodeById } from '../../tiling'
-import { evalNumber, evalPredicate, predReadsTarget, serializePath, type EvalContext, type PathSeg, type TilePath } from '../../dsl'
+import { amountValue, evalNumber, evalPredicate, predReadsTarget, serializePath, type EdgeAmount, type EvalContext, type Expr, type PathSeg, type TilePath } from '../../dsl'
 import type { TileState } from '../../canvas'
-import { resolveChain, type Hop } from './edges'
+import { resolveChain, type AmountEval, type Hop } from './edges'
+
+const EMPTY_INDEX: ReadonlyMap<string, number> = new Map()
 import { bfsFind } from './find'
 import { findExtreme, type FindLowestCache, type MatchAt, type Numbering } from './findLowest'
 import { serializeChain, serializeGuard, serializeStmt, serializeWriteTarget } from './serialize'
@@ -98,15 +100,32 @@ export function resolveAbsolutePath(
   overlay: ReadonlyMap<string, TileState>,
   startId: string,
   path: TilePath,
-  // The user-facing numbering order for `.tile N` (absent = generation order, a test-only fallback).
+  // The user-facing numbering order for `.tN` (absent = generation order, a test-only fallback).
   order?: ReadonlyArray<string>,
+  // For a computed amount that reads `tile-number` (`.t(tile-number + 1)`); absent = tile-number reads 0.
+  indexById?: ReadonlyMap<string, number>,
 ): TileNode | null {
   if (path.length === 0) return nodeById(tiling, startId) ?? null
+  // A computed `edge`/`tile` amount in this path (`.e(orientation)`, `.t(tile-number + 1)`) resolves
+  // walker-free: tile attributes + absolute `.`-paths work; walker attributes (steps/heading/…) read 0.
+  const evalAmount: AmountEval = (expr, tile) => {
+    const node = nodeById(tiling, tile)
+    if (!node) return 0
+    const ctx: EvalContext = {
+      node,
+      tiling,
+      overlay,
+      indexById: indexById ?? EMPTY_INDEX,
+      nodeForPath: (p) => resolveAbsolutePath(tiling, overlay, tile, p, order, indexById),
+    }
+    return evalNumber(expr, ctx)
+  }
   const first = path[0]
   // A `tile N` base anchors an absolute tile; trailing hops must be absolute `edge` refs (relative ones
   // need a walker). `startId` is irrelevant once we've jumped to the named tile.
   if (first.kind === 'tile') {
-    const anchor = order ? order[first.index] : tiling.nodes[first.index]?.id
+    const idx = amountValue(first.index, (e) => evalAmount(e, startId, 0))
+    const anchor = order ? order[idx] : tiling.nodes[idx]?.id
     if (!anchor || !nodeById(tiling, anchor)) return null
     const rest: EdgeRef[] = []
     for (let i = 1; i < path.length; i += 1) {
@@ -115,7 +134,7 @@ export function resolveAbsolutePath(
       rest.push({ kind: 'edge', index: seg.index })
     }
     if (rest.length === 0) return nodeById(tiling, anchor) ?? null
-    const hop = resolveChain(tiling, overlay, anchor, 0, 'relative', rest)
+    const hop = resolveChain(tiling, overlay, anchor, 0, 'relative', rest, evalAmount)
     return hop ? nodeById(tiling, hop.tile) ?? null : null
   }
   const refs: EdgeRef[] = []
@@ -124,8 +143,32 @@ export function resolveAbsolutePath(
     refs.push({ kind: 'edge', index: seg.index })
   }
   // heading is irrelevant for absolute `edge` refs; pass 0 / 'relative' as inert placeholders.
-  const hop = resolveChain(tiling, overlay, startId, 0, 'relative', refs)
+  const hop = resolveChain(tiling, overlay, startId, 0, 'relative', refs, evalAmount)
   return hop ? nodeById(tiling, hop.tile) ?? null : null
+}
+
+// Build a walker-free amount evaluator for the PATH PREVIEW (src/traverse/lang/resolveWalk). Tile
+// attributes + absolute `.`-paths in an amount resolve; walker attributes (steps/heading/P/Q/R) read 0
+// and relative `.`-paths degrade to the attribute default — enough to preview `e(orientation)` /
+// `l(A + B.e0)` exactly, and `r(steps % 2)` at its step-0 value (correct for a freshly-placed walker).
+export function makeAmountEval(
+  tiling: Tiling,
+  overlay: ReadonlyMap<string, TileState>,
+  order?: ReadonlyArray<string>,
+): AmountEval {
+  const indexById: ReadonlyMap<string, number> = order ? new Map(order.map((id, i) => [id, i] as const)) : EMPTY_INDEX
+  return (expr, tile) => {
+    const node = nodeById(tiling, tile)
+    if (!node) return 0
+    const ctx: EvalContext = {
+      node,
+      tiling,
+      overlay,
+      indexById,
+      nodeForPath: (p) => resolveAbsolutePath(tiling, overlay, tile, p, order, indexById),
+    }
+    return evalNumber(expr, ctx)
+  }
 }
 
 // Build a walker-FREE predicate evaluator: does `pred` hold at tile `id`, read against `overlay`? Only
@@ -147,7 +190,7 @@ export function makeMatchAt(
       tiling,
       overlay,
       indexById,
-      nodeForPath: (path) => resolveAbsolutePath(tiling, overlay, node.id, path, order),
+      nodeForPath: (path) => resolveAbsolutePath(tiling, overlay, node.id, path, order, indexById),
     }
     return evalPredicate(pred, ctx)
   }
@@ -210,22 +253,23 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
       rest.push(ref)
     }
     if (rest.length === 0) return nodeById(tiling, anchorTile) ?? null
-    const h = resolveChain(tiling, overlay, anchorTile, anchorHeading, self.movement, rest)
+    const h = resolveChain(tiling, overlay, anchorTile, anchorHeading, self.movement, rest, evalAmount)
     return h ? nodeById(tiling, h.tile) ?? null : null
   }
   const resolvePathFrom = (rootTile: string, rootHeading: number, dest: string | null, path: TilePath): TileNode | null => {
     if (path.length === 0) return nodeById(tiling, rootTile) ?? null
     const first = path[0]
-    // `.target` / `.tile N` name a tile directly, then chain any trailing edge hops from it. They're
+    // `.target` / `.tN` name a tile directly, then chain any trailing edge hops from it. They're
     // JUMPS (no edge crossed to reach them), so relative hops chain from the WALKER'S current heading.
     if (first.kind === 'target') return chainFrom(dest ?? rootTile, rootHeading, path)
     if (first.kind === 'tile') {
-      const id = tileByIndex[first.index]
+      // `.t(expr)` — the tile number may be computed; resolve it against this root context.
+      const id = tileByIndex[indexAt(first.index, rootTile, rootHeading, dest)]
       return id ? chainFrom(id, rootHeading, path) : null
     }
-    // `.fN`: chain from the tile the find located this tick, using its ARRIVAL heading.
+    // `.fN` / `.f(expr)`: chain from the tile the find located this tick, using its ARRIVAL heading.
     if (first.kind === 'found') {
-      const start = found[first.index]
+      const start = found[indexAt(first.index, rootTile, rootHeading, dest)]
       return start ? chainFrom(start.tile, start.heading, path) : null
     }
     const refs: EdgeRef[] = []
@@ -234,7 +278,7 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
       if (!ref) return null // a base seg mid-chain (the parser forbids it) -> no tile
       refs.push(ref)
     }
-    const hop = resolveChain(tiling, overlay, rootTile, rootHeading, self.movement, refs)
+    const hop = resolveChain(tiling, overlay, rootTile, rootHeading, self.movement, refs, evalAmount)
     return hop ? nodeById(tiling, hop.tile) ?? null : null
   }
   // The nodeForPath hook handed to the evaluator, rooted at `rootTile`/`rootHeading`. When `record` is
@@ -263,6 +307,23 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
       : null
   }
   const ctxFor = (dest: string | null, record?: ReadTile[]): EvalContext | null => ctxAt(walker.tile, self.heading, dest, record)
+
+  // Resolve a computed edge/turn amount (`r(steps % 2)`, `e(orientation)`) rooted at the tile+heading the
+  // hop acts from — the per-hop context, so an amount's tile attributes read that tile and its walker
+  // attributes read the walker. Threaded into resolveChain; a literal amount never calls it. Hoisted
+  // (function declaration) so the chain resolvers defined above can reference it.
+  function evalAmount(expr: Expr, tile: string, heading: number): number {
+    const ctx = ctxAt(tile, heading, null)
+    return ctx ? evalNumber(expr, ctx) : 0
+  }
+  // Resolve a `.tN` / `.fN` BASE index that may be computed (`t(steps + 1)`, `f([A, B]:max)`) to an integer,
+  // against the context rooted at the given tile+heading. A literal is used verbatim.
+  function indexAt(index: EdgeAmount, rootTile: string, rootHeading: number, dest: string | null): number {
+    return amountValue(index, (e) => {
+      const ctx = ctxAt(rootTile, rootHeading, dest)
+      return ctx ? evalNumber(e, ctx) : 0
+    })
+  }
 
   // A guard's boolean, rooted at the walker's current tile (attributes redirect themselves via `.`-paths).
   const evalGuard = (guard: Guard, dest: string | null): boolean => {
@@ -310,7 +371,7 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
         if (m.guard && !evalGuardAt(node.tile, node.heading, m.guard)) continue
         for (const c of m.target) {
           if (out.length >= find.maxSplit) break
-          const hop = resolveChain(tiling, overlay, node.tile, node.heading, self.movement, c.refs) // body chains carry no base
+          const hop = resolveChain(tiling, overlay, node.tile, node.heading, self.movement, c.refs, evalAmount) // body chains carry no base
           if (hop) out.push(hop)
         }
       }
@@ -325,7 +386,14 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
   // nothing, so the whole chain is a boundary (no move).
   const resolveBase = (base?: ChainBase): Hop => {
     if (!base) return { tile: walker.tile, heading: self.heading }
-    if (base.kind === 'found') return found[base.index] ?? null
+    // `move fN` / `move f(expr)`: the found index may be computed (against the walker's own tile).
+    if (base.kind === 'found') return found[indexAt(base.index, walker.tile, self.heading, null)] ?? null
+    // `move tN` / `move t(expr)`: jump to the absolute tile by board number; a jump has no arrival edge, so
+    // it carries the walker's current heading. Out of range -> no move.
+    if (base.kind === 'tile') {
+      const id = tileByIndex[indexAt(base.index, walker.tile, self.heading, null)]
+      return id ? { tile: id, heading: self.heading } : null
+    }
     const hop = runFind(base.find)
     found[base.find.index] = hop
     return hop
@@ -372,7 +440,7 @@ export function runProgram(input: ExecInput, trace?: TraverserTrace): ExecResult
       // Start from the chain's base tile (the walker's own, a found tile, or an inline find-tile run
       // now), then follow its edge hops. A base that found nothing is a boundary (no move).
       const start = resolveBase(chain.base)
-      const hop = start ? resolveChain(tiling, overlay, start.tile, start.heading, self.movement, chain.refs) : null
+      const hop = start ? resolveChain(tiling, overlay, start.tile, start.heading, self.movement, chain.refs, evalAmount) : null
       if (!hop) {
         if (record)
           record.push({ chainText: serializeChain(chain), dest: null, destType: null, heading: null, survived: false, reject: { by: 'boundary' } })

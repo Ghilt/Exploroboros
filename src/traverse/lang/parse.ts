@@ -4,7 +4,7 @@
 // (their error spans offset back into the full source), so there is ONE expression/predicate language.
 // Errors come back as a Result with a message + span, never thrown across the boundary.
 
-import { exprFoundIndices, parseExpr, parsePredicate, predFoundIndices, type Expr, type Result, type Span } from '../../dsl'
+import { exprFoundIndices, parseExpr, parsePredicate, predFoundIndices, type Expr, type Result, type Span, type TilePath } from '../../dsl'
 import { lexProgram, type Tok } from './lex'
 import {
   DEFAULT_SETTINGS,
@@ -111,38 +111,81 @@ function delegate<T>(line: Line, from: number, to: number, what: 'pred' | 'expr'
   return r.value as T
 }
 
+// Parse a parenthesized numeric expression at the cursor (positioned ON the '('), delegating the inner
+// tokens to src/dsl's parseExpr — `r(steps % 2)`, `e(orientation + orientation.e2)`, `f([A, B]:max)`.
+// Advances past the matching ')'.
+function parseParenExpr(line: Line): Expr {
+  const open = line.pos
+  let depth = 0
+  let close = -1
+  for (let k = open; k < line.toks.length; k += 1) {
+    const tk = line.toks[k]
+    if (tk.kind === 'sym' && tk.text === '(') depth += 1
+    else if (tk.kind === 'sym' && tk.text === ')') {
+      depth -= 1
+      if (depth === 0) {
+        close = k
+        break
+      }
+    }
+  }
+  if (close === -1) throw new ParseFail('expected ")" to close the expression, e.g. r(steps % 2)', line.endSpan())
+  const expr = delegate<Expr>(line, open + 1, close, 'expr') // the inner tokens, between the parens
+  line.pos = close + 1
+  return expr
+}
+
 function parseEdgeRef(line: Line): EdgeRef {
   const t = line.word('expected an edge, e.g. straight, back, r1, l2, or e3')
   const text = t.text
   if (text === 'straight' || text === 's') return { kind: 'straight' }
   if (text === 'back') return { kind: 'back' }
   if (text === 'nearest-unvisited') return { kind: 'unvisited' }
-  const turn = /^([rl])([0-9]+)$/.exec(text)
-  if (turn) {
-    const n = Number(turn[2])
-    if (n < 1) throw new ParseFail('a turn must be r1/l1 or higher', { start: t.start, end: t.end })
-    return { kind: 'turn', dir: turn[1] as 'r' | 'l', n }
+  // A computed reference: r(expr) / l(expr) / e(expr) — the number is a parenthesized expression.
+  if ((text === 'e' || text === 'r' || text === 'l') && line.isSym('(')) {
+    const amount = parseParenExpr(line)
+    if (text === 'e') return { kind: 'edge', index: amount }
+    return { kind: 'turn', dir: text as 'r' | 'l', n: amount }
   }
+  const turn = /^([rl])([0-9]+)$/.exec(text)
+  // r0 / l0 are valid — a 0-turn is `straight` (the turn arithmetic collapses to the heading edge).
+  if (turn) return { kind: 'turn', dir: turn[1] as 'r' | 'l', n: Number(turn[2]) }
   const edge = /^e([0-9]+)$/.exec(text)
   if (edge) return { kind: 'edge', index: Number(edge[1]) }
-  throw new ParseFail(`"${text}" is not an edge — use straight, back, r1/l1…, eN, or nearest-unvisited`, {
+  throw new ParseFail(`"${text}" is not an edge — use straight, back, r1/l1…, eN, e(expr), or nearest-unvisited`, {
     start: t.start,
     end: t.end,
   })
 }
 
-// A move-chain BASE, if one is present: an inline `find-tile … {…}` run here, or a found-tile ref `fN`.
-// Consumes the base tokens if present; otherwise leaves the cursor untouched (the chain hops from the
-// walker's current tile). `fN` can only ever be a base (an edge ref is never `fN`), so `e0.f1` fails
-// naturally in parseEdgeRef.
+// A move-chain BASE, if one is present: an inline `find-tile … {…}` run here, a found-tile ref `fN`, or an
+// absolute tile address `tN` (both accept a computed `(expr)` index). Consumes the base tokens if present;
+// otherwise leaves the cursor untouched (the chain hops from the walker's current tile). `fN`/`tN` can only
+// ever be a base (an edge ref is never `fN`/`tN`), so `e0.f1` / `e0.t5` fail naturally in parseEdgeRef.
 function parseChainBase(line: Line, ctx: ParseCtx): ChainBase | undefined {
   if (line.isWord('find-tile')) return { kind: 'find', find: parseFindTile(line, ctx) }
   const t = line.peek()
   if (t && t.kind === 'word') {
-    const m = /^f([0-9]+)$/.exec(t.text)
-    if (m) {
+    const nx = line.toks[line.pos + 1]
+    const paren = nx && nx.kind === 'sym' && nx.text === '('
+    // f(expr) / fN — a found-tile result. t(expr) / tN — an absolute tile by board number.
+    if (t.text === 'f' && paren) {
+      line.pos += 1 // consume 'f'; cursor now on '('
+      return { kind: 'found', index: parseParenExpr(line) }
+    }
+    if (t.text === 't' && paren) {
       line.pos += 1
-      return { kind: 'found', index: Number(m[1]) }
+      return { kind: 'tile', index: parseParenExpr(line) }
+    }
+    const fm = /^f([0-9]+)$/.exec(t.text)
+    if (fm) {
+      line.pos += 1
+      return { kind: 'found', index: Number(fm[1]) }
+    }
+    const tm = /^t([0-9]+)$/.exec(t.text)
+    if (tm) {
+      line.pos += 1
+      return { kind: 'tile', index: Number(tm[1]) }
     }
   }
   return undefined
@@ -168,7 +211,13 @@ function expandRange(line: Line, first: EdgeRef): Chain[] {
   if (first.kind !== 'edge' && first.kind !== 'turn') {
     throw new ParseFail('a range must be over edges or turns, e.g. e1..e3 or r1..r4', line.spanHere())
   }
-  const start = first.kind === 'edge' ? first.index : first.n
+  const startAmt = first.kind === 'edge' ? first.index : first.n
+  // Ranges are expanded at PARSE time, so both ends must be literal numbers — a computed `e(expr)` end
+  // has no value yet.
+  if (typeof startAmt !== 'number') {
+    throw new ParseFail('a range must use literal numbers, e.g. e1..e3 — not a computed expression', line.spanHere())
+  }
+  const start = startAmt
   let end: number
   const t = line.peek()
   if (t && t.kind === 'num') {
@@ -179,7 +228,11 @@ function expandRange(line: Line, first: EdgeRef): Chain[] {
     if (endRef.kind !== first.kind || (endRef.kind === 'turn' && first.kind === 'turn' && endRef.dir !== first.dir)) {
       throw new ParseFail('a range must stay the same kind, e.g. e1..e3 or r1..r4', line.spanHere())
     }
-    end = endRef.kind === 'edge' ? endRef.index : endRef.n
+    const endAmt = endRef.kind === 'edge' ? endRef.index : endRef.n
+    if (typeof endAmt !== 'number') {
+      throw new ParseFail('a range must use literal numbers, e.g. e1..e3 — not a computed expression', line.spanHere())
+    }
+    end = endAmt
   }
   if (end < start) throw new ParseFail('a range must ascend, e.g. e1..e3', line.spanHere())
   const chains: Chain[] = []
@@ -266,12 +319,19 @@ function parseDExprToEnd(line: Line): DExpr {
 function parseWriteTargets(line: Line): WriteTarget[] {
   if (line.isSym('[')) {
     const open = line.pos
+    // Match the `]` at bracket depth 0, counting `[`/`(` opened inside — a computed amount can carry its
+    // own list (`[B.e([A, B]:max)]`), so a naive first-`]` scan would stop at the inner list's bracket.
+    let depth = 0
     let close = -1
-    for (let k = open + 1; k < line.toks.length; k += 1) {
+    for (let k = open; k < line.toks.length; k += 1) {
       const t = line.toks[k]
-      if (t.kind === 'sym' && t.text === ']') {
-        close = k
-        break
+      if (t.kind === 'sym' && (t.text === '[' || t.text === '(')) depth += 1
+      else if (t.kind === 'sym' && (t.text === ')' || t.text === ']')) {
+        depth -= 1
+        if (depth === 0 && t.text === ']') {
+          close = k
+          break
+        }
       }
     }
     if (close === -1) throw new ParseFail('expected "]" to close the registry, e.g. [A]', line.spanHere())
@@ -298,7 +358,8 @@ function parseWriteTargets(line: Line): WriteTarget[] {
     while (line.isSym('.')) {
       line.pos += 1
       const seg = line.word('expected an edge after ".", e.g. A.e1')
-      if (seg.text === 'tile') line.next() // `.tile N` also takes a number
+      if (seg.text === 'tile') line.next() // legacy `.tile N` also takes a number
+      else if (line.isSym('(')) parseParenExpr(line) // computed `.e(expr)` / `.t(expr)` — advance past its parens
     }
     const expr = delegate<Expr>(line, from, line.pos, 'expr')
     if (expr.kind !== 'regterm') {
@@ -629,16 +690,19 @@ function parseLine(line: Line, settings: Settings | null, statements: Stmt[], ct
 
 // After parsing, gather every `fN` the program references (move bases + inline `.fN` paths in guards /
 // values / write targets) so parseProgram can reject a reference to a find-tile that doesn't exist.
-function pathFoundInto(path: ReadonlyArray<{ kind: string; index?: number }> | undefined, out: number[]): void {
-  if (path) for (const s of path) if (s.kind === 'found' && s.index !== undefined) out.push(s.index)
+// Only a LITERAL `.fN` is statically validated; a computed `.f(expr)` (or `.fN` nested inside another
+// ref's computed amount) is checked at runtime instead (an out-of-range index resolves to no tile).
+function pathFoundInto(path: TilePath | undefined, out: number[]): void {
+  if (path) for (const s of path) if (s.kind === 'found' && typeof s.index === 'number') out.push(s.index)
 }
 function guardFoundRefs(g: Guard | undefined, out: number[]): void {
   if (g && g.pred.kind === 'inline') predFoundIndices(g.pred.pred, out)
 }
 function targetFoundRefs(target: EdgeTarget, out: number[]): void {
   for (const c of target) {
-    if (c.base?.kind === 'found') out.push(c.base.index)
-    else if (c.base?.kind === 'find') findFoundRefs(c.base.find, out)
+    if (c.base?.kind === 'found') {
+      if (typeof c.base.index === 'number') out.push(c.base.index) // literal `move fN`; `f(expr)` is runtime-checked
+    } else if (c.base?.kind === 'find') findFoundRefs(c.base.find, out)
   }
 }
 function findFoundRefs(find: FindTile, out: number[]): void {

@@ -5,7 +5,7 @@
 // shorthands. A predicate/expression reads a NEIGHBOUR tile via an attribute's own `.`-path (src/dsl) —
 // `visited.e1`, `visited.target` — not a guard-level decoration.
 
-import type { Expr, Pred, RegLetter, TilePath } from '../../dsl'
+import type { EdgeAmount, Expr, Pred, RegLetter, TilePath } from '../../dsl'
 
 export type Movement = 'relative' | 'absolute'
 
@@ -17,21 +17,25 @@ export type Movement = 'relative' | 'absolute'
 //  - turn r{n}/l{n}: the n-th edge turning right (clockwise) / left from straight
 //  - edge {index}: the absolute clockwise-from-top edge number
 //  - nearest-unvisited: the least-turn UNVISITED neighbour (the built-in walker move)
+// `n` / `index` may be a literal or a computed numeric expression in parens (`r(steps % 2)`,
+// `e(orientation + orientation.e2)`) — see EdgeAmount (src/dsl). Resolved to an integer at exec time.
 export type EdgeRef =
   | { kind: 'straight' }
   | { kind: 'back' }
-  | { kind: 'turn'; dir: 'r' | 'l'; n: number }
-  | { kind: 'edge'; index: number }
+  | { kind: 'turn'; dir: 'r' | 'l'; n: EdgeAmount }
+  | { kind: 'edge'; index: EdgeAmount }
   | { kind: 'unvisited' }
 
 // A move chain may start from a base tile OTHER than the walker's current one:
 //  - found N: a tile a `find-tile` search located this tick — `move f0`, or with a trailing chain
 //    `move f1.e0`.
+//  - tile N: the absolute tile with board number N — `move t5`, `move t(steps)`, `move t5.e0`. A JUMP
+//    (no edge crossed), so it arrives with the walker's current heading; the index may be computed.
 //  - find: an INLINE `find-tile <pred> { … }` run right here; its result is the base (and is stored as
 //    this find-tile's `fN` for later reference too).
-// No base = the walker's current tile (the common case). `fN` can only ever be a base, never a later hop
-// (`move e0.f1` is rejected at parse time — an edge ref can't be `fN`).
-export type ChainBase = { kind: 'found'; index: number } | { kind: 'find'; find: FindTile }
+// No base = the walker's current tile (the common case). `fN` / `tN` can only ever be a base, never a
+// later hop (`move e0.f1` / `move e0.t5` is rejected at parse time — an edge ref can't be `fN`/`tN`).
+export type ChainBase = { kind: 'found'; index: EdgeAmount } | { kind: 'tile'; index: EdgeAmount } | { kind: 'find'; find: FindTile }
 // A chain hops several edges in ONE tick (re-aiming along each) from its base tile; only the final tile
 // is visited. `refs` may be empty when a base names the destination directly (`move f0`).
 export type Chain = { base?: ChainBase; refs: ReadonlyArray<EdgeRef> }

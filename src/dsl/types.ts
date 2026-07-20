@@ -61,15 +61,20 @@ export type AttrScope = 'tile' | 'traverser'
 // hops after `target`/`tile N` use the WALKER'S current heading (a jump has no arrival heading). In a
 // walker-free context (coloring) `target`/`fN` and relative hops resolve to nothing → the attribute
 // falls back to its default; an ABSOLUTE `tile N` + `edge` chain (`visited.tile 5.e0`) still resolves.
+// The number in a numbered reference (`r2`, `e0`, `f1`, `t5`) may be a literal OR a computed numeric
+// expression written in parens — `r(steps % 2)`, `e(orientation + orientation.e2)`, `f([A, B]:max)`,
+// `t(steps + 1)` — resolved to an integer at eval time (rounded to nearest). A literal stays a plain
+// `number` so existing construction sites are untouched; read it via `amountValue` (eval.ts).
+export type EdgeAmount = number | Expr
 export type PathSeg =
   | { kind: 'straight' }
   | { kind: 'back' } // the reverse of straight (the heading edge's straight-through partner) — needs a walker
-  | { kind: 'turn'; dir: 'r' | 'l'; n: number }
-  | { kind: 'edge'; index: number }
+  | { kind: 'turn'; dir: 'r' | 'l'; n: EdgeAmount }
+  | { kind: 'edge'; index: EdgeAmount }
   | { kind: 'unvisited' }
   | { kind: 'target' }
-  | { kind: 'tile'; index: number }
-  | { kind: 'found'; index: number }
+  | { kind: 'tile'; index: EdgeAmount }
+  | { kind: 'found'; index: EdgeAmount }
 export type TilePath = ReadonlyArray<PathSeg>
 
 // ---- numeric expressions ----

@@ -9,7 +9,7 @@ import { nodeById } from '../../tiling'
 import type { TileState } from '../../canvas'
 import type { Movement, Program } from './types'
 import { walkChain, type Hop } from './edges'
-import { runProgram, type WalkerState } from './exec'
+import { makeAmountEval, runProgram, type WalkerState } from './exec'
 import type { Numbering } from './findLowest'
 import type { PathOccurrence } from './scanPaths'
 
@@ -40,6 +40,10 @@ export function resolveWalk(
   order?: ReadonlyArray<string>, // .tile N resolution; absent -> generation order (tiling.nodes)
   found?: ReadonlyArray<Hop>, // fN results (from computeFound); absent -> `fN` bases don't resolve
 ): string[] {
+  // Resolve any computed edge/turn amount in the hops (`r(steps % 2)`, `e(orientation)`). Walker-free
+  // (the preview has no live walker state): tile attributes + absolute reads resolve; walker attributes
+  // read 0 — exact for `e(orientation)` / `l(A + B.e0)`, and `r(steps % 2)` shows its step-0 value.
+  const evalAmount = makeAmountEval(tiling, overlay, order)
   const base = occurrence.base
   // No static answer in the editor: a move destination (`.target`).
   if (base.kind === 'target') return []
@@ -47,15 +51,15 @@ export function resolveWalk(
   if (base.kind === 'found') {
     const hop = found?.[base.index]
     if (!hop) return [] // not found / not run / no found array supplied
-    return walkChain(tiling, overlay, hop.tile, hop.heading, movement, occurrence.refs)
+    return walkChain(tiling, overlay, hop.tile, hop.heading, movement, occurrence.refs, evalAmount)
   }
   if (base.kind === 'tile') {
     const id = order ? order[base.index] : tiling.nodes[base.index]?.id
     if (!id || !nodeById(tiling, id)) return []
-    // `.tile N` is a base; trailing hops chain from it. Absolute `eN` hops ignore the heading, but a
-    // relative hop (`.tile 5.r1`) uses the WALKER'S current heading — matching exec.ts:resolvePathFrom.
-    return walkChain(tiling, overlay, id, startHeading, movement, occurrence.refs)
+    // `.tN` is a base; trailing hops chain from it. Absolute `eN` hops ignore the heading, but a
+    // relative hop (`.t5.r1`) uses the WALKER'S current heading — matching exec.ts:resolvePathFrom.
+    return walkChain(tiling, overlay, id, startHeading, movement, occurrence.refs, evalAmount)
   }
   if (!nodeById(tiling, startTile)) return []
-  return walkChain(tiling, overlay, startTile, startHeading, movement, occurrence.refs)
+  return walkChain(tiling, overlay, startTile, startHeading, movement, occurrence.refs, evalAmount)
 }

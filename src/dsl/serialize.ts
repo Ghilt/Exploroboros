@@ -6,7 +6,14 @@
 // Precedence (must match parse.ts): or 1 < and 2 < not 3 < compare 4 ; for expressions
 // + - 5 < * / % 6 < unary 7 < atom 8.
 
-import type { Expr, Pred, AttrRef, PathSeg, TilePath } from './types'
+import type { EdgeAmount, Expr, Pred, AttrRef, PathSeg, TilePath } from './types'
+
+// A numbered-reference amount back to text: a literal verbatim (`2`), a computed expression in parens
+// (`(steps % 2)`), so `r2` / `r(steps % 2)` round-trip. `tN` is the canonical form for a tile address
+// (`tile N` is only a legacy input alias — it serializes back as `tN`).
+function amountStr(a: EdgeAmount): string {
+  return typeof a === 'number' ? String(a) : `(${serializeExpr(a)})`
+}
 
 function segStr(seg: PathSeg): string {
   switch (seg.kind) {
@@ -17,15 +24,15 @@ function segStr(seg: PathSeg): string {
     case 'unvisited':
       return 'nearest-unvisited'
     case 'turn':
-      return `${seg.dir}${seg.n}`
+      return `${seg.dir}${amountStr(seg.n)}`
     case 'edge':
-      return `e${seg.index}`
+      return `e${amountStr(seg.index)}`
     case 'target':
       return 'target'
     case 'tile':
-      return `tile ${seg.index}`
+      return `t${amountStr(seg.index)}`
     case 'found':
-      return `f${seg.index}`
+      return `f${amountStr(seg.index)}`
   }
 }
 

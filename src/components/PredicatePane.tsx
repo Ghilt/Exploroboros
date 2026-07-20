@@ -84,7 +84,7 @@ export function PredicatePane({
           </p>
           <p>
             Read a <strong>neighbour</strong> with a <code>.</code>-path — <code>visited.e1</code>,{' '}
-            <code>[A.e0]</code>, <code>tile-type.e2</code> (absolute <code>eN</code> / <code>.tile N</code> hops).
+            <code>[A.e0]</code>, <code>tile-type.e2</code> (absolute <code>eN</code> / <code>.tN</code> hops).
             Compare two tile references by identity with <code>e0 == e3</code> (in a traverser guard,{' '}
             <code>target</code> and relative refs work too). A <strong>list</strong> <code>[…]</code> reduces
             several values to one: <code>[A, B]</code> (sum),{' '}

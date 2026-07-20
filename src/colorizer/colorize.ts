@@ -144,7 +144,7 @@ export function colorize(
       tiling,
       overlay,
       indexById,
-      nodeForPath: (path) => resolveAbsolutePath(tiling, overlay, node.id, path, order),
+      nodeForPath: (path) => resolveAbsolutePath(tiling, overlay, node.id, path, order, indexById),
     }
     let acc: Accum | null = null
     for (const { pred, rule } of compiled) {

@@ -1,9 +1,14 @@
 // Program -> canonical text. Round-trips through parseProgram, and serves as the auto-name for a
 // definition (like the predicate DSL). Inner predicates/expressions reuse src/dsl's serializers.
 
-import { serialize as serializePred, serializeExpr, serializePath } from '../../dsl'
+import { serialize as serializePred, serializeExpr, serializePath, type EdgeAmount } from '../../dsl'
 import { DEFAULT_SETTINGS } from './types'
 import type { Action, Chain, DExpr, EdgeRef, EdgeTarget, FindMove, FindTile, Guard, Program, Settings, Stmt, WriteTarget } from './types'
+
+// A numbered-reference amount: a literal verbatim, a computed expression in parens — `r2` / `r(steps % 2)`.
+function amountStr(a: EdgeAmount): string {
+  return typeof a === 'number' ? String(a) : `(${serializeExpr(a)})`
+}
 
 function edgeRef(r: EdgeRef): string {
   switch (r.kind) {
@@ -14,9 +19,9 @@ function edgeRef(r: EdgeRef): string {
     case 'unvisited':
       return 'nearest-unvisited'
     case 'turn':
-      return `${r.dir}${r.n}`
+      return `${r.dir}${amountStr(r.n)}`
     case 'edge':
-      return `e${r.index}`
+      return `e${amountStr(r.index)}`
   }
 }
 
@@ -26,7 +31,12 @@ function edgeRef(r: EdgeRef): string {
 export function serializeChain(c: Chain, indent = ''): string {
   const refs = c.refs.map(edgeRef).join('.')
   if (!c.base) return refs
-  const base = c.base.kind === 'found' ? `f${c.base.index}` : findTileText(c.base.find, indent)
+  const base =
+    c.base.kind === 'found'
+      ? `f${amountStr(c.base.index)}`
+      : c.base.kind === 'tile'
+        ? `t${amountStr(c.base.index)}`
+        : findTileText(c.base.find, indent)
   return refs ? `${base}.${refs}` : base
 }
 

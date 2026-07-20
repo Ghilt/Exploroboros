@@ -76,12 +76,15 @@ describe('serialize — canonical text', () => {
     expect(canon('[A.r1] == 2')).toBe('[A.r1] == 2')
     expect(canon('tile-type.e0 == wedge')).toBe('tile-type.e0 == wedge')
     expect(canon('visited.target == 0')).toBe('visited.target == 0')
-    expect(canon('visited.tile 5 == 0')).toBe('visited.tile 5 == 0')
+    // `tile N` is the legacy spelling; it canonicalises to the `tN` shorthand.
+    expect(canon('visited.t5 == 0')).toBe('visited.t5 == 0')
+    expect(canon('visited.tile 5 == 0')).toBe('visited.t5 == 0')
     expect(canon('visited.nearest-unvisited > 0')).toBe('visited.nearest-unvisited > 0')
-    // a base (.target / .tile N) may lead a chain of edge hops
+    // a base (.target / .tN) may lead a chain of edge hops
     expect(canon('visited.target.e1 == 0')).toBe('visited.target.e1 == 0')
     expect(canon('visited.target.e2.e1 == 1')).toBe('visited.target.e2.e1 == 1')
-    expect(canon('visited.tile 5.e0 == 0')).toBe('visited.tile 5.e0 == 0')
+    expect(canon('visited.t5.e0 == 0')).toBe('visited.t5.e0 == 0')
+    expect(canon('visited.tile 5.e0 == 0')).toBe('visited.t5.e0 == 0')
   })
 
   it('inserts parentheses only where precedence needs them', () => {

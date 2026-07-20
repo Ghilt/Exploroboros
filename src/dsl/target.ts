@@ -3,10 +3,24 @@
 // to decide a move/directive guard is evaluated PER candidate move rather than once up front against the
 // current tile. Pure — no traverse/walker import; it only walks the src/dsl AST.
 
-import type { Expr, Pred, TilePath } from './types'
+import type { EdgeAmount, Expr, PathSeg, Pred, TilePath } from './types'
+
+// The computed expression carried by a numbered-ref segment (`.e(expr)`, `.r(expr)`, `.t(expr)`,
+// `.f(expr)`), if any — so the analysis below can look INSIDE it. A literal amount is a plain number
+// (undefined here). Every path walker must recurse through this: an amount can read `.target`, a `.fN`,
+// walker state, or a distant tile, all of which change the target/found/absolute/reach verdicts.
+function segAmountExpr(s: PathSeg): Expr | undefined {
+  const a: EdgeAmount | undefined =
+    s.kind === 'turn' ? s.n : s.kind === 'edge' || s.kind === 'tile' || s.kind === 'found' ? s.index : undefined
+  return typeof a === 'object' ? a : undefined
+}
 
 function pathHasTarget(path: TilePath | undefined): boolean {
-  return !!path && path.some((s) => s.kind === 'target')
+  return !!path && path.some((s) => s.kind === 'target' || segReadsTarget(s))
+}
+function segReadsTarget(s: PathSeg): boolean {
+  const e = segAmountExpr(s)
+  return !!e && exprReadsTarget(e)
 }
 
 export function exprReadsTarget(expr: Expr): boolean {
@@ -57,7 +71,12 @@ export function predReadsTarget(pred: Pred): boolean {
 // reject a reference to a find-tile that doesn't exist (`move f2` with only two `find-tile` blocks).
 // Same shallow AST walk as predReadsTarget; a `found` seg can only ever be a path's first hop.
 function pathFoundIndices(path: TilePath | undefined, out: number[]): void {
-  if (path) for (const s of path) if (s.kind === 'found') out.push(s.index)
+  if (!path) return
+  for (const s of path) {
+    if (s.kind === 'found' && typeof s.index === 'number') out.push(s.index) // literal `.fN`; `.f(expr)` is dynamic
+    const e = segAmountExpr(s)
+    if (e) exprFoundIndices(e, out) // a literal `.fN` nested inside a computed amount is still validated
+  }
 }
 export function exprFoundIndices(expr: Expr, out: number[] = []): number[] {
   switch (expr.kind) {
@@ -129,7 +148,14 @@ export function predFoundIndices(pred: Pred, out: number[] = []): number[] {
 // relative/target/found path segment — is rejected at compile so the answer stays cacheable + shareable.
 
 function pathIsAbsolute(path: TilePath | undefined): boolean {
-  return !path || path.every((s) => s.kind === 'edge' || s.kind === 'tile')
+  if (!path) return true
+  // edge / tile are absolute (heading-independent) — but a COMPUTED amount is absolute only if the
+  // expression itself is (an amount reading walker state, e.g. `e(steps)`, makes the hop walker-dependent).
+  return path.every((s) => {
+    if (s.kind !== 'edge' && s.kind !== 'tile') return false
+    const e = segAmountExpr(s)
+    return e ? exprIsAbsolute(e) : true
+  })
 }
 
 function exprIsAbsolute(expr: Expr): boolean {
@@ -191,6 +217,8 @@ function pathReach(path: TilePath | undefined): PathReach {
   if (!path || path.length === 0) return 'self'
   let hops = 0
   for (const s of path) {
+    // A computed amount that reads a distant tile could flip which edge we hop to — stay conservative.
+    if (segAmountExpr(s)) return 'global'
     if (s.kind === 'edge') hops += 1
     else return 'global' // a fixed `tile N`, or any relative/target/found seg -> a distant write can flip it
   }

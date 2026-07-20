@@ -2,9 +2,16 @@
 // clock, or RNG, so the colorizer can cache results. Division and modulo by zero return 0 (rather
 // than NaN/Infinity) so coloring always has a defined value and comparisons never go undefined.
 
-import type { CompareOp, Expr, Pred, TilePath } from './types'
+import type { CompareOp, EdgeAmount, Expr, Pred, TilePath } from './types'
 import type { EvalContext } from './attributes'
 import { attrSpec } from './attributes'
+
+// Resolve a numbered-reference amount (the number in `r2` / `e0` / `f1` / `t5`, or a parenthesized
+// expression like `r(steps % 2)`) to an integer. A literal is used verbatim; an expression is evaluated
+// by the supplied resolver and rounded to nearest (edge/turn/tile/find indices are whole numbers).
+export function amountValue(a: EdgeAmount, evalExpr: (expr: Expr) => number): number {
+  return typeof a === 'number' ? a : Math.round(evalExpr(a))
+}
 
 function applyCompare(op: CompareOp, a: number, b: number): boolean {
   switch (op) {
