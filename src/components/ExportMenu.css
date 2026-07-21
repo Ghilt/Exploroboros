@@ -121,8 +121,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.7rem;
-  height: 1.7rem;
+  width: 1.36rem;
+  height: 1.36rem;
   padding: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -139,6 +139,23 @@
   border-color: var(--accent);
   color: var(--accent);
 }
+/* The aspect-ratio transfer arrows sit between the Grid and Resolution blocks — a horizontal row (↑ ↓)
+   centred over the input-field column, so they read as bridging the grid inputs above and the
+   resolution inputs below. ↑ copies the resolution's ratio onto the grid; ↓ copies the grid's ratio
+   onto the resolution. */
+.export-transfer {
+  display: grid;
+  grid-template-columns: 1fr auto 7rem;
+  align-items: center;
+}
+.export-arrows {
+  grid-column: 3; /* the input-field column */
+  justify-self: center;
+  display: inline-flex;
+  gap: 0.35rem;
+}
+/* The arrow buttons reuse .export-lock's box (they live inside the flex row, so its grid placement is
+   inert). */
 /* The "~" that marks a field as currently derived (approximate) rather than the user's exact input —
    sits next to Pixels-per-tile / Grid width / Grid height, whichever wasn't just typed into directly. */
 .export-approx {

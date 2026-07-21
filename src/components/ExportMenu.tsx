@@ -8,6 +8,16 @@ import type { StoredPredicate } from '../state/predicateStore'
 import type { StoredTraverser } from '../state/traverserStore'
 import { buildRecipe, DESKTOP_CAPS, MOBILE_CAPS } from '../export'
 import type { ExportParams } from '../export/exportImage'
+import {
+  type ExportSizing,
+  editWidth,
+  editHeight,
+  editPxPerTile,
+  editGridW,
+  editGridH,
+  matchGridToResolution,
+  matchResolutionToGrid,
+} from '../export/exportControls'
 import { HelpButton } from './HelpButton'
 import { Toggle } from './Toggle'
 
@@ -50,18 +60,15 @@ type Props = {
 
 export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, predicates, traversers, coloringRules, initialState, numberingScheme, onStartExport }: Props) {
   const [open, setOpen] = useState(false)
-  const [pxPerTile, setPxPerTile] = useState(DEFAULT_PX_PER_TILE)
-  const [width, setWidth] = useState(DEFAULT_RES)
-  const [height, setHeight] = useState(DEFAULT_RES)
-  // The output Resolution is the ANCHOR: it changes ONLY when the user edits it, and never carries a ~
-  // (its own chain keeps width:height in proportion). Pixels-per-tile and grid width/height are two ways
-  // to express the SAME thing — how finely to tile that fixed resolution (grid ≈ resolution ÷ px). Edit
-  // either and the OTHER re-derives; `approx` marks whichever of {px, gridW, gridH} is that derived guess
-  // (shown as ~), never the resolution. The grid chain (`gridLinked`) just makes gridW and gridH follow
-  // each other — it does not touch the resolution.
-  const [gridW, setGridW] = useState(() => Math.max(1, Math.round(DEFAULT_RES / DEFAULT_PX_PER_TILE)))
-  const [gridH, setGridH] = useState(() => Math.max(1, Math.round(DEFAULT_RES / DEFAULT_PX_PER_TILE)))
-  const [approx, setApprox] = useState({ px: false, gridW: true, gridH: true })
+  // Resolution / grid / pixels-per-tile are three coupled views of the render size. The interdependency
+  // rules — which value gives way on each edit, and the two arrows that transfer aspect ratio between the
+  // grid and resolution — live in the pure, unit-tested src/export/exportControls.ts. Resolution is the
+  // ANCHOR: only a direct edit or the ↓ arrow moves it; `approx` marks whichever readout is currently a
+  // derived guess (~). The grid/resolution chains just keep each block's own width:height in proportion.
+  const [sz, setSz] = useState<ExportSizing>(() => {
+    const g = Math.max(1, Math.round(DEFAULT_RES / DEFAULT_PX_PER_TILE))
+    return { width: DEFAULT_RES, height: DEFAULT_RES, gridW: g, gridH: g, pxPerTile: DEFAULT_PX_PER_TILE, approx: { px: false, gridW: true, gridH: true } }
+  })
   const [gridLinked, setGridLinked] = useState(true)
   // Chain lock for the pixel resolution: when linked, editing one dimension scales the other by ratio.
   const [linked, setLinked] = useState(true)
@@ -71,72 +78,17 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
 
   const mobile = isMobile()
   const maxRes = mobile ? MOBILE_MAX_RES : DESKTOP_MAX_RES
-  // Floor at 1 (not MIN_RES) so a partially-typed number isn't snapped mid-entry; MIN_RES is only the
-  // input's spinner hint. Grid counts share the same ceiling so a typo can't build a runaway tiling.
-  const clampRes = (n: number) => Math.min(maxRes, Math.max(1, Math.round(n || 0)))
-  const clampCount = (n: number) => Math.min(maxRes, Math.max(1, Math.round(n || 0)))
 
-  // Editing the resolution is the ONLY thing that moves the pixel size. It re-derives the grid at the
-  // current pixels-per-tile (grid marked ~); px stays the exact anchor. The res lock scales the other dim.
-  const onWidth = (raw: number) => {
-    const w = clampRes(raw)
-    setWidth(w)
-    setGridW(clampCount(w / pxPerTile))
-    if (linked && width > 0) {
-      const h = clampRes(w * (height / width))
-      setHeight(h)
-      setGridH(clampCount(h / pxPerTile))
-      setApprox({ px: false, gridW: true, gridH: true })
-    } else {
-      setApprox((a) => ({ ...a, px: false, gridW: true }))
-    }
-  }
-  const onHeight = (raw: number) => {
-    const h = clampRes(raw)
-    setHeight(h)
-    setGridH(clampCount(h / pxPerTile))
-    if (linked && height > 0) {
-      const w = clampRes(h * (width / height))
-      setWidth(w)
-      setGridW(clampCount(w / pxPerTile))
-      setApprox({ px: false, gridW: true, gridH: true })
-    } else {
-      setApprox((a) => ({ ...a, px: false, gridH: true }))
-    }
-  }
-  // Pixels-per-tile and the grid are two views of the same fit into the FIXED resolution: editing the
-  // tile size re-derives both grid counts (grid ~), and never moves the resolution.
-  const onPxPerTile = (raw: number) => {
-    const px = Math.max(1, Math.round(raw || 0))
-    setPxPerTile(px)
-    setGridW(clampCount(width / px))
-    setGridH(clampCount(height / px))
-    setApprox({ px: false, gridW: true, gridH: true })
-  }
-  // A grid dimension is an exact tile count for the fixed resolution; pixels-per-tile re-derives (~) and
-  // the resolution is untouched. With the grid lock on, the OTHER grid dimension follows to keep the ratio.
-  const onGridW = (raw: number) => {
-    const gw = clampCount(raw)
-    setGridW(gw)
-    setPxPerTile(Math.max(1, Math.round(width / gw)))
-    if (gridLinked && gridW > 0) {
-      setGridH(clampCount(gw * (gridH / gridW)))
-      setApprox({ px: true, gridW: false, gridH: false })
-    } else {
-      setApprox((a) => ({ ...a, px: true, gridW: false }))
-    }
-  }
-  const onGridH = (raw: number) => {
-    const gh = clampCount(raw)
-    setGridH(gh)
-    setPxPerTile(Math.max(1, Math.round(height / gh)))
-    if (gridLinked && gridH > 0) {
-      setGridW(clampCount(gh * (gridW / gridH)))
-      setApprox({ px: true, gridW: false, gridH: false })
-    } else {
-      setApprox((a) => ({ ...a, px: true, gridH: false }))
-    }
-  }
+  // All the edit rules live in the pure module (see its header). Editing the resolution re-derives px
+  // (grid held); editing px re-derives the grid (resolution held); editing the grid re-derives px
+  // (resolution held). The two arrows transfer aspect ratio between the grid and resolution blocks.
+  const onWidth = (raw: number) => setSz((s) => editWidth(s, raw, linked, maxRes))
+  const onHeight = (raw: number) => setSz((s) => editHeight(s, raw, linked, maxRes))
+  const onPxPerTile = (raw: number) => setSz((s) => editPxPerTile(s, raw, maxRes))
+  const onGridW = (raw: number) => setSz((s) => editGridW(s, raw, gridLinked, maxRes))
+  const onGridH = (raw: number) => setSz((s) => editGridH(s, raw, gridLinked, maxRes))
+  const onCopyResToGrid = () => setSz((s) => matchGridToResolution(s, maxRes)) // ↑ grid ← resolution aspect
+  const onCopyGridToRes = () => setSz((s) => matchResolutionToGrid(s, maxRes)) // ↓ resolution ← grid aspect
 
   // Close on outside tap / Escape.
   useEffect(() => {
@@ -156,16 +108,16 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
   }, [open])
 
   // Rough planning readout (no full build): tile count scales with the area ratio vs. the live grid.
-  const estTiles = liveGridN > 0 ? Math.round(tiling.nodes.length * (gridW / liveGridN) * (gridH / liveGridN)) : tiling.nodes.length
-  const heavy = estTiles > 250_000 || width * height >= 6144 * 6144
+  const estTiles = liveGridN > 0 ? Math.round(tiling.nodes.length * (sz.gridW / liveGridN) * (sz.gridH / liveGridN)) : tiling.nodes.length
+  const heavy = estTiles > 250_000 || sz.width * sz.height >= 6144 * 6144
 
   // Fire-and-forget: build the recipe, hand the job to the Workspace (which shows it in the strip as a
   // cancelable thumbnail), and close the dialog immediately.
   const doExport = () => {
     const recipe = buildRecipe({
       tilingId,
-      exportGridW: Math.max(2, Math.floor(gridW)),
-      exportGridH: Math.max(2, Math.floor(gridH)),
+      exportGridW: Math.max(2, Math.floor(sz.gridW)),
+      exportGridH: Math.max(2, Math.floor(sz.gridH)),
       liveTiling: tiling,
       seeds,
       baseOverlay,
@@ -174,7 +126,7 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
       coloringRules,
       initialState,
       numberingScheme,
-      output: { width, height, edges, background: BG_COLOR[background] },
+      output: { width: sz.width, height: sz.height, edges, background: BG_COLOR[background] },
     })
     onStartExport({ recipe, palette: PALETTE, caps: mobile ? MOBILE_CAPS : DESKTOP_CAPS })
     setOpen(false)
@@ -205,16 +157,20 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
               </p>
               <p>
                 <strong>Resolution</strong> is the image’s pixel size — the fixed canvas you’re filling. It
-                only changes when you edit it; its <strong>chain</strong> keeps width and height in
-                proportion.
+                only moves when you edit it directly (or use the ↓ arrow below); its <strong>chain</strong>{' '}
+                keeps width and height in proportion.
               </p>
               <p>
-                <strong>Pixels per tile</strong> and <strong>Grid width/height</strong> are two ways to say
-                how finely to tile that canvas: set the tile size, or set the tile counts directly for an
-                exact (even or uneven) grid. Editing one re-derives the other, which then shows a{' '}
-                <strong>~</strong>. The grid’s own <strong>chain</strong> keeps its width and height in the
-                same ratio. The square tiling uses your exact width and height counts; other tilings are fit
-                to the frame’s shape, so the pattern fills the whole image at any ratio.
+                <strong>Grid width/height</strong> is the tile count, and <strong>Pixels per tile</strong> is
+                the resulting tile size — the two together fit into that fixed resolution. Edit the grid or
+                the tile size and the other re-derives (shown with a <strong>~</strong>); edit the resolution
+                and the tile size re-derives. The grid and resolution are otherwise independent.
+              </p>
+              <p>
+                The <strong>↑ / ↓ arrows</strong> between them copy an aspect ratio across: <strong>↓</strong>{' '}
+                reshapes the resolution to match your grid — so a hand-tuned grid drops into the PNG with no
+                empty margins — and <strong>↑</strong> reshapes the grid to match the resolution. (The square
+                tiling uses your exact counts; other tilings are cropped to the frame’s shape either way.)
               </p>
               <p>
                 Export runs in the background — a thumbnail appears in the corner with a spinner; the X
@@ -226,19 +182,19 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
           <label className="export-row">
             <span>
               Pixels per tile
-              {approx.px && (
+              {sz.approx.px && (
                 <span className="export-approx" title="Approximate — derived from the grid size">
                   ~
                 </span>
               )}
             </span>
-            <input type="number" min={1} step={1} value={pxPerTile} onChange={(e) => onPxPerTile(Number(e.target.value))} />
+            <input type="number" min={1} step={1} value={sz.pxPerTile} onChange={(e) => onPxPerTile(Number(e.target.value))} />
           </label>
 
           <div className="export-res export-grid" role="group" aria-label="grid size (tiles)">
             <span className="export-res-label export-res-w">
               Grid width
-              {approx.gridW && (
+              {sz.approx.gridW && (
                 <span className="export-approx" title="Approximate — the count that fits the resolution at this tile size">
                   ~
                 </span>
@@ -249,8 +205,8 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
               className="export-res-num export-res-num-w"
               min={1}
               step={1}
-              value={gridW}
-              aria-label={`grid width in tiles${approx.gridW ? ' (approximate)' : ''}`}
+              value={sz.gridW}
+              aria-label={`grid width in tiles${sz.approx.gridW ? ' (approximate)' : ''}`}
               onChange={(e) => onGridW(Number(e.target.value))}
             />
             <button
@@ -265,7 +221,7 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
             </button>
             <span className="export-res-label export-res-h">
               Grid height
-              {approx.gridH && (
+              {sz.approx.gridH && (
                 <span className="export-approx" title="Approximate — the count that fits the resolution at this tile size">
                   ~
                 </span>
@@ -276,10 +232,36 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
               className="export-res-num export-res-num-h"
               min={1}
               step={1}
-              value={gridH}
-              aria-label={`grid height in tiles${approx.gridH ? ' (approximate)' : ''}`}
+              value={sz.gridH}
+              aria-label={`grid height in tiles${sz.approx.gridH ? ' (approximate)' : ''}`}
               onChange={(e) => onGridH(Number(e.target.value))}
             />
+          </div>
+
+          {/* Transfer aspect ratio between the grid (above) and resolution (below). ↑ reshapes the grid to
+              the resolution's ratio; ↓ reshapes the resolution to the grid's ratio (fills the PNG neatly).
+              Aligned to the same middle column as the two chain-locks. */}
+          <div className="export-transfer" role="group" aria-label="transfer aspect ratio">
+            <div className="export-arrows">
+              <button
+                type="button"
+                className="export-lock export-arrow"
+                title="Copy the resolution’s aspect ratio to the grid"
+                aria-label="reshape the grid to match the resolution’s aspect ratio"
+                onClick={onCopyResToGrid}
+              >
+                <ArrowIcon dir="up" />
+              </button>
+              <button
+                type="button"
+                className="export-lock export-arrow"
+                title="Copy the grid’s aspect ratio to the resolution — fits the grid into the PNG with no empty space"
+                aria-label="reshape the resolution to match the grid’s aspect ratio"
+                onClick={onCopyGridToRes}
+              >
+                <ArrowIcon dir="down" />
+              </button>
+            </div>
           </div>
 
           <div className="export-res" role="group" aria-label="resolution (pixels)">
@@ -290,7 +272,7 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
               min={MIN_RES}
               max={maxRes}
               step={1}
-              value={width}
+              value={sz.width}
               aria-label="export width in pixels"
               onChange={(e) => onWidth(Number(e.target.value))}
             />
@@ -311,7 +293,7 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
               min={MIN_RES}
               max={maxRes}
               step={1}
-              value={height}
+              value={sz.height}
               aria-label="export height in pixels"
               onChange={(e) => onHeight(Number(e.target.value))}
             />
@@ -342,11 +324,21 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
   )
 }
 
+// The aspect-ratio transfer arrows between the grid and resolution blocks — a single chevron pointing
+// up (copy the resolution's ratio onto the grid) or down (copy the grid's ratio onto the resolution).
+function ArrowIcon({ dir }: { dir: 'up' | 'down' }) {
+  return (
+    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {dir === 'up' ? <path d="M6 14l6-6 6 6" /> : <path d="M6 10l6 6 6-6" />}
+    </svg>
+  )
+}
+
 // The chain-lock glyph between the width/height inputs: a closed link when locked, a split (broken)
 // link when the dimensions are independent.
 function LinkIcon({ broken }: { broken: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M9 17H7A5 5 0 0 1 7 7h2" />
       <path d="M15 7h2a5 5 0 0 1 0 10h-2" />
       {broken ? (
