@@ -22,6 +22,7 @@ import {
   inflatePolygon,
   FLUSH_OVERLAP_PX,
   transcribeGesture,
+  inscribedRadius,
 } from '../canvas'
 import type { View, Size, TileState, TranscribeResult } from '../canvas'
 
@@ -37,6 +38,7 @@ if (typeof window !== 'undefined') {
 }
 
 const HIGHLIGHT_SCALE = 1.2 // matches the SVG selection overlay
+const BURST_MS = 520 // word-game release burst: path tiles scale up slightly + fade over this many ms
 // Stats labels need at least this many screen px to be worth drawing; below it they'd be an
 // unreadable smear (and slow at 10k+ tiles), so on very large grids you zoom in to reveal them.
 const MIN_LABEL_PX = 3
@@ -101,7 +103,7 @@ export type DisplayMode = 'edges' | 'none' | 'stats'
 // What a one-pointer drag does: paint the current target, box-select tiles, freehand "paint" a
 // selection by dragging over tiles, transcribe the tiles crossed into a DSL path, or nothing (so a
 // touch drag scrolls the mobile page). Tap always inspects; two-finger / wheel always pan+zoom.
-export type DragMode = 'paint' | 'select' | 'paintselect' | 'transcribe' | 'off'
+export type DragMode = 'paint' | 'select' | 'paintselect' | 'transcribe' | 'trace' | 'off'
 
 const NO_SELECTION: ReadonlyArray<string> = []
 
@@ -139,6 +141,19 @@ type Props = {
   // each outlined, in that path's per-source-line colour (shared with the editor swatches). From selecting
   // text in the Traversers editor. Undefined / empty = nothing drawn.
   pathPreview?: ReadonlyArray<{ tiles: ReadonlyArray<string>; color: string }>
+  // Daily word game (hidden feature). `letters` draws one glyph centred in each tile, framed to the
+  // tile's inscribed circle. In 'trace' dragMode the canvas reports the tile under the pointer live via
+  // onTraceMove (and onTraceEnd on release); the page owns the path + the self-avoiding/backtrack rules
+  // and feeds `tracePath` (drawn as a connected highlighted run) + `traceStatus` (its tint) back.
+  letters?: ReadonlyMap<string, string>
+  tracePath?: ReadonlyArray<string>
+  traceStatus?: 'active' | 'word' | 'bad'
+  onTraceMove?: (tileId: string | null) => void
+  onTraceEnd?: () => void
+  // Word game: a one-shot "scale up + fade" of the just-released path tiles (green accepted / red
+  // rejected). Bumping `nonce` triggers it; each tile grows slightly around its own centre and fades
+  // over ~0.5s. Self-clearing via an internal rAF, so nothing needs to reset it.
+  burst?: { tiles: ReadonlyArray<string>; kind: 'good' | 'bad'; nonce: number }
   tileNumber?: (id: string) => number
   onSelect?: (id: string) => void
   onSelectTiles?: (ids: string[]) => void
@@ -175,6 +190,12 @@ export function TilingCanvas({
   onDeselect,
   onPaint,
   onTranscribe,
+  letters,
+  tracePath,
+  traceStatus = 'active',
+  onTraceMove,
+  onTraceEnd,
+  burst,
   fitSignal,
   spotlightTileId,
   onSpotlightRect,
@@ -211,6 +232,10 @@ export function TilingCanvas({
   onPaintRef.current = onPaint
   const onTranscribeRef = useRef(onTranscribe)
   onTranscribeRef.current = onTranscribe
+  const onTraceMoveRef = useRef(onTraceMove)
+  onTraceMoveRef.current = onTraceMove
+  const onTraceEndRef = useRef(onTraceEnd)
+  onTraceEndRef.current = onTraceEnd
   // Mirrored so the once-attached pointer handlers can read a transcribe start tile's walker heading
   // (hand-placed wins, else a rule-placed ghost, else none = absolute path).
   const traverserHeadsRef = useRef(traverserHeads)
@@ -232,6 +257,9 @@ export function TilingCanvas({
   const transcribeLabelRef = useRef<HTMLDivElement>(null)
   // Pulse phase (0..1) for the debug highlight overlay, driven by a rAF while a log row is hovered.
   const pulseRef = useRef(1)
+  // Word-game release burst: the just-released tile ids (they scale up + fade in place) + its rAF.
+  const burstRef = useRef<{ ids: ReadonlyArray<string>; start: number; kind: 'good' | 'bad' } | null>(null)
+  const burstRafRef = useRef(0)
   const dragModeRef = useRef(dragMode)
   dragModeRef.current = dragMode
   // Current selection, mirrored so a Shift-drag can add to it (read at gesture time).
@@ -247,6 +275,29 @@ export function TilingCanvas({
   useEffect(() => {
     if (hostRef.current) hostRef.current.style.touchAction = dragMode === 'off' ? 'pan-y' : 'none'
   }, [dragMode])
+
+  // Kick off the release-burst whenever `burst` changes: snapshot the tile ids and drive a rAF that
+  // redraws the UI layer until they've scaled up + faded out.
+  useEffect(() => {
+    if (!burst || burst.tiles.length === 0) return
+    burstRef.current = { ids: [...burst.tiles], start: performance.now(), kind: burst.kind }
+    cancelAnimationFrame(burstRafRef.current)
+    const tick = () => {
+      if (!burstRef.current) return
+      uiLayerRef.current?.batchDraw()
+      if (performance.now() - burstRef.current.start >= BURST_MS) {
+        burstRef.current = null
+        uiLayerRef.current?.batchDraw()
+        return
+      }
+      burstRafRef.current = requestAnimationFrame(tick)
+    }
+    burstRafRef.current = requestAnimationFrame(tick)
+    return () => {
+      cancelAnimationFrame(burstRafRef.current)
+      burstRef.current = null
+    }
+  }, [burst])
 
   // Report a spotlight tile's viewport rect to the tutorial overlay whenever the view changes (redraw is
   // called on every pan/zoom/fit/resize). Throttled by a rounded key so it only fires on real movement,
@@ -459,6 +510,7 @@ export function TilingCanvas({
     let strokeSelected: Set<string> | null = null // tiles gathered this freehand-select stroke
     let strokeTiles: string[] | null = null // ordered tiles crossed this transcribe stroke (consecutive-dedup)
     let lastPaintWorld: Vec2 | null = null
+    let lastTraceTile: string | null = null // last tile reported to onTraceMove during a 'trace' drag
 
     const local = (e: PointerEvent | WheelEvent): Vec2 => {
       const r = host.getBoundingClientRect()
@@ -628,6 +680,7 @@ export function TilingCanvas({
       strokePainted = null
       strokeTiles = null
       lastPaintWorld = null
+      lastTraceTile = null
       // "off" mode doesn't capture or preventDefault, so a touch drag scrolls the page; a tap (no
       // move) still selects on pointerup. paint/select own the gesture.
       if (dragModeRef.current !== 'off') {
@@ -701,6 +754,26 @@ export function TilingCanvas({
         showTranscribeLabel(p, computeTranscribe(strokeTiles ?? []).text)
         return
       }
+      if (mode === 'trace') {
+        // Report the tile under the pointer as the trace grows; the page runs the self-avoiding /
+        // backtrack reducer and owns the path. Only report on a change so a drag inside one tile is quiet.
+        if (!moved) {
+          if (dist(p, downAt) > slop) {
+            moved = true
+            const startId = pickTile(tilingRef.current, screenToWorld(downAt, viewRef.current))
+            onTraceMoveRef.current?.(startId)
+            lastTraceTile = startId
+          } else {
+            return
+          }
+        }
+        const curId = pickTile(tilingRef.current, screenToWorld(p, viewRef.current))
+        if (curId !== lastTraceTile) {
+          onTraceMoveRef.current?.(curId)
+          lastTraceTile = curId
+        }
+        return
+      }
       // paint
       if (!moved) {
         if (dist(p, downAt) > slop) {
@@ -733,6 +806,9 @@ export function TilingCanvas({
         } else if (dragModeRef.current === 'transcribe' && moved && strokeTiles && strokeTiles.length > 0) {
           // a transcribe stroke ended — hand the crossed tiles up as a DSL path (or the tile type)
           onTranscribeRef.current?.(computeTranscribe(strokeTiles))
+        } else if (dragModeRef.current === 'trace' && moved) {
+          // a word-game trace ended — the page decides what to do with the current path
+          onTraceEndRef.current?.()
         } else if (moved && strokePainted && strokePainted.size > 0) {
           // a paint stroke just ended — fade its outline out
           startFlashFade()
@@ -750,6 +826,7 @@ export function TilingCanvas({
         strokeSelected = null
         strokeTiles = null
         lastPaintWorld = null
+        lastTraceTile = null
         host.style.cursor = 'crosshair'
       } else if (vals.length === 1) {
         // dropped from a pinch to one finger: keep navigating, never a tap or paint
@@ -761,6 +838,7 @@ export function TilingCanvas({
         strokeTiles = null
         endTranscribe()
         lastPaintWorld = null
+        lastTraceTile = null
       }
     }
 
@@ -791,6 +869,7 @@ export function TilingCanvas({
                 drawTiles(ctx, tiling, viewRef.current, size, paletteRef.current, selectedSet, overlay, colorFor, displayMode, tileNumber, traverserHeads, autoTraverserHeads)
               }
             />
+            <Shape listening={false} sceneFunc={(ctx) => drawLetters(ctx, tiling, viewRef.current, size, paletteRef.current, letters)} />
           </Layer>
           <Layer ref={uiLayerRef} listening={false}>
             <Shape
@@ -801,6 +880,11 @@ export function TilingCanvas({
               listening={false}
               sceneFunc={(ctx) => drawPathPreview(ctx, tiling, viewRef.current, pathPreview, pulseRef.current)}
             />
+            <Shape
+              listening={false}
+              sceneFunc={(ctx) => drawTracePath(ctx, tiling, viewRef.current, paletteRef.current, tracePath, traceStatus)}
+            />
+            <Shape listening={false} sceneFunc={(ctx) => drawBurst(ctx, tiling, viewRef.current, burstRef.current)} />
             <Shape
               listening={false}
               sceneFunc={(ctx) => drawSelection(ctx, tiling, viewRef.current, paletteRef.current, selectedSet)}
@@ -1025,6 +1109,124 @@ function drawTiles(
       ctx.fillText(parts.join(' '), c.x, c.y + dy)
     }
   }
+}
+
+// Word game: draw a letter centred in each tile, sized to the tile's inscribed circle so a small
+// triangle and a big dodecagon both stay framed. Upright (screen space), culled to the viewport, and
+// hidden when it'd be too small to read (zoom in). Inked in pal.edge — black on the white plane, white
+// when inverted — so it always contrasts the fill.
+function drawLetters(
+  ctx: Konva.Context,
+  tiling: Tiling,
+  view: View,
+  size: Size,
+  pal: Palette,
+  letters: ReadonlyMap<string, string> | undefined,
+): void {
+  if (!letters || letters.size === 0) return
+  const margin = representativeTileSize(tiling)
+  const a = screenToWorld({ x: 0, y: 0 }, view)
+  const b = screenToWorld({ x: size.width, y: size.height }, view)
+  const minX = Math.min(a.x, b.x) - margin
+  const maxX = Math.max(a.x, b.x) + margin
+  const minY = Math.min(a.y, b.y) - margin
+  const maxY = Math.max(a.y, b.y) + margin
+  ctx.setAttr('textAlign', 'center')
+  ctx.setAttr('textBaseline', 'middle')
+  ctx.setAttr('fillStyle', pal.edge)
+  let lastFont = ''
+  for (const node of tiling.nodes) {
+    const c = node.centroid
+    if (c.x < minX || c.x > maxX || c.y < minY || c.y > maxY) continue
+    const ch = letters.get(node.id)
+    if (!ch) continue
+    const px = Math.round(inscribedRadius(node) * view.scale * 1.296)
+    if (px < 6) continue // too small to read at this zoom
+    const font = `700 ${px}px ${pal.mono}`
+    if (font !== lastFont) {
+      ctx.setAttr('font', font)
+      lastFont = font
+    }
+    const s = worldToScreen(c, view)
+    ctx.fillText(ch, s.x, s.y)
+  }
+}
+
+// Word game: draw the current trace path — each tile tinted + outlined, joined by a line through the
+// centroids — coloured by status (active / a valid word / a bad attempt). A highlight only; the overlay
+// is never touched.
+function drawTracePath(
+  ctx: Konva.Context,
+  tiling: Tiling,
+  view: View,
+  pal: Palette,
+  tracePath: ReadonlyArray<string> | undefined,
+  status: 'active' | 'word' | 'bad',
+): void {
+  if (!tracePath || tracePath.length === 0) return
+  const color = status === 'word' ? '#2e9e5b' : status === 'bad' ? '#d64545' : pal.accent
+  for (const id of tracePath) {
+    const node = nodeById(tiling, id)
+    if (!node) continue
+    traceTile(ctx, node.vertices, view)
+    ctx.save()
+    ctx.setAttr('globalAlpha', 0.22)
+    ctx.setAttr('fillStyle', color)
+    ctx.fill()
+    ctx.restore()
+    ctx.setAttr('strokeStyle', color)
+    ctx.setAttr('lineWidth', 2)
+    ctx.stroke()
+  }
+  if (tracePath.length >= 2) {
+    ctx.beginPath()
+    let started = false
+    for (const id of tracePath) {
+      const node = nodeById(tiling, id)
+      if (!node) continue
+      const p = worldToScreen(node.centroid, view)
+      if (started) ctx.lineTo(p.x, p.y)
+      else {
+        ctx.moveTo(p.x, p.y)
+        started = true
+      }
+    }
+    ctx.setAttr('strokeStyle', color)
+    ctx.setAttr('lineWidth', 3)
+    ctx.setAttr('lineJoin', 'round')
+    ctx.setAttr('lineCap', 'round')
+    ctx.stroke()
+  }
+}
+
+// Word game: the release burst. Each just-submitted tile flies outward from the word's centre, grows,
+// and fades over BURST_MS — green when the word was accepted, red when rejected. Time-driven off
+// performance.now() (the rAF in the burst effect calls batchDraw each frame); returns early once faded.
+function drawBurst(
+  ctx: Konva.Context,
+  tiling: Tiling,
+  view: View,
+  burst: { ids: ReadonlyArray<string>; start: number; kind: 'good' | 'bad' } | null,
+): void {
+  if (!burst) return
+  const p = Math.min(1, (performance.now() - burst.start) / BURST_MS)
+  const alpha = 1 - p
+  if (alpha <= 0) return
+  const ease = 1 - (1 - p) * (1 - p) // ease-out
+  const scale = 1 + ease * 0.22 // a slight grow around each tile's own centre while it fades
+  const color = burst.kind === 'good' ? '#2e9e5b' : '#d64545'
+  ctx.save()
+  ctx.setAttr('globalAlpha', alpha)
+  ctx.setAttr('fillStyle', color)
+  for (const id of burst.ids) {
+    const node = nodeById(tiling, id)
+    if (!node) continue
+    const c = node.centroid
+    const verts = node.vertices.map((v) => ({ x: c.x + (v.x - c.x) * scale, y: c.y + (v.y - c.y) * scale }))
+    traceTile(ctx, verts, view)
+    ctx.fill()
+  }
+  ctx.restore()
 }
 
 // A single selected tile is drawn slightly enlarged with a strong outline (the focused look). A

@@ -8,6 +8,7 @@ import { Canvas } from './pages/Canvas'
 import { Gallery } from './pages/Gallery'
 import { Guide } from './pages/Guide'
 import { Tutorial } from './pages/Tutorial'
+import { DailyGame } from './pages/DailyGame'
 
 const PAGES = {
   landing: Landing,
@@ -15,6 +16,7 @@ const PAGES = {
   gallery: Gallery,
   guide: Guide,
   tutorial: Tutorial,
+  daily: DailyGame,
 } as const
 
 function App() {
@@ -31,7 +33,7 @@ function App() {
     () => chapterIdFromHash(window.location.hash) !== null,
     () => false,
   )
-  const canvasLike = route === 'canvas' || (route === 'tutorial' && inChapter)
+  const canvasLike = route === 'canvas' || route === 'daily' || (route === 'tutorial' && inChapter)
 
   return (
     <div className={canvasLike ? 'app app-canvas' : 'app'}>

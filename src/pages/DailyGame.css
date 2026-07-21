@@ -1,0 +1,248 @@
+/* Daily word game. Mobile: canvas on top, pane below, page scrolls (like the rest of the app on
+   phones). Desktop: break out to the full viewport and sit the pane beside the board, filling the
+   height (mirrors .canvas-page — see .app-canvas in App.css). */
+.daily {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 0.75rem;
+}
+
+@media (min-width: 64rem) {
+  .daily {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0.75rem;
+    width: calc(100vw - 2rem);
+    margin-left: 50%;
+    transform: translateX(-50%);
+    height: 100%;
+  }
+}
+
+/* Hosts the Konva canvas (which fills it at 100%) plus the floating preview chip. */
+.daily-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 65vh;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+@media (min-width: 64rem) {
+  .daily-stage {
+    min-height: 0;
+    height: 100%;
+  }
+}
+
+/* The word-preview chip, floating at the top-centre of the board. */
+.daily-chip {
+  position: absolute;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 90%;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Live/submit states. good = a valid word (green); bad = a rejected attempt (red, pulses); dead = the
+   current letters can't complete into any word (dimmed); active = neutral / in progress. */
+.daily-chip--good {
+  border-color: #2e9e5b;
+  animation: daily-good-pop 0.35s ease;
+}
+.daily-chip--bad {
+  border-color: #d64545;
+  animation: daily-bad-pulse 0.4s ease 2;
+}
+.daily-chip--dead {
+  opacity: 0.6;
+}
+.daily-chip--good .daily-chip-val {
+  background: #2e9e5b;
+}
+.daily-chip--bad .daily-chip-val {
+  background: #d64545;
+}
+.daily-chip--dead .daily-chip-val {
+  background: var(--muted);
+}
+
+@keyframes daily-good-pop {
+  0% {
+    transform: translateX(-50%) scale(1);
+  }
+  40% {
+    transform: translateX(-50%) scale(1.06);
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+@keyframes daily-bad-pulse {
+  0% {
+    transform: translateX(-50%) scale(1);
+  }
+  30% {
+    transform: translateX(-50%) scale(1.08);
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .daily-chip--good,
+  .daily-chip--bad {
+    animation: none;
+  }
+}
+
+.daily-chip-word {
+  font-family: var(--mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg);
+}
+
+.daily-chip-val {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--surface);
+  background: var(--accent, #e2682a);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+  min-width: 1.4rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.daily-chip-empty {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* Pane */
+.daily-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.daily-meta {
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+
+/* A small, muted debug control (the whole page is hidden for now). */
+.daily-debug {
+  align-self: flex-start;
+  padding: 0.3rem 0.6rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.daily-debug:hover {
+  color: var(--fg);
+  border-color: var(--muted);
+}
+
+.daily-score {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.daily-score-num {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.daily-score-label {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.75rem;
+}
+
+.daily-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* Found-words list */
+.daily-found {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+}
+.daily-found-head {
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.daily-found-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 45vh;
+  overflow: auto;
+}
+.daily-found-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.daily-found-word {
+  font-family: var(--mono);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg);
+}
+.daily-found-val {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}

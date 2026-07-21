@@ -5,6 +5,8 @@ export type { View, Size, ReframeInput, ReframeResult } from './view'
 export { worldToScreen, screenToWorld, clampScale, zoomAt, panBy, fitToView, clampView, centerOn, reframeView } from './view'
 export { pointInPolygon, representativeTileSize, SpatialHash, pickTile, tilesInRect } from './pick'
 export { tilesAlongSegment } from './stroke'
+export { inscribedRadius } from './letters'
+export { extendTrace } from './traceStroke'
 export { flattenColor, inflatePolygon, FLUSH_OVERLAP_PX } from './flush'
 export type { TileState, Registry, PaintTarget, RegWrite } from './overlay'
 export {

@@ -730,6 +730,14 @@ existing.
   state as 0. Ranges stay literal-only (`[e1..e3]`). Recipe **schema v13 → v14** (additive no-op). Also fixed
   a latent write-target parse bug the change surfaced (a computed `put B.e(…)` scanner stopped at `(`). Pure
   changes across `src/dsl` + `src/traverse/lang`; Guide + Traversers/Predicate help updated. See §9.
+- **Side experiment — daily word game (hidden, started 2026-07-21):** a Boggle-like word game played ON a
+  tiling (drag across edge-touching lettered tiles to spell words), reachable ONLY at `#/daily` — no nav
+  link. **Deliberately kept OFF this roadmap / the §8 backlog** — it's a playground, not a committed
+  product direction; nothing else depends on it. Full planning context, the locked design decisions, and
+  the file map live in `docs/word-game-experiment.md`. Reuses the tiling engine + Konva canvas + one
+  `Panel`; adds a pure `src/wordgame/` module (board / dictionary / ENABLE word list / submit rules), a
+  `'trace'` drag mode + `letters`/`tracePath`/`burst` props on `TilingCanvas`, and the hidden route. Owner
+  has played + approved the feel; not otherwise tracked here on purpose.
 - **Next up:** **`exploroboros.io` custom domain** (register + attach — §8) → more **tutorial chapters**
   (initial-state / export-share next) → **DSL-driven traversers** (custom rules in the Traversers pane —
   paint/move/visit/split/guards/state, §5; reuses the predicate DSL) → **persist user exports across

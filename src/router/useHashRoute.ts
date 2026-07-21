@@ -4,7 +4,8 @@ import { useSyncExternalStore } from 'react'
 // fragment like #/canvas, so static hosting (Vercel) needs no SPA rewrite.
 // Swap for a real router (e.g. react-router) if we later need nested routes,
 // the history API, or data loaders.
-export type Route = 'landing' | 'canvas' | 'gallery' | 'guide' | 'tutorial'
+// 'daily' is the (currently hidden) daily word game — reachable by typing #/daily; no Nav link yet.
+export type Route = 'landing' | 'canvas' | 'gallery' | 'guide' | 'tutorial' | 'daily'
 
 const PATHS: Record<Route, string> = {
   landing: '#/',
@@ -12,6 +13,7 @@ const PATHS: Record<Route, string> = {
   gallery: '#/gallery',
   guide: '#/guide',
   tutorial: '#/tutorial',
+  daily: '#/daily',
 }
 
 export function hrefFor(route: Route): string {
@@ -61,6 +63,7 @@ function parse(hash: string): Route {
   if (path.startsWith('gallery')) return 'gallery'
   if (path.startsWith('guide')) return 'guide'
   if (path.startsWith('tutorial')) return 'tutorial'
+  if (path.startsWith('daily')) return 'daily'
   return 'landing'
 }
 
