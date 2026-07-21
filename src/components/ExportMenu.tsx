@@ -213,8 +213,8 @@ export function ExportMenu({ tilingId, tiling, liveGridN, seeds, baseOverlay, pr
                 how finely to tile that canvas: set the tile size, or set the tile counts directly for an
                 exact (even or uneven) grid. Editing one re-derives the other, which then shows a{' '}
                 <strong>~</strong>. The grid’s own <strong>chain</strong> keeps its width and height in the
-                same ratio. Only the square tiling can truly go rectangular; other tilings average the two
-                into one size.
+                same ratio. The square tiling uses your exact width and height counts; other tilings are fit
+                to the frame’s shape, so the pattern fills the whole image at any ratio.
               </p>
               <p>
                 Export runs in the background — a thumbnail appears in the corner with a spinner; the X

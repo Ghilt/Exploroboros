@@ -738,6 +738,20 @@ existing.
   `Panel`; adds a pure `src/wordgame/` module (board / dictionary / ENABLE word list / submit rules), a
   `'trace'` drag mode + `letters`/`tracePath`/`burst` props on `TilingCanvas`, and the hidden route. Owner
   has played + approved the feel; not otherwise tracked here on purpose.
+- **Fix — a lopsided export of a non-square tiling now FILLS the frame instead of a floating square patch
+  (2026-07-21):** exporting any non-square tiling at a lopsided resolution (2:1, 1:8, …) letterboxed the
+  tiling as a small centered square (~12% of the image) — the reported bug (hit hexagon/kalleboda AND
+  triangular; the "triangle works" impression didn't hold up — all non-square tilings were equally broken).
+  Cause: only `squareTiling` honours two independent tile counts; every other generator takes one scalar
+  count and clips tiles into a SQUARE region, so `buildTiling` averaged the two axes → a square patch that
+  contain-fit into the lopsided canvas. Fix (owner picked "fill the frame" over crop-to-cover / lock-to-square):
+  for a lopsided request, build the generator's square patch at the **longer** axis count, then
+  `cropTilingToAspect` (new pure `src/tiling/crop.ts`) keeps the centered largest-w:h rectangle of tiles and
+  **re-stitches** the subset (`stitch` is generic → valid adjacency/boundary/bounds; ids preserved). Works for
+  all 17 non-square tilings incl. aperiodic penrose/hat. A **square request (w===h) skips the crop**, so every
+  live grid + square export is unchanged. No recipe/schema change (a build-time layout fix; nothing stored).
+  Verified via the app's own renderer: hexagon 1:8 went from a ~250px centred square (12% fill) to 86%×88%
+  frame coverage; all non-square tilings now fill 64–90%. ExportMenu help text updated. See §9.
 - **Next up:** **`exploroboros.io` custom domain** (register + attach — §8) → more **tutorial chapters**
   (initial-state / export-share next) → **DSL-driven traversers** (custom rules in the Traversers pane —
   paint/move/visit/split/guards/state, §5; reuses the predicate DSL) → **persist user exports across
@@ -856,6 +870,7 @@ existing.
 | 2026-07-16 | **Fix — a tile showed two "orientation" fields in Inspect (naming collision).** The owner's rhombille directive `if orientation != 0 and orientation.target != 0 always forbid move` wasn't blocking an apparent orientation-1 → orientation-2 move. Root-caused (no guessing) with a headless engine trace: the directive is CORRECT — a walker whose real DSL `orientation` is 1 is blocked from every orientation-2 destination. The bug was that Inspect showed the word "orientation" TWICE with different values — the geometry-derived DSL `orientation` attribute (what rules read) AND a per-tiling lattice-discriminator coordinate that the rhombille + triangular generators also labelled "orientation" (rhombille lattice `0/1/2` = DSL orientation `2/0/1`), so the owner read one and the rule read the other. Fix: renamed the two colliding lattice labels (rhombille → `face`, triangular → `facing`); `latticeLabels` is display-only (`coordinate[n]` reads by INDEX), so tile ids / recipes / gallery are untouched. New guard test asserts no tiling's `latticeLabels` collides with a fixed Inspect row. No recipe/schema change. | ✅ yes | owner reviewed the plain-language diagnosis + fix on this worktree's preview (5588, footer `confident-gates-713283`) and said "looks good please commit". Backed by build / lint / **1068 tests** (+18: the reserved-Inspect-label guard across all 18 tilings) + a throwaway headless engine probe that proved the class→DSL-orientation map (`0/1/2`→`2/0/1`) and that the directive forbids every orientation-2 destination from a real DSL-orientation-1 tile, and a served-source check on 5588 confirming the renamed labels are live. The on-canvas Inspect rendering is the owner's device pass — the preview tab is `document.hidden` (§9), so the Konva stage never mounts headlessly. | — |
 | 2026-07-17 | **Tile-identity comparison — compare two tile references by identity (`target != straight`).** Bare tile terms (`target` / `straight` / `back` / `nearest-unvisited` / `eN` / `rN` / `lN` / `tile N` / `fN`, chainable like `target.e1`) compared with `==` / `!=` only; `e0 == e3` asks whether two edges reach the same neighbour. An unresolved operand (a relative hop off the grid edge, or a relative/`target` hop in walker-free coloring) → **false for BOTH ops**, so a directive goes *vacuous* at a boundary rather than forbidding everything (owner's call; `exists.straight and target != straight` halts there). New pure `tilecmp` `Pred` leaf (operands reuse `TilePath`) threaded through parse / serialize / eval / the four `target.ts` analysis walkers / `resolveRefs` + the visual-editor static chip; recipe schema v12→v13 (additive no-op). | ✅ yes | owner verified on this worktree's preview (5386, footer `sleepy-goldwasser-b35522`) and said "looks good please commit! verified". Backed by build / lint / **1082 tests** (new: parse round-trip + no-hijack + rejections, eval same/different/off-grid-vacuous, `predReadsTarget`/`predIsAbsolute`/`predFoundIndices` on tilecmp, 3 live exec directives, v12→v13 migration) + a live in-runtime check on 5386 that dynamic-imported the app's own DSL: all 5 forms parse to `tilecmp` and serialize byte-stable, `visited.target == 0` / `tile-number.target != …` stay `compare` (no hijack), the three rejections give the right messages, AND driving the real engine confirmed `target != straight` keeps only the straight move, the `target == straight` own-guard filters per candidate, and the east-boundary case goes vacuous (both turns survive). The on-canvas visual (a walker going straight-only) was the owner's device pass — the preview tab is `document.hidden` (§9), so the Konva stage doesn't mount headlessly. | — |
 | 2026-07-20 | **Computed (expression) numbered references + `tN` shorthand.** Every numbered reference `eN`/`rN`/`lN`/`fN`/`tN` also accepts a parenthesized numeric EXPRESSION in the number slot (`move r(steps % 2)`, `e(orientation + orientation.e2)`, `l(A + B.e0)`, `f([A, B, visited.r2.r2]:max)`, `.e(orientation)`, `.t(steps + 1)`), resolved to an integer at eval time (round to nearest). `tile N` shortened to `tN` (legacy `tile N` still parses → re-serializes `tN`); `r0`/`l0` valid (= `straight`); `tN`/`t(expr)` is a move-chain base like `fN` (`move t5` jumps to the absolute tile). Number slot widened to `EdgeAmount = number \| Expr` on `PathSeg`+`EdgeRef`; an `AmountEval` callback threads per-hop context through `resolveRef`/`resolveChain`/`walkChain`; `target.ts` analysis + serializers recurse into amounts; ranges stay literal-only. Recipe schema v13→v14 (additive no-op). Also fixed a latent computed-write-target parse bug. | ✅ yes | owner tried it on this worktree's preview (5568, footer `traverser-compile-error-badge-ca6051`), first reported `move t(steps)` didn't compile (fixed — `tN` is a tile ADDRESS/base like `fN`, not an edge hop, so it needed adding to the move-chain grammar), then re-tested and said "works well! please commit". Backed by build / lint / **1101 tests** (new `computed-refs.test.ts` — parse/serialize round-trips of all owner examples + `tN`/legacy-`tile N`/`r0`/`l0`/`move tN`, engine resolution `r(steps % 2)` alternates + `e(orientation)` + `move t5` jumps + out-of-range → no move + fractional rounds + range rejects; `target.test` computed-amount absolute/target/found cases; recipe v13→v14; scanPaths paren cases; serialize.test tile→tN) + a live in-runtime check on 5568 that dynamic-imported the app's own parser/engine: all owner examples parse + round-trip byte-stable and drive the real engine correctly (`r(steps%2)` straight→right by step, `e(orientation)`→e0, `move t5`→tile #5, `move t(steps)` same), `tile 5`→`t5`, `r0`/`l0`/`t(steps+1)==straight` resolve, computed range rejected, console clean. On-canvas visual (typing in the editor, watching the walker) was the owner's device pass. | — |
+| 2026-07-21 | **Fix — a lopsided export of a non-square tiling now FILLS the frame (was a small floating square patch).** Exporting any non-square tiling at a lopsided resolution (2:1, 1:8, …) letterboxed the tiling as a ~12%-of-frame centered square. Cause: only `squareTiling` honours two independent counts; every other generator takes ONE scalar count into a SQUARE region, so `buildTiling` averaged the two axes → a square patch contain-fit into the lopsided canvas. Fix (owner picked "fill the frame"): for a lopsided request build the square patch at the LONGER axis count, then `cropTilingToAspect` (new pure `src/tiling/crop.ts`) keeps the centered largest-w:h rectangle of tiles and **re-stitches** the subset (generic `stitch` → valid adjacency/boundary/bounds, ids preserved); covers all 17 non-square tilings incl. aperiodic penrose/hat. A **square request (w===h) skips the crop**, so every live grid + square export is byte-identical to before. No recipe/schema change (build-time layout). ExportMenu help text + §6/§9 updated. | ✅ yes | owner said "looks good please commit" after the plain-language before/after + repro steps on this worktree's preview (5553, footer `cool-cray-0d53f1`); the reported "triangle works" impression was shown NOT to hold up (triangular filled the same ~12% as hexagon/kalleboda — one bug across all non-square tilings). Backed by build / lint / **1103 tests** (buildTiling: square-request-identical, lopsided-crops-to-aspect, and every non-square tiling incl. penrose/hat fills a 4:1 frame) + a live in-runtime check on 5553 through the app's OWN `buildTiling`+`pickCanvasSize`+`renderToCanvas`: non-square tilings went from ~12% frame fill to 64–90%, and a real rendered hexagon 1:8 export covers 86%×88% of the frame (was a ~250px centred square). The exported PNG's on-device appearance was the owner's visual pass — this preview tab is `document.hidden` (§9), so the Konva stage never mounts + `screenshot` times out headlessly. | — |
 
 ## 8. Todo list (working backlog)
 
@@ -1177,7 +1192,8 @@ Hard-won; read before fighting the tooling again.
 - `src/tiling/` — the pure, isomorphic engine (no React/DOM/canvas, no pixels). `types.ts`,
   `geometry.ts`, `shapes.ts`, `stitch.ts` (the shared edge-detection step), `graph.ts` (queries),
   `orientation.ts` (memoized rotational-variant index), `numbering.ts` (the **tile numbering scheme** —
-  see the note below), `generators/` (one per tiling). Public API via `src/tiling/index.ts` — import from there.
+  see the note below), `crop.ts` (`cropTilingToAspect` — re-stitch a subset for a lopsided export, see the
+  note below), `generators/` (one per tiling). Public API via `src/tiling/index.ts` — import from there.
 - `src/components/TilingCanvas.tsx` — the **live** interactive Konva renderer; the ONLY file that
   imports `konva`/`react-konva`. **Interaction:** tap = inspect a tile (always), two-finger (touch) /
   middle-mouse drag = pan, pinch / wheel = zoom. A one-finger **drag** depends on the `dragMode` prop
@@ -1245,8 +1261,10 @@ Hard-won; read before fighting the tooling again.
   changes only on a direct edit, never shows `~`); pixels-per-tile and the grid width/height are two views of
   fitting that same fixed resolution — editing either re-derives the other (marked `~`), and the grid's own
   chain-lock keeps ITS width:height in ratio independently of the resolution's lock, so e.g. the square tiling
-  (the only generator honest about a rectangular grid — others average width/height into one count) can hold
-  an exact, deliberately uneven tile count like 84×85. `ExportStrip` is the
+  can hold an exact, deliberately uneven tile count like 84×85. The square tiling honours both counts directly
+  (rows×cols); every other tiling takes ONE scalar count, so `buildTiling` builds its square patch at the
+  LONGER axis and **crops it to the requested w:h rectangle** (`cropTilingToAspect`, see the buildTiling note)
+  so a lopsided export still FILLS the frame instead of a square patch adrift in the middle. `ExportStrip` is the
   bottom-right thumbnail strip: a job shows first as a **running** placeholder (dashed + pulsing, a spinner
   where the download button will be, **not clickable**, X = cancel), then flips to **done** (the real
   thumbnail — clickable to view, download + remove); a grid chip returns from the viewer. `ImageViewer` is the
@@ -2040,6 +2058,24 @@ pattern (one tile per step) at that many tiles — a `find-lowest-tile` walker o
 Rule: the `max-steps` default must stay **≥** the `runToCompletion` `maxTicks` so the tick cap (the surfaced
 one) always binds first; if you ever raise `maxTicks`, raise this too. `max-steps = N` in a program is still a
 legitimate way to retire a walker early ON PURPOSE (that's a chosen stop, correctly not flagged as incomplete).
+
+**A lopsided export fills the frame for EVERY tiling, via crop-and-re-stitch — not just the square**
+(`buildTiling`, 2026-07-21). The export canvas is the exact pixel resolution you pick, so a 1:8 or 2:1
+request needs a tiling whose bounds match that aspect or it letterboxes (contain-fit) as a small square
+patch adrift in the middle (the reported bug — hit EVERY non-square tiling, triangular included, ~12% frame
+fill). Only `squareTiling(rows, cols)` honours two independent counts directly; every OTHER generator
+(`SCALAR_GENERATORS` in `buildTiling.ts`) takes ONE scalar count and lays tiles into a SQUARE region clipped
+by centroid. Fix: for a lopsided request `buildTiling` builds the square patch at the **longer** of the two
+axis counts (`max(w, h)` — was `round((w+h)/2)`, so enough tiles along the long axis), then
+`cropTilingToAspect` (`src/tiling/crop.ts`) keeps the centered largest-w:h-rectangle of tiles and
+**re-stitches** the subset into a fresh Tiling. `stitch` is fully generic, so the kept subset rebuilds valid
+adjacency + boundary edges + bounds; tile ids/lattice are preserved. Works for the aperiodic penrose/hat too
+(they also clip a centroid-square centered at origin). **A square request (`w === h`) skips the crop
+entirely** — so every LIVE grid (always a single count) and every square export is byte-identical to before;
+only lopsided exports changed. Cost: a lopsided export over-builds then crops (up to ~8× tiles for 1:8) —
+fine for reasonable exports, one-off in the worker. Verified via the real renderer: hexagon 1:8 went from a
+~250px centred square (12% fill) to 86%×88% frame coverage. Don't reintroduce the average-into-one-count — it
+was never about the region shape, only about having one scalar knob.
 
 **Flush tiles (no-edge mode) — a 1px stroke is NOT enough.** Two adjacent anti-aliased polygon fills only
 partially cover their shared boundary pixels, and sequential alpha-compositing leaks ~25% of the background

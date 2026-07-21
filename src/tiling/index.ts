@@ -31,6 +31,7 @@ export type { NumberingScheme } from './numbering'
 export { oppositeSides, interiorAngleDeg, makeShapeDef, SQUARE } from './shapes'
 export { stitch } from './stitch'
 export type { StitchOptions } from './stitch'
+export { cropTilingToAspect } from './crop'
 export {
   nodeById,
   sideToEdge,
